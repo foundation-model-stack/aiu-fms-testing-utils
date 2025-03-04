@@ -23,9 +23,9 @@ class LogitsExtractorHook(Callable[[int, torch.Tensor, torch.Tensor, MutableMapp
 
 class StaticTokenInjectorHook(Callable[[int, torch.Tensor, torch.Tensor, MutableMapping[str, Any]], Tuple[torch.Tensor, MutableMapping[str, Any]],]):
 
-    def __init__(self, static_tokens: List[torch.Tensor]):
+    def __init__(self, static_tokens: List[torch.Tensor], device_type: str="cpu"):
         super().__init__()
-        self.static_tokens = torch.tensor(static_tokens).t() # transposing so batch tokens per token_position
+        self.static_tokens = torch.tensor(static_tokens, device=device_type).t() # transposing so batch tokens per token_position
 
     def __call__(self, token_position: int, logits: torch.Tensor, next_val: torch.Tensor, kwargs):
         next_val.copy_(self.static_tokens[token_position].unsqueeze(1))
@@ -33,11 +33,11 @@ class StaticTokenInjectorHook(Callable[[int, torch.Tensor, torch.Tensor, Mutable
 
 class GoldenTokenHook(Callable[[int, torch.Tensor, torch.Tensor, MutableMapping[str, Any]], Tuple[torch.Tensor, MutableMapping[str, Any]],]):
 
-    def __init__(self, static_tokens: torch.Tensor):
+    def __init__(self, static_tokens: torch.Tensor, device_type: str="cpu"):
         super().__init__()
         self.logits_extractor = LogitsExtractorHook()
         self.extracted_logits = None
-        self.token_injector = StaticTokenInjectorHook(static_tokens)
+        self.token_injector = StaticTokenInjectorHook(static_tokens, device_type=device_type)
 
     def __call__(self, token_position: int, logits: torch.Tensor, next_val: torch.Tensor, kwargs):
         next_val, kwargs = self.logits_extractor(token_position, logits, next_val, kwargs)
@@ -244,27 +244,58 @@ def validate_level_0(aiu_tokens_per_sentence, validation_tokens_per_sentence):
                 failed_cases.append((sentence_idx, token_idx))
     return failed_cases
 
-def validate_level_1(aiu_logits_per_sentence, validation_logits_per_sentence, logits_loss_threshold):
-    failed_cases = []
+def top_k_loss_calculator(top_k: int, loss_f: Callable[[torch.Tensor, torch.Tensor], float]):
+    """
+    Function which will take the top_k logits indexes / values from a reference validation info and retrieve the same indexes from the test validation info logits
+    and perform a loss function over the 2 tensors
 
-    for sentence_idx, (aiu_sentence, validation_sentence) in enumerate(
-            zip(validation_logits_per_sentence, aiu_logits_per_sentence)
+    :param top_k: number of values to take from reference
+    :param loss_f: a loss function between the reference and test logits
+    """
+    def loss_func(reference_logits, test_logits):
+        reference_logits_prob = reference_logits.to(dtype=torch.float32)
+        test_logits_prob = test_logits.to(dtype=torch.float32)
+
+        reference_values, reference_indices = torch.topk(reference_logits_prob, top_k, dim=1)
+        test_values = test_logits_prob[:, reference_indices.squeeze(0)]
+
+        return loss_f(reference_values, test_values)
+    return loss_func
+
+
+def capture_level_1_metrics(reference_logits_per_sentence, test_logits_per_sentence, metrics_calculator=None):
+    loss_metrics = []
+
+    for sentence_idx, (reference_sentence, test_sentence) in enumerate(
+            zip(reference_logits_per_sentence, test_logits_per_sentence)
     ):
-        for token_idx, (aiu_logits, validation_logits) in enumerate(
-                zip(aiu_sentence, validation_sentence)
+        for token_idx, (reference_logits, test_logits) in enumerate(
+                zip(reference_sentence, test_sentence)
         ):
             # computing cross entropy loss per token
-            loss_fn = torch.nn.CrossEntropyLoss()
-            loss_value = loss_fn(
-                aiu_logits.to(dtype=torch.float32).softmax(dim=1),
-                validation_logits.to(dtype=torch.float32).softmax(dim=1)
-            )
-            if loss_value > logits_loss_threshold:
-                print(
-                    f"In sentence {sentence_idx+1}/{len(aiu_logits_per_sentence)}, the mean cross entropy loss for token {token_idx} is {loss_value.item()} > {logits_loss_threshold}"
+            if metrics_calculator is None:
+                loss_fn = torch.nn.CrossEntropyLoss()
+                metrics_value = loss_fn(
+                    reference_logits.to(dtype=torch.float32),
+                    test_logits.softmax(dim=1).to(dtype=torch.float32)
                 )
-                failed_cases.append((sentence_idx, token_idx))
+            else:
+                metrics_value = metrics_calculator(reference_logits, test_logits)
+
+            loss_metrics.append((sentence_idx, token_idx, metrics_value))
+
+    return loss_metrics
+    
+def filter_failed_level_1_cases(level_1_loss_metrics, fail_f):
+    failed_cases = []
+    for (sentence_idx, token_idx, metrics_value) in level_1_loss_metrics:
+        if fail_f(metrics_value):
+            failed_cases.append((sentence_idx, token_idx, metrics_value))
+            print(
+                f"In sentence {sentence_idx+1}, the metric for token {token_idx} is {metrics_value}"
+            )
     return failed_cases
+
 
 def print_failed_cases(failed_cases, aiu_tokens, validation_tokens, tokenizer):
     for sentence_index, token_index in failed_cases:

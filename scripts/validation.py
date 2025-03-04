@@ -19,7 +19,7 @@ from fms.utils import fusion, generation, tokenizers
 from fms.utils.generation import generate, pad_input_ids
 from torch import distributed as dist
 from aiu_fms_testing_utils.utils import warmup_model
-from aiu_fms_testing_utils.testing.validation import LogitsExtractorHook, extract_validation_information, StaticTokenInjectorHook, GoldenTokenHook, validate_level_0, validate_level_1, load_validation_information, print_failed_cases
+from aiu_fms_testing_utils.testing.validation import LogitsExtractorHook, capture_level_1_metrics, extract_validation_information, StaticTokenInjectorHook, GoldenTokenHook, filter_failed_level_1_cases, validate_level_0, load_validation_information, print_failed_cases
 from aiu_fms_testing_utils.utils import aiu_setup
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, rank, local_rank, world_size
 
@@ -711,7 +711,12 @@ aiu_static_tokens = aiu_validation_info.get_info("tokens")
 if args.validation_level == 0:
     failed_cases = validate_level_0(aiu_static_tokens, static_tokens)
 else:
-    failed_cases = validate_level_1(aiu_validation_info.get_info("logits"), validation_info.get_info("logits"), args.logits_loss_threshold)
+    level_1_metrics = capture_level_1_metrics(
+        validation_info.get_info("logits"),
+        aiu_validation_info.get_info("logits")
+    )
+
+    failed_cases = filter_failed_level_1_cases(level_1_metrics, lambda m: m >= args.logits_loss_threshold)
 
 validation_passed = len(failed_cases) == 0
 

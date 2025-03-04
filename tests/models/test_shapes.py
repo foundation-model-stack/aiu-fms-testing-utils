@@ -3,7 +3,7 @@ from fms.models import get_model
 from fms.utils.generation import generate, pad_input_ids
 import itertools
 import torch
-from aiu_fms_testing_utils.testing.validation import extract_validation_information, LogitsExtractorHook, GoldenTokenHook, validate_level_1, print_failed_cases, validate_level_0
+from aiu_fms_testing_utils.testing.validation import extract_validation_information, LogitsExtractorHook, GoldenTokenHook, capture_level_1_metrics, filter_failed_level_1_cases, validate_level_0
 from aiu_fms_testing_utils.utils import warmup_model, aiu_setup
 from torch_sendnn import backends
 import os
@@ -98,12 +98,13 @@ def test_common_shapes(model_path, batch_size, seq_length, max_new_tokens):
             only_last_token=True,
             **padding_kwargs
         )
-
-        failed_responses = validate_level_1(
+        
+        level_1_metrics = capture_level_1_metrics(
             cpu_validation_info.get_info("logits"),
-            aiu_validation_info.get_info("logits"),
-            64.0
+            aiu_validation_info.get_info("logits")
         )
+
+        failed_responses = filter_failed_level_1_cases(level_1_metrics, lambda m: m >= 64.0)
         assert len(failed_responses) == 0
         print("passed validation level 1")
     else:
