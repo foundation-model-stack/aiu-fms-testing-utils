@@ -286,14 +286,15 @@ def capture_level_1_metrics(reference_logits_per_sentence, test_logits_per_sente
 
     return loss_metrics
     
-def filter_failed_level_1_cases(level_1_loss_metrics, fail_f):
+def filter_failed_level_1_cases(level_1_loss_metrics, fail_f, print_failed=False):
     failed_cases = []
     for (sentence_idx, token_idx, metrics_value) in level_1_loss_metrics:
         if fail_f(metrics_value):
             failed_cases.append((sentence_idx, token_idx, metrics_value))
-            print(
-                f"In sentence {sentence_idx+1}, the metric for token {token_idx} is {metrics_value}"
-            )
+            if print_failed:
+                dprint(
+                    f"In sentence {sentence_idx+1}, the metric for token {token_idx} is {metrics_value}"
+                )
     return failed_cases
 
 
@@ -304,4 +305,4 @@ def print_failed_cases(failed_cases, aiu_tokens, validation_tokens, tokenizer):
 
         aiu_str = tokenizer.convert_tokens_to_string(tokenizer.convert_ids_to_tokens(aiu_token))
         validation_str = tokenizer.convert_tokens_to_string(tokenizer.convert_ids_to_tokens(validation_token))
-        print(f"In sentence {sentence_index+1}/{len(aiu_tokens)}, token {token_index}, AIU outputs {aiu_token} instead of {validation_token} -- AIU val={aiu_str} != CPU val={validation_str}")
+        print(f"In sentence {sentence_index+1}/{len(aiu_tokens)}, token {token_index}, AIU outputs {aiu_token} instead of {validation_token} -- AIU val={aiu_str} -- CPU val={validation_str}")
