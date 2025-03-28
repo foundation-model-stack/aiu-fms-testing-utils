@@ -1,5 +1,7 @@
 # aiu-fms-testing-utils
 
+test
+
 ## Setup your environment
 
 In this directory, checkout the Foundation Model Stack (FMS) and the FMS Model Optimizer:
