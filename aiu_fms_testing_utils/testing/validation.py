@@ -3,7 +3,7 @@ from typing import List, Tuple, Callable, MutableMapping, Any, Optional
 
 import torch
 from fms.utils.generation import generate
-from aiu_fms_testing_utils.utils import ids_for_prompt
+from aiu_fms_testing_utils.utils import ids_for_prompt, _prepare_model_inputs_hook
 from aiu_fms_testing_utils.utils.aiu_setup import dprint
 import os
 
@@ -206,6 +206,7 @@ def extract_validation_information(model, input_ids, max_new_tokens, post_iterat
         timing=timing,
         contiguous_cache=True,
         extra_kwargs=extra_generation_kwargs,
+        prepare_model_inputs_hook=_prepare_model_inputs_hook
     )
 
     if timing != "":

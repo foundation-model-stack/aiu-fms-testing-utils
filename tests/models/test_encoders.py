@@ -105,3 +105,77 @@ def test_common_shapes(model_path, batch_size, seq_length):
     cpu_msp = ModelSignatureParams(validation_model, ["x"], logits_getter_fn=logits_getter_fn, inp=input_ids, other_params=padding_kwargs)
     # FIXME: Compute GPU atol/rtol
     compare_model_signatures(cpu_msp, aiu_msp, atol=0.1, rtol=.05)
+
+def test_warmup_multiple_shapes():
+    os.environ["COMPILATION_MODE"] = "offline"
+
+    if "HF_HOME" not in os.environ:
+        os.environ["HF_HOME"] = "/tmp/models/hf_cache"
+    
+    model_path = "deepset/roberta-base-squad2"
+    tokenizer = tokenizers.get_tokenizer(model_path)
+    
+    if os.path.exists(model_path):
+        model_path_kwargs = {"model_path": model_path}
+    else:
+        model_path_kwargs = {"variant": model_path}
+
+    
+    shapes = [
+        (1, 64),
+        (2, 64),
+        (1, 128),
+    ]
+
+    # prepare the AIU model
+    model = get_model(
+        architecture="hf_pretrained",
+        device_type="cpu",
+        fused_weights=False,
+        **model_path_kwargs
+    )
+
+    model.eval()
+    torch.set_grad_enabled(False)
+    model.compile(backend="sendnn")
+
+    # prepare the cpu model
+    reference_model = get_model(
+        architecture="hf_pretrained",
+        device_type="cpu",
+        data_type=torch.float32,
+        fused_weights=False,
+        **model_path_kwargs
+    )
+
+    # encoders should be using static shapes
+    with torch._dynamo.config.patch(
+        assume_static_by_default=True,
+        dynamic_shapes=False,
+        automatic_dynamic_shapes=False,
+        cache_size_limit=1000,
+    ):
+
+        for batch_size, seq_length in shapes:
+
+            # prepare input_ids
+            input_ids, padding_kwargs = __prepare_inputs(batch_size, seq_length, tokenizer)
+
+            # warmup model
+            logits_getter_fn = lambda x: x if isinstance(x, torch.Tensor) else torch.cat(list(x), dim=-1)
+            aiu_msp = ModelSignatureParams(model, ["x"], logits_getter_fn=logits_getter_fn, inp=input_ids, other_params=padding_kwargs)
+            get_signature(aiu_msp.model, aiu_msp.params, aiu_msp.inp, aiu_msp.other_params, aiu_msp.logits_getter_fn)
+        
+        for _ in range(3):
+            shapes.reverse()
+
+            for batch_size, seq_length in shapes:
+                logits_getter_fn = lambda x: x if isinstance(x, torch.Tensor) else torch.cat(list(x), dim=-1)
+                aiu_msp = ModelSignatureParams(model, ["x"], logits_getter_fn=logits_getter_fn, inp=input_ids, other_params=padding_kwargs)
+                get_signature(aiu_msp.model, aiu_msp.params, aiu_msp.inp, aiu_msp.other_params, aiu_msp.logits_getter_fn)
+
+                cpu_msp = ModelSignatureParams(reference_model, ["x"], logits_getter_fn=logits_getter_fn, inp=input_ids, other_params=padding_kwargs)
+                compare_model_signatures(cpu_msp, aiu_msp, atol=0.1, rtol=.05)
+
+
+    
