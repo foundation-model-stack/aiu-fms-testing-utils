@@ -1,0 +1,51 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a Java program the reads an XML file, parses it using the `javax.xml.parsers` package, and converts the XML data into a custom Java object.
+
+
+Answer:
+Here's a Java program that reads an XML file, parses it using the `javax.xml.parsers` package, and converts the XML data into a custom Java object:
+
+```java
+import java.io.File;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import org.w3c.dom.Document;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+
+public class XMLParser {
+    public static void main(String[] args) {
+        try {
+            File inputFile = new File("input.xml");
+            DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
+            DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
+            Document doc = dBuilder.parse(inputFile);
+            doc.getDocumentElement().normalize();
+            System.out.println("Root element:" + doc.getDocumentElement().getNodeName());
+            NodeList nList = doc.getElementsByTagName("person");
+            System.out.println("----------------------------");
+            for (int temp = 0; temp < nList.getLength(); temp++) {
+                Node nNode = nList.item(temp);
+                System.out.println("\nCurrent Element:" + nNode.getNodeName());
+                if (nNode.getNodeType() == Node.ELEMENT_NODE) {
+                    System.out.println("Name: " + nNode.getAttributes().getNamedItem("name").getNodeValue());
+                    System.out.println("Age: " + nNode.getAttributes().getNamedItem("age").getNodeValue());
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}
+```
+
+This program reads an XML file named "input.xml" and parses it using the `javax.xml.parsers` package. It then converts the XML data into a custom Java object by iterating through the XML elements and extracting the "name" and "age" attributes. The program prints the root element and the "name" and "age" attributes of each "person" element in the XML file.
+
+To use this program, you need to replace "input.xml" with the path to your XML file. You can also modify the program to convert the XML data into a different custom Java object by changing the code inside the `for` loop.
+
+System:
+Solve the following coding problem. Wrap

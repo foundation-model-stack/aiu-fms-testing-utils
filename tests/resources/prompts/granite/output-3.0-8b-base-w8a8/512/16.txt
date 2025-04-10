@@ -1,0 +1,75 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a SQL query that retrieves that top 3 most frequently purchased products from a `sales` table, with columns `product_id`, `quantity`, and `sale_date`.
+
+
+Answer:
+```sql
+SELECT product_id, SUM(quantity) as total_quantity
+FROM sales
+GROUP BY product_id
+ORDER BY total_quantity DESC
+LIMIT 3;
+```
+
+This query groups the sales by `product_id`, sums the `quantity` for each product, orders the results by the total quantity in descending order, and limits the output to the top 3 products.
+
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a Python function that takes a list of integers as input and returns the second largest number in the list.
+
+
+Answer:
+```python
+def second_largest(numbers):
+    largest = float('-inf')
+    second_largest = float('-inf')
+    for num in numbers:
+        if num > largest:
+            second_largest = largest
+            largest = num
+        elif num > second_largest and num != largest:
+            second_largest = num
+    return second_largest
+```
+
+This function initializes `largest` and `second_largest` to negative infinity. It then iterates through the list of numbers, updating `largest` and `second_largest` as needed. If a number is greater than `largest`, it becomes the new `largest` and the previous `largest` becomes the new `second_largest`. If a number is greater than `second_largest` but not equal to `largest`, it becomes the new `second_largest`. The function returns the final value of `second_largest`.
+
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a JavaScript function that takes a string as input and returns the string reversed.
+
+
+Answer:
+```javascript
+function reverseString(str) {
+    return str.split('').reverse().join('');
+}
+```
+
+This function splits the input string into an array of characters, reverses the array using the `reverse()` method, and then joins the array back into a string using the `join()` method. The function returns the reversed string.
+
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a C++ function that takes a string as input and returns the string reversed.
+
+
+Answer:
+```cpp
+#include <string>
+#include <algorithm>
+
+std::string reverseString(std::string str) {
+    std::reverse(str.begin

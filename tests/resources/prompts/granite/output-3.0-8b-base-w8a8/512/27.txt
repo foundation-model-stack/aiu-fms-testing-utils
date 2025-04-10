@@ -1,0 +1,41 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a Python decorator that caches the results of a function call based on its arguments, and returns the cached result for future calls with the same arguments.
+
+
+Answer:
+Here's a Python decorator that caches the results of a function call based on its arguments:
+
+```python
+def cache_results(func):
+    cache = {}
+    def wrapper(*args):
+        if args in cache:
+            return cache[args]
+        else:
+            result = func(*args)
+            cache[args] = result
+            return result
+    return wrapper
+```
+
+This decorator works by maintaining a cache dictionary that stores the results of previous function calls. When the decorated function is called, the decorator checks if the arguments are already in the cache. If they are, it returns the cached result. Otherwise, it calls the original function, stores the result in the cache, and returns the result.
+
+Here's an example of how to use this decorator:
+
+```python
+@cache_results
+def expensive_function(x, y):
+    # This function is expensive to compute
+    return x * y
+
+print(expensive_function(2, 3))  # Computes and caches the result
+print(expensive_function(2, 3))  # Returns the cached result
+```
+
+In this example, the `expensive_function` is decorated with `@cache_results`. The first time `expensive_function` is called with arguments `(2, 3)`, it computes the result and stores it in the cache. The second time it's called with the same arguments, it returns the cached result instead of recomputing it.
+
+This decorator can be used to cache the results of any function, not just expensive ones. It can be a useful tool for optimizing the performance of your code.<|endoftext|>

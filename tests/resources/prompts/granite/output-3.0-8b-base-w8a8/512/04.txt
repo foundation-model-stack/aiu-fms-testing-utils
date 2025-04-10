@@ -1,0 +1,60 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Implement a function in C++ that takes a 2D matrix and returns its transpose without any built-in functions.
+
+
+Answer:
+```cpp
+#include <iostream>
+using namespace std;
+
+int** transpose(int** matrix, int rows, int cols) {
+    int** transposed = new int*[cols];
+    for (int i = 0; i < cols; i++) {
+        transposed[i] = new int[rows];
+        for (int j = 0; j < rows; j++) {
+            transposed[i][j] = matrix[j][i];
+        }
+    }
+    return transposed;
+}
+
+int main() {
+    int rows = 3, cols = 3;
+    int** matrix = new int*[rows];
+    for (int i = 0; i < rows; i++) {
+        matrix[i] = new int[cols];
+        for (int j = 0; j < cols; j++) {
+            matrix[i][j] = i * cols + j;
+        }
+    }
+
+    int** transposed = transpose(matrix, rows, cols);
+
+    for (int i = 0; i < cols; i++) {
+        for (int j = 0; j < rows; j++) {
+            cout << transposed[i][j] << " ";
+        }
+        cout << endl;
+    }
+
+    for (int i = 0; i < rows; i++) {
+        delete[] matrix[i];
+    }
+    delete[] matrix;
+
+    for (int i = 0; i < cols; i++) {
+        delete[] transposed[i];
+    }
+    delete[] transposed;
+
+    return 0;
+}
+```
+
+This code defines a function `transpose` that takes a 2D matrix and its dimensions as input and returns its transpose. The function creates a new 2D matrix of the same dimensions and fills it with the transposed elements of the input matrix. The `main` function demonstrates how to use the `transpose` function with a sample 3x3 matrix.
+
+The code also includes memory management to free the memory allocated for the input and transposed matrices.<|endoftext|>

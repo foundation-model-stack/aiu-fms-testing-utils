@@ -1,0 +1,46 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Build a Python function that creates an inference pipeline for a transformer model using the HuggingFace `pipeline()` API, The function should classify input text into one of several predefined categories.
+
+
+Answer:
+```python
+from transformers import pipeline
+
+def create_inference_pipeline(model_name, category_labels):
+    # Create a pipeline for text classification
+    classifier = pipeline("text-classification", model=model_name, tokenizer=model_name, framework="pt")
+
+    # Define a function to classify input text
+    def classify_text(text):
+        # Classify the input text using the pipeline
+        result = classifier(text)
+
+        # Return the predicted category and its probability
+        return category_labels[result[0]["label"]], result[0]["score"]
+
+    return classify_text
+```
+
+In this solution, we first import the `pipeline` function from the `transformers` library. We then define a function `create_inference_pipeline` that takes two arguments: `model_name` and `category_labels`.
+
+The `model_name` argument is the name of the pre-trained transformer model to use for text classification. The `category_labels` argument is a list of category labels that correspond to the output classes of the model.
+
+Inside the `create_inference_pipeline` function, we create a pipeline for text classification using the `pipeline()` function from the `transformers` library. We pass in the `model_name` and `category_labels` arguments to specify the model and the output classes, respectively.
+
+We then define a nested function `classify_text` that takes a single argument `text`. This function uses the pipeline to classify the input text and returns the predicted category and its probability.
+
+Finally, we return the `classify_text` function from the `create_inference_pipeline` function. This allows the user to call the `classify_text` function with input text to get the predicted category and its probability.
+
+To use this function, the user would first need to install the `transformers` library and download the pre-trained transformer model. They could then call the `create_inference_pipeline` function with the name of the model and a list of category labels, like this:
+```python
+classifier = create_inference_pipeline("bert-base-uncased", ["positive", "negative"])
+predicted_category, probability = classifier("This is a positive sentence.")
+print(predicted_category, probability)
+```
+This would output the predicted category and its probability, like this:
+```
+positive 0.99999999999

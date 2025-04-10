@@ -1,0 +1,70 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a Julia function that performs matrix multiplication on two large matrices and utilizes Julia's `@distributed` macro to parallelize the computation across multiple CPU cores.
+
+
+Answer:
+```julia
+using Distributed
+
+function parallel_matrix_multiplication(A, B)
+    # Add workers
+    addprocs(Sys.CPU_CORES)
+
+    # Distribute matrices
+    A_dist = distribute(A)
+    B_dist = distribute(B)
+
+    # Perform matrix multiplication in parallel
+    C_dist = @distributed (+) for i in 1:size(A, 1)
+        row = zeros(size(B, 2))
+        for j in 1:size(B, 2)
+            for k in 1:size(A, 2)
+                row[j] += A_dist[i, k] * B_dist[k, j]
+            end
+        end
+        row
+    end
+
+    # Gather results
+    C = gather(C_dist)
+
+    # Remove workers
+    rmprocs(workers())
+
+    return C
+end
+```
+
+This function first adds the number of CPU cores as workers using `addprocs(Sys.CPU_CORES)`. It then distributes the input matrices `A` and `B` across the workers using `distribute(A)` and `distribute(B)`. The matrix multiplication is performed in parallel using the `@distributed` macro, which distributes the loop iterations across the workers. The results are gathered using `gather(C_dist)` and returned. Finally, the workers are removed using `rmprocs(workers())`.
+
+This function can be used to perform matrix multiplication on large matrices in parallel, utilizing Julia's distributed computing capabilities.
+
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a Julia function that performs matrix multiplication on two large matrices and utilizes Julia's `@distributed` macro to parallelize the computation across multiple CPU cores.
+
+
+Answer:
+```julia
+using Distributed
+
+function parallel_matrix_multiplication(A, B)
+    # Add workers
+    addprocs(Sys.CPU_CORES)
+
+    # Distribute matrices
+    A_dist = distribute(A)
+    B_dist = distribute(B)
+
+    # Perform matrix multiplication in parallel
+    C_dist = @distributed (+) for i in 1:size(A, 1)
+        row = zeros(size(B, 2))
+        for j in 1:size(B, 2)
+            for k in 1:size(A, 2)

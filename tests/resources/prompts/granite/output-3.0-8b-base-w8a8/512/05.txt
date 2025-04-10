@@ -1,0 +1,38 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a context manager in Python that logs the start and end time of any block of code executed within its context.
+
+
+Answer:
+```python
+import time
+import contextlib
+
+class Timer:
+    def __enter__(self):
+        self.start = time.time()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.end = time.time()
+        print(f"Block of code executed in {self.end - self.start} seconds")
+
+@contextlib.contextmanager
+def timer():
+    with Timer() as t:
+        yield t
+
+# Example usage:
+with timer() as t:
+    # Block of code to be timed
+    time.sleep(1)
+```
+
+This code defines a `Timer` class that implements the context manager protocol. The `__enter__` method is called when the context is entered, and it records the start time. The `__exit__` method is called when the context is exited, and it records the end time and prints the elapsed time.
+
+The `timer` function is a context manager that uses the `Timer` class to time a block of code. The `yield` statement is used to return the `Timer` object to the caller, so that it can be used to access the start and end times.
+
+The example usage shows how to use the `timer` function to time a block of code. In this case, the block of code is a `time.sleep(1)` statement, which sleeps for 1 second. The elapsed time is printed to the console.<|endoftext|>

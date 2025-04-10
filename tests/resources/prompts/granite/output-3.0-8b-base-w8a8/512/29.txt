@@ -1,0 +1,32 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write an ARM Assembly program to compute the sum of an array of integers and store the result in an register.
+
+
+Answer:
+```
+.global _start
+
+.data
+array: .word 1, 2, 3, 4, 5
+array_size: .word 5
+
+.text
+_start:
+    mov r1, #0  @ initialize sum to 0
+    mov r2, #0  @ initialize index to 0
+
+loop:
+    ldr r3, [array, r2, lsl #2]  @ load array[index] into r3
+    add r1, r1, r3  @ add array[index] to sum
+    add r2, r2, #1  @ increment index
+    cmp r2, [array_size]  @ compare index to array_size
+    blt loop  @ if index < array_size, go to loop
+
+    @ sum is now in r1
+```
+
+This ARM Assembly program computes the sum of an array of integers and stores the result in the register r1. The array is stored in the data section, and the size of the array is stored in the register array\_size. The program uses a loop to iterate through the array, adding each element to the sum stored in r1. The loop continues until the index is equal to the size of the array. The final sum is stored in r1.<|endoftext|>

@@ -1,0 +1,76 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Implement a basic stack data structure in C that supports `push`, `pop`, and `peep` operations. The stack should dynamically resize when more elements are added beyond its initial capacity.
+
+
+Answer:
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+#define INITIAL_CAPACITY 10
+
+typedef struct {
+    int *data;
+    int capacity;
+    int size;
+} Stack;
+
+Stack *create_stack() {
+    Stack *stack = (Stack *)malloc(sizeof(Stack));
+    stack->data = (int *)malloc(INITIAL_CAPACITY * sizeof(int));
+    stack->capacity = INITIAL_CAPACITY;
+    stack->size = 0;
+    return stack;
+}
+
+void push(Stack *stack, int value) {
+    if (stack->size == stack->capacity) {
+        stack->capacity *= 2;
+        stack->data = (int *)realloc(stack->data, stack->capacity * sizeof(int));
+    }
+    stack->data[stack->size++] = value;
+}
+
+int pop(Stack *stack) {
+    if (stack->size == 0) {
+        printf("Error: Stack is empty\n");
+        return -1;
+    }
+    return stack->data[--stack->size];
+}
+
+int peep(Stack *stack) {
+    if (stack->size == 0) {
+        printf("Error: Stack is empty\n");
+        return -1;
+    }
+    return stack->data[stack->size - 1];
+}
+
+void destroy_stack(Stack *stack) {
+    free(stack->data);
+    free(stack);
+}
+
+int main() {
+    Stack *stack = create_stack();
+
+    push(stack, 1);
+    push(stack, 2);
+    push(stack, 3);
+
+    printf("Peep: %d\n", peep(stack));
+    printf("Pop: %d\n", pop(stack));
+    printf("Peep: %d\n", peep(stack));
+
+    destroy_stack(stack);
+
+    return 0;
+}
+```
+
+This code defines a `Stack` struct with an array of integers, a capacity, and a size. The `create_stack` function initializes a new stack with an initial capacity of 10. The `push` function adds an element to the stack, resizing the array if necessary. The `pop` function removes and returns the top element from the stack, and the `peep` function returns the top element without removing

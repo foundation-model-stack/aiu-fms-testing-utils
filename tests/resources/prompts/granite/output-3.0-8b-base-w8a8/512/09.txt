@@ -1,0 +1,34 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Implement a Python function using `asyncio` to make multiple asynchronous web requests and return the first successful response, cancelling the rest.
+
+
+Answer:
+```python
+import asyncio
+import aiohttp
+
+async def fetch(session, url):
+    async with session.get(url) as response:
+        return await response.text()
+
+async def main(urls):
+    async with aiohttp.ClientSession() as session:
+        tasks = [fetch(session, url) for url in urls]
+        done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+        return [task.result() for task in done]
+
+urls = ["https://example.com", "https://example.org", "https://example.net"]
+print(asyncio.run(main(urls)))
+```
+
+This code defines an asynchronous function `fetch` that makes a GET request to a given URL using the `aiohttp` library. The `main` function creates a list of tasks for each URL, waits for the first task to complete, and returns the result. The `asyncio.run` function is used to run the `main` function and print the result.
+
+The `aiohttp` library is used to make asynchronous HTTP requests, and the `asyncio` library is used to manage the asynchronous tasks. The `asyncio.wait` function is used to wait for the first task to complete, and the `return_when=asyncio.FIRST_COMPLETED` argument is used to cancel the rest of the tasks.
+
+The `urls` list is an example of a list of URLs to make requests to. The `asyncio.run` function is used to run the `main` function and print the result.
+
+The output of this code will be the first successful response from the list of URLs, or an error message if all requests fail.<|endoftext|>

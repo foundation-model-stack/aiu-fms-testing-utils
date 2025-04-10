@@ -1,0 +1,51 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a Bash script that monitors a directory for changes (file creation, deletion, or modification) and logs each event with a timestamp into a log file.
+
+
+Answer:
+```bash
+#!/bin/bash
+
+# Directory to monitor
+DIR_TO_MONITOR="/path/to/monitor"
+
+# Log file
+LOG_FILE="/path/to/log/file.log"
+
+# Function to log events
+log_event() {
+  local event_type="$1"
+  local file_path="$2"
+  local timestamp=$(date)
+  echo "$timestamp - $event_type: $file_path" >> "$LOG_FILE"
+}
+
+# Function to monitor directory
+monitor_directory() {
+  while true; do
+    for file in "$DIR_TO_MONITOR"/*; do
+      if [ -f "$file" ]; then
+        if [ -e "$file" ]; then
+          log_event "File modified" "$file"
+        else
+          log_event "File created" "$file"
+        fi
+      elif [ -d "$file" ]; then
+        log_event "Directory created" "$file"
+      elif [ ! -e "$file" ]; then
+        log_event "File deleted" "$file"
+      fi
+    done
+    sleep 5
+  done
+}
+
+# Start monitoring
+monitor_directory
+```
+
+This script uses a while loop to continuously monitor the specified directory. It checks for changes in the directory by iterating over all files and directories. If a file is found, it checks if it exists and logs a "File modified" event or a "File created" event accordingly. If a directory is found, it logs a "Directory created" event. If a file or directory is not found, it logs a "File deleted" event. The script uses the `date` command to get the current timestamp and logs each event with the timestamp into the specified log file.<|endoftext|>

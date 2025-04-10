@@ -1,0 +1,9 @@
+model: granite-3.0-8b-base
+source: https://huggingface.co/ibm-granite/granite-3.0-8b-base
+
+QUANTIZATION
+repo: https://github.com/foundation-model-stack/fms-model-optimizer
+mode: Direct Quantization
+weights: INT8 per-channel max
+activations: INT8 per-token max
+smoothquant: enabled, alpha = 0.5

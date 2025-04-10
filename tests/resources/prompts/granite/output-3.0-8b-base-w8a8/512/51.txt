@@ -1,0 +1,65 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a JAX program that demonstrates vectorized operations by performing element-wise addition, multiplication, and exponentiation on two large arrays using `jax.numpy`.
+
+
+Answer:
+```python
+import jax.numpy as jnp
+
+# Define two large arrays
+arr1 = jnp.array([1, 2, 3, 4, 5])
+arr2 = jnp.array([6, 7, 8, 9, 10])
+
+# Perform element-wise addition
+result_add = jnp.add(arr1, arr2)
+
+# Perform element-wise multiplication
+result_mul = jnp.multiply(arr1, arr2)
+
+# Perform element-wise exponentiation
+result_exp = jnp.power(arr1, arr2)
+
+# Print the results
+print("Element-wise addition:", result_add)
+print("Element-wise multiplication:", result_mul)
+print("Element-wise exponentiation:", result_exp)
+```
+
+This JAX program demonstrates vectorized operations by performing element-wise addition, multiplication, and exponentiation on two large arrays using `jax.numpy`. The results are printed to the console.
+
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a JAX program that demonstrates vectorized operations by performing element-wise addition, multiplication, and exponentiation on two large arrays using `jax.numpy`.
+
+
+Answer:
+```python
+import jax.numpy as jnp
+
+# Define two large arrays
+arr1 = jnp.array([1, 2, 3, 4, 5])
+arr2 = jnp.array([6, 7, 8, 9, 10])
+
+# Perform element-wise addition
+result_add = jnp.add(arr1, arr2)
+
+# Perform element-wise multiplication
+result_mul = jnp.multiply(arr1, arr2)
+
+# Perform element-wise exponentiation
+result_exp = jnp.power(arr1, arr2)
+
+# Print the results
+print("Element-wise addition:", result_add)
+print("Element-wise multiplication:", result_mul)
+print("Element-wise exponentiation:", result_exp)
+```
+
+This JAX program demonstrates vectorized operations by performing element-wise addition, multiplication, and exponentiation on two large arrays using `jax.numpy`. The results are printed to the console.<|endoftext|>

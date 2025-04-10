@@ -1,0 +1,35 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Create a Bash script that compresses all `.txt` files in a directory into a `.zip` file, but excludes files that are larger than 1MB.
+
+
+Answer:
+```bash
+#!/bin/bash
+
+# Check if the directory is provided as an argument
+if [ -z "$1" ]; then
+  echo "Please provide a directory as an argument."
+  exit 1
+fi
+
+# Check if the directory exists
+if [ ! -d "$1" ]; then
+  echo "The provided directory does not exist."
+  exit 1
+fi
+
+# Create a zip file with the same name as the directory
+zip_file="${1}.zip"
+
+# Compress all .txt files in the directory into the zip file, excluding files larger than 1MB
+find "$1" -type f -name "*.txt" -size -1M -exec zip -r "$zip_file" {} \;
+
+# Display a success message
+echo "All .txt files in the directory have been compressed into $zip_file."
+```
+
+This script first checks if a directory is provided as an argument and if it exists. If not, it displays an error message and exits. Then, it creates a zip file with the same name as the directory. Finally, it compresses all `.txt` files in the directory into the zip file, excluding files larger than 1MB, and displays a success message.<|endoftext|>

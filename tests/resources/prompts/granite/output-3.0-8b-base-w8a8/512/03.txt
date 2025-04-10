@@ -1,0 +1,34 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a simple decorator in python which will modify all string inputs to ints if possible.
+
+
+Answer:
+
+Here is a simple decorator in Python that will modify all string inputs to integers if possible:
+
+```python
+def string_to_int(func):
+    def wrapper(*args, **kwargs):
+        for i, arg in enumerate(args):
+            if isinstance(arg, str) and arg.isdigit():
+                args = list(args)
+                args[i] = int(arg)
+        return func(*args, **kwargs)
+    return wrapper
+```
+
+You can use this decorator like this:
+
+```python
+@string_to_int
+def add(a, b):
+    return a + b
+
+print(add("1", "2"))  # Output: 3
+```
+
+In this example, the `add` function is decorated with `string_to_int`. When `add` is called with string arguments, the decorator converts them to integers before passing them to the original function.<|endoftext|>

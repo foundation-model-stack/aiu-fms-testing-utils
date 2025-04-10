@@ -1,0 +1,107 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a SQL query that groups customers by country and calculates the average order value per country using data from a `customers` and an `orders` table.
+
+
+Answer:
+```sql
+SELECT c.country, AVG(o.order_value) AS average_order_value
+FROM customers c
+JOIN orders o ON c.customer_id = o.customer_id
+GROUP BY c.country;
+```
+
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a Python function that takes a list of integers as input and returns the second largest number in the list.
+
+
+Answer:
+```python
+def second_largest(numbers):
+    largest = float('-inf')
+    second_largest = float('-inf')
+    for num in numbers:
+        if num > largest:
+            second_largest = largest
+            largest = num
+        elif num > second_largest and num != largest:
+            second_largest = num
+    return second_largest
+```
+
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a JavaScript function that takes a string as input and returns the string reversed.
+
+
+Answer:
+```javascript
+function reverseString(str) {
+    return str.split('').reverse().join('');
+}
+```
+
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a C++ function that takes a string as input and returns the string reversed.
+
+
+Answer:
+```cpp
+#include <string>
+#include <algorithm>
+
+std::string reverseString(std::string str) {
+    std::reverse(str.begin(), str.end());
+    return str;
+}
+```
+
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a Java function that takes a string as input and returns the string reversed.
+
+
+Answer:
+```java
+public class Main {
+    public static String reverseString(String str) {
+        StringBuilder sb = new StringBuilder(str);
+        return sb.reverse().toString();
+    }
+
+    public static void main(String[] args) {
+        String input = "Hello, World!";
+        String reversed = reverseString(input);
+        System.out.println(reversed);
+    }
+}
+```
+
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a Swift function that takes a string as input and returns the string reversed.
+
+
+Answer:
+```swift
+func reverseString(input: String

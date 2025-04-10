@@ -1,0 +1,50 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write an Assembly program that takes an integer as input, calculates it factorial using a loop, and stores the result in a register. Use x86 architecture.
+
+
+Answer:
+```
+section .data
+    input db 5 ; input integer
+
+section .bss
+    result resd 1 ; reserve space for result
+
+section .text
+    global _start
+
+_start:
+    ; load input into eax
+    mov eax, [input]
+
+    ; initialize result to 1
+    mov [result], dword 1
+
+    ; calculate factorial using a loop
+    mov ecx, eax ; store input in ecx for loop counter
+    dec ecx ; decrement loop counter by 1
+factorial_loop:
+    mul ecx ; multiply result by loop counter
+    dec ecx ; decrement loop counter
+    jnz factorial_loop ; jump to factorial_loop if loop counter is not zero
+
+    ; store result in eax
+    mov eax, [result]
+
+    ; exit program
+    mov ebx, eax ; store result in ebx for exit status
+    mov eax, 1 ; syscall number for exit
+    int 0x80 ; call kernel
+```
+
+This Assembly program takes an integer as input, calculates its factorial using a loop, and stores the result in the `eax` register. The input integer is stored in the `input` variable in the `.data` section, and the result is stored in the `result` variable in the `.bss` section. The program uses the x86 architecture and the NASM assembler.
+
+The program starts by loading the input integer into the `eax` register. It then initializes the `result` variable to 1. The program then enters a loop that calculates the factorial of the input integer. The loop counter is stored in the `ecx` register, and the loop continues until the loop counter is zero. In each iteration of the loop, the program multiplies the `result` variable by the loop counter and decrements the loop counter.
+
+After the loop, the program stores the result in the `eax` register and exits the program with the result as the exit status. The program uses the `int 0x80` instruction to call the kernel and exit the program.
+
+The program uses the `mul` instruction to multiply the `result` variable by the loop counter. The `mul` instruction multiplies the `eax` register by the operand and stores the result in the `eax` and `edx` registers. The program uses the `jnz` instruction to jump to the `factorial_loop` label if the loop counter is not zero. The `jnz` instruction jumps to

@@ -1,0 +1,15 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+In bash, how do I list all directories and sub-directories which contain a .py file.
+
+
+Answer:
+
+```bash
+find . -type d -exec sh -c 'find "$1" -name "*.py" -type f > /dev/null' {} \; -print
+```
+
+This command uses the `find` command to search for directories (`-type d`) and then executes a subshell (`sh -c`) to search for `.py` files (`-name "*.py"`) within each directory. The `-type f` option ensures that only files are considered, not directories. The `> /dev/null` redirects the output to null, effectively suppressing it. The `-print` option at the end of the command ensures that the directory path is printed if a `.py` file is found.<|endoftext|>

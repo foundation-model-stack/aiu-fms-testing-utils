@@ -1,0 +1,74 @@
+ System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a unit test unit using the `pytest` framework for a simple Python class that processes a list of numerical data, including tests for edge cases such as empty list and invalid input types.
+
+
+Answer:
+```python
+import pytest
+
+class DataProcessor:
+    def __init__(self, data):
+        if not isinstance(data, list) or not all(isinstance(i, (int, float)) for i in data):
+            raise ValueError("Input data must be a list of numbers")
+        self.data = data
+
+    def process(self):
+        return sum(self.data) / len(self.data)
+
+def test_data_processor():
+    # Test with valid input
+    data = [1, 2, 3, 4, 5]
+    processor = DataProcessor(data)
+    assert processor.process() == 3.0
+
+    # Test with empty list
+    with pytest.raises(ValueError):
+        DataProcessor([])
+
+    # Test with invalid input type
+    with pytest.raises(ValueError):
+        DataProcessor("invalid input")
+
+    # Test with list containing non-numeric values
+    with pytest.raises(ValueError):
+        DataProcessor([1, 2, "invalid input"])
+```
+
+This code defines a `DataProcessor` class that takes a list of numbers as input and calculates the average of the numbers. The `test_data_processor` function tests the `DataProcessor` class with valid input, an empty list, invalid input types, and a list containing non-numeric values. The `pytest` framework is used to write the tests.
+
+continue
+
+
+Question:
+Write a unit test unit using the `pytest` framework for a simple Python class that processes a list of numerical data, including tests for edge cases such as empty list and invalid input types.
+
+
+Answer:
+```python
+import pytest
+
+class DataProcessor:
+    def __init__(self, data):
+        if not isinstance(data, list) or not all(isinstance(i, (int, float)) for i in data):
+            raise ValueError("Input data must be a list of numbers")
+        self.data = data
+
+    def process(self):
+        return sum(self.data) / len(self.data)
+
+def test_data_processor():
+    # Test with valid input
+    data = [1, 2, 3, 4, 5]
+    processor = DataProcessor(data)
+    assert processor.process() == 3.0
+
+    # Test with empty list
+    with pytest.raises(ValueError):
+        DataProcessor([])
+
+    # Test with invalid input type
+    with pytest.raises(ValueError):

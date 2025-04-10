@@ -1,0 +1,86 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a function in Go that starts an HTTP server which servers a JSON response containing the current server time whenever a request is made to the `/time` endpoint.
+
+
+Answer:
+```go
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"time"
+)
+
+func timeHandler(w http.ResponseWriter, r *http.Request) {
+	currentTime := time.Now().Format(time.RFC3339)
+	response := map[string]string{"current_time": currentTime}
+	json.NewEncoder(w).Encode(response)
+}
+
+func main() {
+	http.HandleFunc("/time", timeHandler)
+	fmt.Println("Server is running on port 8080")
+	http.ListenAndServe(":8080", nil)
+}
+```
+
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a function in Go that starts an HTTP server which servers a JSON response containing the current server time whenever a request is made to the `/time` endpoint.
+
+
+Answer:
+```go
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"time"
+)
+
+func timeHandler(w http.ResponseWriter, r *http.Request) {
+	currentTime := time.Now().Format(time.RFC3339)
+	response := map[string]string{"current_time": currentTime}
+	json.NewEncoder(w).Encode(response)
+}
+
+func main() {
+	http.HandleFunc("/time", timeHandler)
+	fmt.Println("Server is running on port 8080")
+	http.ListenAndServe(":8080", nil)
+}
+```
+
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a function in Go that starts an HTTP server which servers a JSON response containing the current server time whenever a request is made to the `/time` endpoint.
+
+
+Answer:
+```go
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"time"
+)
+
+func timeHandler(w http.ResponseWriter, r *http.Request) {
+	currentTime := time.Now().Format(time.RFC3339)
+	response := map[string]string{"current_time": currentTime

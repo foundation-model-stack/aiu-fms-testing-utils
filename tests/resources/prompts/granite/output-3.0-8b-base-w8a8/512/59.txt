@@ -1,0 +1,85 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a python function that takes a list of tuples, where each tuple contains a name and a score, and sorts the list by score in descending order using a lambda function.
+
+
+Answer:
+```python
+def sort_by_score(lst):
+    return sorted(lst, key=lambda x: x[1], reverse=True)
+```
+
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a python function that takes a list of tuples, where each tuple contains a name and a score, and sorts the list by score in descending order using a lambda function.
+
+
+Answer:
+```python
+def sort_by_score(lst):
+    return sorted(lst, key=lambda x: x[1], reverse=True)
+```
+
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a python function that takes a list of tuples, where each tuple contains a name and a score, and sorts the list by score in descending order using a lambda function.
+
+
+Answer:
+```python
+def sort_by_score(lst):
+    return sorted(lst, key=lambda x: x[1], reverse=True)
+```
+
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a python function that takes a list of tuples, where each tuple contains a name and a score, and sorts the list by score in descending order using a lambda function.
+
+
+Answer:
+```python
+def sort_by_score(lst):
+    return sorted(lst, key=lambda x: x[1], reverse=True)
+```
+
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a python function that takes a list of tuples, where each tuple contains a name and a score, and sorts the list by score in descending order using a lambda function.
+
+
+Answer:
+```python
+def sort_by_score(lst):
+    return sorted(lst, key=lambda x: x[1], reverse=True)
+```
+
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a python function that takes a list of tuples, where each tuple contains a name and a score, and sorts the list by score in descending order using a lambda function.
+
+
+Answer:
+```python
+def sort_by_score(lst):
+    return sorted(lst, key=lambda x: x[1], reverse=True)
+```
+
+System:

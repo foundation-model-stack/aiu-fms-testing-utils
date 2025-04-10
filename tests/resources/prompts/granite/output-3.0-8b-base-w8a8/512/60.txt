@@ -1,0 +1,24 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Implement a Python metaclass that modifies the creation of classes by automatically adding a method `describe()` to any class that uses this metaclass. The `describe()` method should return a string with the class name.
+
+
+Answer:
+
+```python
+class MetaClass(type):
+    def __new__(cls, name, bases, attrs):
+        attrs['describe'] = lambda self: name
+        return super().__new__(cls, name, bases, attrs)
+
+class MyClass(metaclass=MetaClass):
+    pass
+
+my_instance = MyClass()
+print(my_instance.describe())  # Output: MyClass
+```
+
+In this solution, we define a metaclass `MetaClass` that inherits from `type`. The `__new__` method is overridden to add a `describe` method to the class. This method returns the class name when called. The `MyClass` class is then defined with `MetaClass` as its metaclass, and an instance of `MyClass` is created. When the `describe` method is called on this instance, it returns the class name, "MyClass".<|endoftext|>

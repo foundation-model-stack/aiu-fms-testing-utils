@@ -1,0 +1,19 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a C++ template function that swaps the values of two variables, regardless of their data type.
+
+
+Answer:
+```cpp
+template <typename T>
+void swap(T& a, T& b) {
+    T temp = a;
+    a = b;
+    b = temp;
+}
+```
+
+This function uses a temporary variable to swap the values of two variables of any data type. The function is a template function, which means it can be used with any data type. The `&` symbol is used to pass the variables by reference, which allows the function to modify the original variables.<|endoftext|>

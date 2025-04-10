@@ -1,0 +1,20 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a SQL query that joins two tables, `orders` and `customers`, and retrieves the top 5 customers who have placed the highest number of orders in the past year.
+
+
+Answer:
+```sql
+SELECT c.customer_id, c.customer_name, COUNT(o.order_id) as total_orders
+FROM customers c
+JOIN orders o ON c.customer_id = o.customer_id
+WHERE o.order_date >= DATE_SUB(CURDATE(), INTERVAL 1 YEAR)
+GROUP BY c.customer_id, c.customer_name
+ORDER BY total_orders DESC
+LIMIT 5;
+```
+
+This query joins the `customers` and `orders` tables on the `customer_id` field. It then filters the orders to only include those placed in the past year using the `WHERE` clause. The `GROUP BY` clause groups the results by `customer_id` and `customer_name`, and the `COUNT(o.order_id)` function counts the number of orders for each customer. The results are then ordered by the total number of orders in descending order, and the `LIMIT` clause restricts the output to the top 5 customers.<|endoftext|>

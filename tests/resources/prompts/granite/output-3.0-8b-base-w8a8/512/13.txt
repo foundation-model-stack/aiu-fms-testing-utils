@@ -1,0 +1,40 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Using Java's `CompletableFuture`, write a method that performs two asynchronous HTTP requests and returns the combined response after both requests have been completed.
+
+
+Answer:
+```java
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.util.concurrent.CompletableFuture;
+
+public class AsyncRequest {
+    public CompletableFuture<String> performRequests(String url1, String url2) {
+        HttpClient httpClient = HttpClient.newHttpClient();
+        HttpRequest request1 = HttpRequest.newBuilder()
+                .uri(URI.create(url1))
+                .build();
+        HttpRequest request2 = HttpRequest.newBuilder()
+                .uri(URI.create(url2))
+                .build();
+
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                HttpResponse<String> response1 = httpClient.send(request1, HttpResponse.BodyHandlers.ofString());
+                HttpResponse<String> response2 = httpClient.send(request2, HttpResponse.BodyHandlers.ofString());
+                return response1.body() + response2.body();
+            } catch (Exception e) {
+                e.printStackTrace();
+                return "";
+            }
+        });
+    }
+}
+```
+
+This code defines a class `AsyncRequest` with a method `performRequests` that takes two URLs as input and returns a `CompletableFuture<String>`. The method creates two `HttpRequest` objects for the given URLs and sends them asynchronously using `CompletableFuture.supplyAsync`. The method returns the combined response of both requests as a string. If an exception occurs during the request, it is caught and an empty string is returned.<|endoftext|>

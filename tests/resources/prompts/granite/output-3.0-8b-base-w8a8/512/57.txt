@@ -1,0 +1,49 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a Rust program that implements a simple finite state machine (FSM) to control the flow of a traffic light system, transitioning between green, yellow, and red states.
+
+
+Answer:
+```rust
+enum TrafficLightState {
+    Green,
+    Yellow,
+    Red,
+}
+
+struct TrafficLight {
+    state: TrafficLightState,
+}
+
+impl TrafficLight {
+    fn new() -> TrafficLight {
+        TrafficLight { state: TrafficLightState::Green }
+    }
+
+    fn transition(&mut self) {
+        match self.state {
+            TrafficLightState::Green => self.state = TrafficLightState::Yellow,
+            TrafficLightState::Yellow => self.state = TrafficLightState::Red,
+            TrafficLightState::Red => self.state = TrafficLightState::Green,
+        }
+    }
+}
+
+fn main() {
+    let mut traffic_light = TrafficLight::new();
+
+    for _ in 0..10 {
+        println!("Current state: {:?}", traffic_light.state);
+        traffic_light.transition();
+    }
+}
+```
+
+This Rust program defines a simple finite state machine (FSM) to control the flow of a traffic light system. The `TrafficLightState` enum represents the possible states of the traffic light (Green, Yellow, and Red). The `TrafficLight` struct holds the current state of the traffic light.
+
+The `new` method creates a new `TrafficLight` instance with the initial state set to `Green`. The `transition` method changes the state of the traffic light according to the defined rules: Green -> Yellow, Yellow -> Red, and Red -> Green.
+
+In the `main` function, a `TrafficLight` instance is created, and the traffic light state is printed and transitioned 10 times.<|endoftext|>

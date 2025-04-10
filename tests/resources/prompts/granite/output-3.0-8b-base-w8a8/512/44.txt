@@ -1,0 +1,86 @@
+ System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a Go function that implements a concurrent file downloader. The function should download multiple files in parallel, with each file being downloaded in chunks using goroutines.
+
+
+Answer:
+Here's a Go function that implements a concurrent file downloader:
+```go
+package main
+
+import (
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"sync"
+)
+
+func downloadFile(url string, chunkSize int, wg *sync.WaitGroup, done chan<- bool) {
+	defer wg.Done()
+
+	resp, err := http.Get(url)
+	if err != nil {
+		fmt.Println("Error downloading file:", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	file, err := os.Create(url[len(url)-12:])
+	if err != nil {
+		fmt.Println("Error creating file:", err)
+		return
+	}
+	defer file.Close()
+
+	buf := make([]byte, chunkSize)
+	for {
+		n, err := resp.Body.Read(buf)
+		if err != nil && err != io.EOF {
+			fmt.Println("Error reading file:", err)
+			return
+		}
+		if n > 0 {
+			file.Write(buf[:n])
+		}
+		if err == io.EOF {
+			break
+		}
+	}
+
+	done <- true
+}
+
+func downloadFiles(urls []string, chunkSize int) {
+	var wg sync.WaitGroup
+	done := make(chan bool)
+
+	for _, url := range urls {
+		wg.Add(1)
+		go downloadFile(url, chunkSize, &wg, done)
+	}
+
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	for range urls {
+		<-done
+	}
+}
+
+func main() {
+	urls := []string{
+		"https://example.com/file1.txt",
+		"https://example.com/file2.txt",
+		"https://example.com/file3.txt",
+	}
+
+	downloadFiles(urls, 1024)
+}
+```
+This function uses the `net/http` package to download files in chunks using goroutines. The `downloadFile` function takes a URL, a chunk size, a wait group, and a done channel as arguments.

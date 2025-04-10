@@ -1,0 +1,110 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a bubble sort function in python.
+
+
+Answer:
+```python
+def bubble_sort(arr):
+    n = len(arr)
+    for i in range(n):
+        for j in range(0, n - i - 1):
+            if arr[j] > arr[j + 1]:
+                arr[j], arr[j + 1] = arr[j + 1], arr[j]
+    return arr
+```
+
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a function to calculate the factorial of a number.
+
+
+Answer:
+```python
+def factorial(n):
+    if n == 0:
+        return 1
+    else:
+        return n * factorial(n - 1)
+```
+
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a function to check if a string is a palindrome.
+
+
+Answer:
+```python
+def is_palindrome(s):
+    return s == s[::-1]
+```
+
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a function to reverse a string.
+
+
+Answer:
+```python
+def reverse_string(s):
+    return s[::-1]
+```
+
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a function to find the maximum and minimum elements in an array.
+
+
+Answer:
+```python
+def find_max_min(arr):
+    max_val = arr[0]
+    min_val = arr[0]
+    for num in arr:
+        if num > max_val:
+            max_val = num
+        if num < min_val:
+            min_val = num
+    return max_val, min_val
+```
+
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a function to check if a number is prime.
+
+
+Answer:
+```python
+def is_prime(n):
+    if n <= 1:
+        return False
+    for i in range(2, int(n ** 0.5) + 1):
+        if n % i == 0:
+            return False
+    return True
+```
+
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a function

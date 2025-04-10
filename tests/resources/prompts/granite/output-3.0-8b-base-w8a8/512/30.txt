@@ -1,0 +1,50 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Implement a Java method that reads a CSV file and converts each row into an object of a custom class. Use Java's `BufferedReader` and handle file I/O exceptions appropriately.
+
+
+Answer:
+```java
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.IOException;
+
+class CustomClass {
+    private String field1;
+    private String field2;
+
+    // getters and setters
+}
+
+public class CSVReader {
+    public static List<CustomClass> readCSV(String filePath) {
+        List<CustomClass> customClasses = new ArrayList<>();
+        try (BufferedReader br = new BufferedReader(new FileReader(filePath))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                String[] fields = line.split(",");
+                CustomClass customClass = new CustomClass();
+                customClass.setField1(fields[0]);
+                customClass.setField2(fields[1]);
+                customClasses.add(customClass);
+            }
+        } catch (IOException e) {
+            System.err.println("Error reading file: " + e.getMessage());
+        }
+        return customClasses;
+    }
+}
+```
+
+This code defines a custom class `CustomClass` with two fields, `field1` and `field2`. The `readCSV` method reads a CSV file line by line, splits each line into fields, creates a new `CustomClass` object for each row, and adds it to a list. The method handles `IOException` exceptions that may occur during file I/O operations.
+
+To use this code, you can call the `readCSV` method with the file path as an argument, like this:
+
+```java
+List<CustomClass> customClasses = CSVReader.readCSV("path/to/your/file.csv");
+```
+
+This will return a list of `CustomClass` objects, where each object represents a row from the CSV file.<|endoftext|>

@@ -1,0 +1,33 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a Python function that uses `functools.lru_cache` to memoize the results of the Fibonacci sequence for faster computation of large numbers.
+
+
+Answer:
+```python
+import functools
+
+@functools.lru_cache(maxsize=None)
+def fibonacci(n):
+    if n <= 1:
+        return n
+    else:
+        return fibonacci(n - 1) + fibonacci(n - 2)
+```
+
+This code defines a function `fibonacci` that calculates the nth Fibonacci number using recursion. The `functools.lru_cache` decorator is used to memoize the results of the function, which means that the function will store the results of previous calculations in a cache and return the cached result if the same input is provided again. This can significantly improve the performance of the function for large inputs.
+
+The `maxsize` parameter of the `lru_cache` decorator is set to `None`, which means that the cache will not have a size limit and will store all the results of previous calculations. If you want to limit the size of the cache, you can set the `maxsize` parameter to a positive integer.
+
+The `fibonacci` function uses recursion to calculate the nth Fibonacci number. The base case is when `n` is less than or equal to 1, in which case the function returns `n`. Otherwise, the function returns the sum of the (n-1)th and (n-2)th Fibonacci numbers.
+
+The `functools.lru_cache` decorator is used to memoize the results of the `fibonacci` function. This means that the function will store the results of previous calculations in a cache and return the cached result if the same input is provided again. This can significantly improve the performance of the function for large inputs.
+
+The `maxsize` parameter of the `lru_cache` decorator is set to `None`, which means that the cache will not have a size limit and will store all the results of previous calculations. If you want to limit the size of the cache, you can set the `maxsize` parameter to a positive integer.
+
+The `fibonacci` function uses recursion to calculate the nth Fibonacci number. The base case is when `n` is less than or equal to 1, in which case the function returns `n`. Otherwise, the function returns the sum of the (n-1)th and (n-2)th Fibonacci numbers.
+
+The `functools.lru_cache` decorator is used to

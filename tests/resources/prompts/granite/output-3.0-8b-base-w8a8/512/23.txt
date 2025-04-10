@@ -1,0 +1,94 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a Ruby function that takes a block and retries the block up to 3 times if it raises an exception, then returns the values if successful or re-raises the error.
+
+
+Answer:
+```ruby
+def retry_block(times = 3, &block)
+  begin
+    block.call
+  rescue => e
+    raise e if times.zero?
+    retry_block(times - 1, &block)
+  end
+end
+```
+
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a Python function that takes a list of integers and returns the sum of all the even numbers in the list.
+
+
+Answer:
+```python
+def sum_even_numbers(numbers):
+    return sum(num for num in numbers if num % 2 == 0)
+```
+
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a JavaScript function that takes an array of objects and returns a new array containing only the objects that have a property with a value greater than 10.
+
+
+Answer:
+```javascript
+function filterObjects(arr) {
+    return arr.filter(obj => Object.values(obj).some(val => val > 10));
+}
+```
+
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a SQL query that returns the names of all employees who have a salary greater than the average salary of all employees.
+
+
+Answer:
+```sql
+SELECT name
+FROM employees
+WHERE salary > (SELECT AVG(salary) FROM employees);
+```
+
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a C++ function that takes a string and returns the number of vowels in the string.
+
+
+Answer:
+```cpp
+#include <string>
+#include <cctype>
+
+int count_vowels(const std::string& str) {
+    int count = 0;
+    for (char c : str) {
+        if (std::isalpha(c) && std::tolower(c) == 'a' || std::tolower(c) == 'e' || std::tolower(c) == 'i' || std::tolower(c) == 'o' || std::tolower(c) == 'u') {
+            count++;
+        }
+    }
+    return count;
+}
+```
+
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a Java method that takes

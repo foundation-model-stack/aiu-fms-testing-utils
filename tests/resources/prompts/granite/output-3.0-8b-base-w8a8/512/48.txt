@@ -1,0 +1,49 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a COBOL program that processes a list of employee records from a flat file, calculates the total payroll (sum of salaries), and generates a report sorted by department.
+
+
+Answer:
+```
+IDENTIFICATION DIVISION.
+PROGRAM-ID. PAYROLL.
+DATA DIVISION.
+FILE SECTION.
+FD EMPLOYEE-RECORD.
+01 EMPLOYEE-RECORD.
+05 EMPLOYEE-NAME PIC X(20).
+05 EMPLOYEE-DEPARTMENT PIC X(10).
+05 EMPLOYEE-SALARY PIC S9(5)V99 COMP.
+WORKING-STORAGE SECTION.
+01 TOTAL-PAYROLL PIC S9(10)V99 COMP.
+01 DEPARTMENT-RECORD.
+05 DEPARTMENT-NAME PIC X(20).
+05 DEPARTMENT-TOTAL-SALARY PIC S9(5)V99 COMP.
+PROCEDURE DIVISION.
+MAIN-PROCEDURE.
+OPEN INPUT EMPLOYEE-RECORD.
+OPEN OUTPUT DEPARTMENT-RECORD.
+PERFORM UNTIL EOF-EMPLOYEE-RECORD.
+READ EMPLOYEE-RECORD.
+ADD EMPLOYEE-SALARY TO TOTAL-PAYROLL.
+IF EMPLOYEE-DEPARTMENT = DEPARTMENT-NAME
+ADD EMPLOYEE-SALARY TO DEPARTMENT-TOTAL-SALARY.
+END-IF.
+END-PERFORM.
+SORT DEPARTMENT-RECORD ON DEPARTMENT-NAME.
+DISPLAY "Total Payroll: " TOTAL-PAYROLL.
+DISPLAY "Department Report:".
+PERFORM UNTIL EOF-DEPARTMENT-RECORD.
+READ DEPARTMENT-RECORD.
+DISPLAY DEPARTMENT-NAME.
+DISPLAY "Total Salary: " DEPARTMENT-TOTAL-SALARY.
+END-PERFORM.
+CLOSE EMPLOYEE-RECORD.
+CLOSE DEPARTMENT-RECORD.
+STOP RUN.
+```
+
+This COBOL program reads employee records from a flat file, calculates the total payroll, and generates a report sorted by department. The program uses the SORT statement to sort the department records by department name. The program then displays the total payroll and the department report.<|endoftext|>

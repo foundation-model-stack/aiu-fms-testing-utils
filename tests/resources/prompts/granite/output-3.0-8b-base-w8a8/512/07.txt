@@ -1,0 +1,87 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a Go function that reads a JSON file containing an array of numbers and returns the sum of all numbers.
+
+
+Answer:
+Here's a Go function that reads a JSON file containing an array of numbers and returns the sum of all numbers:
+
+```go
+package main
+
+import (
+	"encoding/json"
+	"io/ioutil"
+	"log"
+)
+
+type NumberArray struct {
+	Numbers []float64 `json:"numbers"`
+}
+
+func sumNumbers(filePath string) (float64, error) {
+	data, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		return 0, err
+	}
+
+	var numberArray NumberArray
+	err = json.Unmarshal(data, &numberArray)
+	if err != nil {
+		return 0, err
+	}
+
+	sum := 0.0
+	for _, number := range numberArray.Numbers {
+		sum += number
+	}
+
+	return sum, nil
+}
+
+func main() {
+	filePath := "numbers.json"
+	sum, err := sumNumbers(filePath)
+	if err != nil {
+		log.Fatalf("Error calculating sum: %v", err)
+	}
+	log.Printf("Sum: %f", sum)
+}
+```
+
+This function reads the JSON file, unmarshals it into a `NumberArray` struct, and then calculates the sum of all numbers in the array. The function returns the sum and an error if one occurs.
+
+To use this function, replace `"numbers.json"` with the path to your JSON file. The JSON file should contain an array of numbers, like this:
+
+```json
+{
+	"numbers": [1, 2, 3, 4, 5]
+}
+```
+
+The function will print the sum to the console. If an error occurs, it will print an error message and exit.
+
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a Go function that reads a JSON file containing an array of numbers and returns the sum of all numbers.
+
+
+Answer:
+Here's a Go function that reads a JSON file containing an array of numbers and returns the sum of all numbers:
+
+```go
+package main
+
+import (
+	"encoding/json"
+	"io/ioutil"
+	"log"
+)
+
+type NumberArray struct {

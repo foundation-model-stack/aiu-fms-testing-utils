@@ -1,0 +1,47 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a Bash script that accepts a list of filenames as input, checks if each file is writable, and if so, appends a timestamp to the end of each file.
+
+
+Answer:
+```bash
+#!/bin/bash
+
+# Check if the correct number of arguments are provided
+if [ "$#" -lt 1 ]; then
+    echo "Usage: $0 <filename> [<filename> ...]"
+    exit 1
+fi
+
+# Loop through each filename
+for filename in "$@"; do
+    # Check if the file is writable
+    if [ -w "$filename" ]; then
+        # Append a timestamp to the end of the file
+        echo "$(date +"%Y-%m-%d %H:%M:%S")" >> "$filename"
+    else
+        echo "Error: $filename is not writable"
+    fi
+done
+```
+
+This script first checks if the correct number of arguments are provided. If not, it prints a usage message and exits with a non-zero status.
+
+Then, it loops through each filename provided as an argument. For each filename, it checks if the file is writable using the `-w` test. If the file is writable, it appends a timestamp to the end of the file using the `echo` command and the `date` command. If the file is not writable, it prints an error message.
+
+The timestamp is formatted as `YYYY-MM-DD HH:MM:SS` using the `date` command with the `+` format specifier.
+
+The script uses the `>>` operator to append the timestamp to the end of the file, rather than overwriting the file. This is a safer option than using the `>` operator, which would overwrite the file if it already exists.
+
+The script uses the `$@` variable to access all the arguments provided to the script. This is a safer option than using the `$1`, `$2`, etc. variables, which can cause problems if the number of arguments is not known in advance.
+
+The script uses the `exit` command to exit with a non-zero status if an error occurs. This is a good practice, as it allows the script to be used in other scripts and tools that check the exit status of a command.
+
+The script uses the `echo` command to print error messages. This is a simple and effective way to provide feedback to the user.
+
+The script uses the `date` command to generate the timestamp. This is a standard command that is available on most Unix-like systems.
+
+The script uses the `>` and `>>` operators to write to files. These operators are standard

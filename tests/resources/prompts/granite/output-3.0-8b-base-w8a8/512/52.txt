@@ -1,0 +1,82 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Implement a C++ class for a circular queue (circular buffer) with methods to `enqueue` and `dequeue`, and check if the queue is full or empty, ensuring proper memory management.
+
+
+Answer:
+```cpp
+#include <iostream>
+#include <cstdlib>
+
+class CircularQueue {
+private:
+    int *queue;
+    int front, rear, size;
+
+public:
+    CircularQueue(int n) {
+        size = n;
+        queue = new int[size];
+        front = rear = -1;
+    }
+
+    ~CircularQueue() {
+        delete[] queue;
+    }
+
+    bool isFull() {
+        return (front == (rear + 1) % size) || (front == -1 && rear == -1);
+    }
+
+    bool isEmpty() {
+        return front == -1 && rear == -1;
+    }
+
+    void enqueue(int value) {
+        if (isFull()) {
+            std::cout << "Queue is full. Cannot enqueue " << value << std::endl;
+            return;
+        }
+        if (isEmpty())
+            front = 0;
+        rear = (rear + 1) % size;
+        queue[rear] = value;
+    }
+
+    int dequeue() {
+        if (isEmpty()) {
+            std::cout << "Queue is empty. Cannot dequeue." << std::endl;
+            return -1;
+        }
+        int value = queue[front];
+        if (front == rear) {
+            front = rear = -1;
+        } else {
+            front = (front + 1) % size;
+        }
+        return value;
+    }
+};
+
+int main() {
+    CircularQueue q(5);
+    q.enqueue(1);
+    q.enqueue(2);
+    q.enqueue(3);
+    q.enqueue(4);
+    q.enqueue(5);
+    std::cout << "Dequeued: " << q.dequeue() << std::endl;
+    q.enqueue(6);
+    std::cout << "Dequeued: " << q.dequeue() << std::endl;
+    std::cout << "Dequeued: " << q.dequeue() << std::endl;
+    std::cout << "Dequeued: " << q.dequeue() << std::endl;
+    std::cout << "Dequeued: " << q.dequeue() << std::endl;
+    std::cout << "Dequeued: " << q.dequeue() << std::endl;
+    return 0;
+}
+```
+
+This C++ code implements a circular queue with methods to enqueue and dequeue elements, and checks if the

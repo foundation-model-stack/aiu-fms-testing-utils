@@ -1,0 +1,64 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a Java script that connects to a MySQL database using JDBC, retrieves data from a table, and displays the results in a formatted table in the console.
+
+
+Answer:
+Here is a Java script that connects to a MySQL database using JDBC, retrieves data from a table, and displays the results in a formatted table in the console:
+
+```java
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.Statement;
+
+public class Main {
+    public static void main(String[] args) {
+        String url = "jdbc:mysql://localhost:3306/mydatabase";
+        String user = "myusername";
+        String password = "mypassword";
+
+        try {
+            // Load the MySQL JDBC driver
+            Class.forName("com.mysql.jdbc.Driver");
+
+            // Connect to the MySQL database
+            Connection connection = DriverManager.getConnection(url, user, password);
+
+            // Create a statement object
+            Statement statement = connection.createStatement();
+
+            // Execute a query to retrieve data from the table
+            ResultSet resultSet = statement.executeQuery("SELECT * FROM mytable");
+
+            // Print the column names
+            ResultSet columnNames = resultSet.getMetaData().getColumns(1, "mytable");
+            System.out.print("| " + columnNames.getString("COLUMN_NAME") + " |");
+
+            // Print the data
+            while (resultSet.next()) {
+                System.out.print(" | " + resultSet.getString(1) + " |");
+            }
+
+            // Close the resources
+            resultSet.close();
+            statement.close();
+            connection.close();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}
+```
+
+This script connects to a MySQL database using the JDBC driver, retrieves data from a table named "mytable", and displays the results in a formatted table in the console. The script uses the `ResultSet` class to retrieve the data and the `System.out.print()` method to display the results. The script also uses the `try-catch` block to handle any exceptions that may occur during the execution of the script.
+
+Please replace "mydatabase", "myusername", and "mypassword" with your actual database name, username, and password. Also, replace "mytable" with your actual table name.
+
+This script assumes that you have the MySQL JDBC driver in your classpath. If you don't have it, you can download it from the MySQL website and add it to your classpath.
+
+This script also assumes that you have a MySQL server running on your local machine

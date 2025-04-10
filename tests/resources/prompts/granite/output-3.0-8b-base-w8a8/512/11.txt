@@ -1,0 +1,21 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a function in JavaScript that debounces an input function such that it's only called once, after the input has stopped being called for a specific delay (e.g., for implementing searc bar auto-suggestions).
+
+
+Answer:
+
+```javascript
+function debounce(func, delay) {
+  let timeout;
+  return function(...args) {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func.apply(this, args), delay);
+  };
+}
+```
+
+This function takes a function `func` and a delay `delay` as arguments. It returns a new function that, when called, clears any existing timeout and sets a new one to call `func` after the specified delay. This effectively debounces the function, ensuring it's only called once after the input has stopped being called for the specified delay.<|endoftext|>

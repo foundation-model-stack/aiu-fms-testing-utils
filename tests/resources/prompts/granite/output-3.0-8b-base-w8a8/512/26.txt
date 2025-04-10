@@ -1,0 +1,42 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write an Assembly program that multiplies two integers provided as input and stores the result in a register. Use the x86 architecture.
+
+
+Answer:
+```
+section .data
+    num1 dd 5
+    num2 dd 10
+
+section .bss
+    result resd 1
+
+section .text
+    global _start
+
+_start:
+    ; Load the first number into the EAX register
+    mov eax, [num1]
+
+    ; Load the second number into the EBX register
+    mov ebx, [num2]
+
+    ; Multiply the numbers and store the result in the EDX register
+    mul ebx
+
+    ; Store the result in the result variable
+    mov [result], eax
+
+    ; Exit the program
+    mov eax, 1
+    xor ebx, ebx
+    int 0x80
+```
+
+This Assembly program multiplies two integers provided as input and stores the result in the EDX register. The input numbers are stored in the `num1` and `num2` variables in the `.data` section. The result is stored in the `result` variable in the `.bss` section. The program uses the x86 architecture and the NASM assembler.
+
+The program starts by loading the first number into the EAX register using the `mov` instruction. Then, it loads the second number into the EBX register. The `mul` instruction multiplies the numbers in the EAX and EBX registers and stores the result in the EDX:EAX register pair. The program then stores the result in the `result` variable using the `mov` instruction. Finally, the program exits using the `int 0x80` instruction with the `eax` register set to 1 and the `ebx` register set to 0.<|endoftext|>

@@ -1,0 +1,92 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Using the Java streams API, write a simple function which will get the cumulative sum of a list of integers.
+
+
+Answer:
+```java
+public static List<Integer> cumulativeSum(List<Integer> list) {
+    return list.stream().reduce(0, (a, b) -> a + b);
+}
+```
+
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Using the Java streams API, write a simple function which will get the cumulative sum of a list of integers.
+
+
+Answer:
+```java
+public static List<Integer> cumulativeSum(List<Integer> list) {
+    return list.stream().reduce(0, (a, b) -> a + b);
+}
+```
+
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Using the Java streams API, write a simple function which will get the cumulative sum of a list of integers.
+
+
+Answer:
+```java
+public static List<Integer> cumulativeSum(List<Integer> list) {
+    return list.stream().reduce(0, (a, b) -> a + b);
+}
+```
+
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Using the Java streams API, write a simple function which will get the cumulative sum of a list of integers.
+
+
+Answer:
+```java
+public static List<Integer> cumulativeSum(List<Integer> list) {
+    return list.stream().reduce(0, (a, b) -> a + b);
+}
+```
+
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Using the Java streams API, write a simple function which will get the cumulative sum of a list of integers.
+
+
+Answer:
+```java
+public static List<Integer> cumulativeSum(List<Integer> list) {
+    return list.stream().reduce(0, (a, b) -> a + b);
+}
+```
+
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Using the Java streams API, write a simple function which will get the cumulative sum of a list of integers.
+
+
+Answer:
+```java
+public static List<Integer> cumulativeSum(List<Integer> list) {
+    return list.stream().reduce(0, (a, b) -> a + b);
+}
+```
+
+System:
+Solve the following coding

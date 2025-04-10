@@ -1,0 +1,64 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a unit test suite for a simple PyTorch model that checks whether the forward pass is working correctly, ensuring it outputs the correct dimensions for different input stages.
+
+
+Answer:
+```python
+import unittest
+import torch
+from your_model import YourModel
+
+class TestModel(unittest.TestCase):
+    def setUp(self):
+        self.model = YourModel()
+
+    def test_forward_pass(self):
+        # Test forward pass with different input stages
+        input_stage1 = torch.randn(1, 3, 224, 224)
+        output_stage1 = self.model(input_stage1)
+        self.assertEqual(output_stage1.shape, (1, 1000))
+
+        input_stage2 = torch.randn(1, 1000, 7, 7)
+        output_stage2 = self.model(input_stage2)
+        self.assertEqual(output_stage2.shape, (1, 1000))
+
+        input_stage3 = torch.randn(1, 1000, 1, 1)
+        output_stage3 = self.model(input_stage3)
+        self.assertEqual(output_stage3.shape, (1, 1000))
+
+if __name__ == '__main__':
+    unittest.main()
+```
+
+Replace `YourModel` with the actual name of your PyTorch model. This test suite checks the forward pass of the model with different input stages and ensures that the output dimensions are correct.
+
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a unit test suite for a simple PyTorch model that checks whether the forward pass is working correctly, ensuring it outputs the correct dimensions for different input stages.
+
+
+Answer:
+```python
+import unittest
+import torch
+from your_model import YourModel
+
+class TestModel(unittest.TestCase):
+    def setUp(self):
+        self.model = YourModel()
+
+    def test_forward_pass(self):
+        # Test forward pass with different input stages
+        input_stage1 = torch.randn(1, 3, 224, 224)
+        output_stage1 = self.model(input_stage1)
+        self.assertEqual(output_stage1.shape, (1, 1000))
+
+        input_stage2 = torch.randn(1, 1000, 7, 7)
+        output_stage2 = self.model(input_stage2

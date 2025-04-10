@@ -1,0 +1,26 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a SQL query to find the second highest salary in an `employees` table, where each row contains an employee's `id`, `name`, and `salary`.
+
+
+Answer:
+```sql
+SELECT MAX(salary) AS second_highest_salary
+FROM employees
+WHERE salary < (SELECT MAX(salary) FROM employees);
+```
+
+This query first finds the maximum salary in the `employees` table using a subquery. Then, it selects the maximum salary from the remaining salaries, which will be the second highest salary.
+
+Please note that if there are multiple employees with the same salary, this query will return the second highest unique salary. If you want to return all employees with the second highest salary, you can use the following query:
+
+```sql
+SELECT *
+FROM employees
+WHERE salary = (SELECT MAX(salary) FROM employees WHERE salary < (SELECT MAX(salary) FROM employees));
+```
+
+This query will return all employees with the second highest salary, even if there are multiple employees with the same salary.<|endoftext|>

@@ -1,0 +1,66 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a Python script that loads a pre-trained neural network from PyTorch, converts it to a quantized version using PyTorch's static quantization techniques, and evaluates its performance on a validation set.
+
+
+Answer:
+```python
+import torch
+import torch.nn as nn
+import torchvision.models as models
+import torchvision.transforms as transforms
+from torch.utils.data import DataLoader
+from torchvision.datasets import ImageFolder
+from torch.optim import SGD
+from torch.optim.lr_scheduler import StepLR
+from torch.utils.tensorboard import SummaryWriter
+
+# Load the pre-trained model
+model = models.resnet50(pretrained=True)
+
+# Define the quantization function
+def quantize_model(model):
+    for module in model.modules():
+        if isinstance(module, nn.Conv2d) or isinstance(module, nn.Linear):
+            module.weight.data.quantize_(2**8, torch.quint8)
+            module.bias.data.quantize_(2**8, torch.quint8)
+
+# Define the evaluation function
+def evaluate(model, data_loader):
+    model.eval()
+    correct = 0
+    total = 0
+    with torch.no_grad():
+        for images, labels in data_loader:
+            outputs = model(images)
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+    return correct / total
+
+# Define the training function
+def train(model, data_loader, optimizer, scheduler, num_epochs):
+    writer = SummaryWriter()
+    for epoch in range(num_epochs):
+        for images, labels in data_loader:
+            optimizer.zero_grad()
+            outputs = model(images)
+            loss = nn.CrossEntropyLoss()(outputs, labels)
+            loss.backward()
+            optimizer.step()
+            scheduler.step()
+            writer.add_scalar('Loss/train', loss.item(), epoch * len(data_loader) + len(data_loader))
+        writer.add_scalar('Accuracy/train', evaluate(model, data_loader), epoch)
+    writer.close()
+
+# Define the main function
+def main():
+    # Define the data transformations
+    transform = transforms.Compose([
+        transforms.Resize((256, 256)),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[

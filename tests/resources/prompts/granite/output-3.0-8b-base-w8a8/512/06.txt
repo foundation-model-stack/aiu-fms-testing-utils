@@ -1,0 +1,90 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Implement a linked list in C++ with support for inserting a node at any position and deleting a node by value.
+
+
+Answer:
+Here is a simple implementation of a linked list in C++ with support for inserting a node at any position and deleting a node by value:
+
+```cpp
+#include<iostream>
+using namespace std;
+
+// Node structure
+struct Node {
+    int data;
+    Node* next;
+};
+
+// Function to insert a node at a given position
+Node* insert(Node* head, int data, int position) {
+    Node* newNode = new Node();
+    newNode->data = data;
+    newNode->next = nullptr;
+
+    if (position == 0) {
+        newNode->next = head;
+        head = newNode;
+    } else {
+        Node* current = head;
+        for (int i = 0; i < position - 1 && current != nullptr; i++) {
+            current = current->next;
+        }
+        if (current == nullptr) {
+            cout << "Position out of range" << endl;
+            return head;
+        }
+        newNode->next = current->next;
+        current->next = newNode;
+    }
+    return head;
+}
+
+// Function to delete a node with a given value
+Node* deleteNode(Node* head, int value) {
+    if (head == nullptr) {
+        cout << "List is empty" << endl;
+        return nullptr;
+    }
+
+    if (head->data == value) {
+        Node* temp = head;
+        head = head->next;
+        delete temp;
+        return head;
+    }
+
+    Node* current = head;
+    while (current->next != nullptr && current->next->data != value) {
+        current = current->next;
+    }
+
+    if (current->next == nullptr) {
+        cout << "Value not found" << endl;
+        return head;
+    }
+
+    Node* temp = current->next;
+    current->next = current->next->next;
+    delete temp;
+    return head;
+}
+
+// Function to print the linked list
+void printList(Node* head) {
+    while (head != nullptr) {
+        cout << head->data << " -> ";
+        head = head->next;
+    }
+    cout << "NULL" << endl;
+}
+
+// Driver code
+int main() {
+    Node* head = nullptr;
+    head = insert(head, 10, 0);
+    head = insert(head, 20, 1);
+    head = insert(head,

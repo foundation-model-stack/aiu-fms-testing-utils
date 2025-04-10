@@ -1,0 +1,64 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a Python script that defines a PyTorch neural network, trains it on a small dataset, and compares the training speed before and after applying `torch.compile()`.
+
+
+Answer:
+```python
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import torch.utils.data as data
+import time
+
+# Define a simple neural network
+class Net(nn.Module):
+    def __init__(self):
+        super(Net, self).__init__()
+        self.fc1 = nn.Linear(10, 10)
+        self.fc2 = nn.Linear(10, 1)
+
+    def forward(self, x):
+        x = torch.relu(self.fc1(x))
+        x = self.fc2(x)
+        return x
+
+# Create a small dataset
+X = torch.randn(1000, 10)
+y = torch.randn(1000, 1)
+
+# Split the dataset into training and validation sets
+train_size = int(0.8 * len(X))
+val_size = len(X) - train_size
+train_X, val_X = X[:train_size], X[train_size:]
+train_y, val_y = y[:train_size], y[train_size:]
+
+# Create data loaders
+train_loader = data.DataLoader(data.TensorDataset(train_X, train_y), batch_size=32, shuffle=True)
+val_loader = data.DataLoader(data.TensorDataset(val_X, val_y), batch_size=32, shuffle=False)
+
+# Define the model, loss function, and optimizer
+model = Net()
+criterion = nn.MSELoss()
+optimizer = optim.SGD(model.parameters(), lr=0.01)
+
+# Train the model before applying torch.compile()
+start_time = time.time()
+for epoch in range(10):
+    for batch_idx, (data, target) in enumerate(train_loader):
+        optimizer.zero_grad()
+        output = model(data)
+        loss = criterion(output, target)
+        loss.backward()
+        optimizer.step()
+
+print(f"Training time before torch.compile(): {time.time() - start_time:.2f} seconds")
+
+# Apply torch.compile()
+torch.compile(model)
+
+# Train the model after applying torch.compile()
+start_time = time.time

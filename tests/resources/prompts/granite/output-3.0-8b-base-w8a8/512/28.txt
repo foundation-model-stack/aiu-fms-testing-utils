@@ -1,0 +1,110 @@
+ystem:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a SQL query that finds all customers who made purchases in both the years 2023 and 2024, using a `customers` table and a `purchases` table with `purchase_date`.
+
+
+Answer:
+```sql
+SELECT c.*
+FROM customers c
+JOIN (
+  SELECT customer_id
+  FROM purchases
+  WHERE YEAR(purchase_date) = 2023
+  INTERSECT
+  SELECT customer_id
+  FROM purchases
+  WHERE YEAR(purchase_date) = 2024
+) p
+ON c.id = p.customer_id;
+```
+
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a Python function that takes a list of integers and returns the sum of all the even numbers in the list.
+
+
+Answer:
+```python
+def sum_even_numbers(numbers):
+    return sum(num for num in numbers if num % 2 == 0)
+```
+
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a JavaScript function that takes a string and returns the string reversed.
+
+
+Answer:
+```javascript
+function reverseString(str) {
+    return str.split('').reverse().join('');
+}
+```
+
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a C++ function that takes a string and returns the string reversed.
+
+
+Answer:
+```cpp
+#include <string>
+#include <algorithm>
+
+std::string reverseString(const std::string& str) {
+    std::string reversed(str);
+    std::reverse(reversed.begin(), reversed.end());
+    return reversed;
+}
+```
+
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a Java function that takes a string and returns the string reversed.
+
+
+Answer:
+```java
+public class Main {
+    public static String reverseString(String str) {
+        StringBuilder sb = new StringBuilder(str);
+        return sb.reverse().toString();
+    }
+
+    public static void main(String[] args) {
+        System.out.println(reverseString("Hello, World!"));
+    }
+}
+```
+
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Write a Rust function that takes a string and returns the string reversed.
+
+
+Answer:
+```rust
+fn reverse_string(s: &str) -> String {
+    s.chars().rev().collect()
+}
+
+fn main() {
