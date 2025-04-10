@@ -1,0 +1,66 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Translate the following cobol code to python:
+MOVE 'HELLO WORLD' TO VA-TAB  
+MOVE '45' TO CA-PAYMENT  
+IF MAN-BOOKER IS EQUAL TO 24
+ EXEC SQL
+   INSERT INTO ADDR
+             ( NUMBER,
+               NAME)
+      VALUES ( :SAN-NUM,
+               :SHAP-VALUE)              
+ END-EXEC
+ IF SQLCODE NOT EQUAL 0
+   PERFORM TRAN-RATE-INTERVAL
+   EXEC STATEMENT1 END-EXEC
+ END-IF
+ENDIF
+ EXEC SQL
+        SET :SAN-NUM = IDENTITY_VAL_LOCAL() 
+ END-EXEC 
+ 
+ MOVE  SAN-NUM TO PY-RES-INT
+ MOVE 25 TO MAN-BOOKER
+ MOVE 20 TO AGE
+ DISPLAY AGE
+ EXIT.
+
+
+Answer:
+```python
+va_tab = 'HELLO WORLD'
+ca_payment = '45'
+
+if man_booker == 24:
+    try:
+        with sqlite3.connect('example.db') as conn:
+            cursor = conn.cursor()
+            cursor.execute("INSERT INTO ADDR (NUMBER, NAME) VALUES (?, ?)", (san_num, shap_value))
+            conn.commit()
+    except sqlite3.Error as e:
+        print(f"Error: {e}")
+        perform_tran_rate_interval()
+    finally:
+        cursor.close()
+
+try:
+    with sqlite3.connect('example.db') as conn:
+        cursor = conn.cursor()
+        cursor.execute("SET ?", (san_num,))
+        conn.commit()
+except sqlite3.Error as e:
+    print(f"Error: {e}")
+finally:
+    cursor.close()
+
+py_res_int = san_num
+man_booker = 25
+age = 20
+print(age)
+exit()
+
+```

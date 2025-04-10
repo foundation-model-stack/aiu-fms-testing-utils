@@ -1,0 +1,40 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Translate the following cobol code to python:
+ IF CAN-BANK-VAL IS EQUAL TO 87
+ EXEC SQL
+   INSERT INTO BANK
+             ( NUM,
+               LOCATION)
+      VALUES ( DEFAULT,
+               :SYS-GERM)
+ END-EXEC
+ IF SQLCODE NOT EQUAL 0   
+   MOVE '10' TO CA-SUM-ASSURED
+   PERFORM PRINT-FUNCTION
+   EXEC STATEMENT2 END-EXEC
+ END-IF
+END-IF
+EXIT.
+
+
+Answer:
+```python
+if can_bank_val == 87:
+    try:
+        with sqlite3.connect('example.db') as conn:
+            cursor = conn.cursor()
+            cursor.execute("INSERT INTO BANK (NUM, LOCATION) VALUES (DEFAULT, ?)", (sys_germ,))
+            conn.commit()
+    except sqlite3.Error as e:
+        print(f"Error: {e}")
+        ca_sum_assured = '10'
+        perform_print_function()
+    finally:
+        cursor.close()
+exit()
+
+```

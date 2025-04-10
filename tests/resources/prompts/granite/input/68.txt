@@ -1,0 +1,27 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Translate code from cobol to java:
+
+BUZZ-VAL. 
+IF CAN-BANK-VAL IS EQUAL TO 87
+ EXEC SQL
+   INSERT INTO BANK
+             ( NUM,
+               LOCATION)
+      VALUES ( DEFAULT,
+               :SYS-GERM)
+ END-EXEC
+ IF SQLCODE NOT EQUAL 0   
+   MOVE '10' TO CA-SUM-ASSURED
+   PERFORM PRINT-FUNCTION
+   EXEC STATEMENT2 END-EXEC
+ END-IF
+END-IF
+EXIT.
+
+
+Answer:
+

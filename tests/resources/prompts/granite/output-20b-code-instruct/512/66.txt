@@ -1,0 +1,65 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Translate the following cobol code to python:
+ IF WS-DISPLAY-LINE = "* MQPUTSUB V1.0 " AND
+              CA-RETURN-CODE = 0 AND
+              WS-DEBUG = " " AND
+              WS-COMM-QUEUE = "COMM BLOCK DATA" AND
+              B100-NOT-RAN AND
+              B117-NOT-RAN AND
+              W500-RAN THEN
+               DISPLAY "TEST 3 PASSED"
+           ELSE
+               DISPLAY "TEST 3 FAILED"
+           END-IF
+           INITIALIZE WS-COMM-BLOCK
+           INITIALIZE WS-DISPLAY-LINE
+           INITIALIZE WS-CONFIG-PARAMETERS
+           INITIALIZE CA-MQPUTSUB-PARM
+               SET DISCONNECT-ACTION TO TRUE
+               SET TOGGLE-ERROR-FLAG TO TRUE
+               MOVE "COMM BLOCK DATA" TO CA-COMM-BLOCK
+               MOVE "QUEUE DATA" TO WS-QUEUE
+           INITIALIZE SECTIONS-RUN
+               PERFORM B000-INITIALISE.
+           IF WS-DISPLAY-LINE = "* MQPUTSUB V1.0 " AND
+              CA-RETURN-CODE = 0 AND
+              WS-DEBUG = " " AND
+              WS-COMM-QUEUE = "COMM BLOCK DATA" AND
+              B100-NOT-RAN AND
+              B117-NOT-RAN AND
+              W500-RAN THEN
+               DISPLAY "TEST 4 PASSED"
+           ELSE
+               DISPLAY "TEST 4 FAILED"
+           END-IF.
+
+
+
+Answer:
+```python
+if ws_display_line == "* MQPUTSUB V1.0 " and ca_return_code == 0 and ws_debug == " " and ws_comm_queue == "COMM BLOCK DATA" and b100_not_ran and b117_not_ran and w500_ran:
+    print("TEST 3 PASSED")
+else:
+    print("TEST 3 FAILED")
+
+initialize_ws_comm_block()
+initialize_ws_display_line()
+initialize_ws_config_parameters()
+initialize_ca_mqputsub_parm()
+set_disconnect_action(True)
+set_toggle_error_flag(True)
+ca_comm_block = "COMM BLOCK DATA"
+ws_queue = "QUEUE DATA"
+initialize_sections_run()
+perform_b000_initialise()
+
+if ws_display_line == "* MQPUTSUB V1.0 " and ca_return_code == 0 and ws_debug == " " and ws_comm_queue == "COMM BLOCK DATA" and b100_not_ran and b117_not_ran and w500_ran:
+    print("TEST 4 PASSED")
+else:
+    print("TEST 4 FAILED")
+
+```

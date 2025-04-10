@@ -1,0 +1,42 @@
+System:
+Solve the following coding problem. Wrap your code answer using ```
+
+
+Question:
+Translate the following cobol code to python:
+ IF WS-DISPLAY-LINE = "* MQPUTSUB V1.0 " AND
+              CA-RETURN-CODE = 0 AND
+              WS-DEBUG = " " AND
+              WS-COMM-QUEUE = "COMM BLOCK DATA" AND
+              B100-NOT-RAN AND
+              B117-NOT-RAN AND
+              W500-RAN THEN
+               DISPLAY "TEST 3 PASSED"
+           ELSE
+               DISPLAY "TEST 3 FAILED"
+           END-IF
+           INITIALIZE WS-COMM-BLOCK
+           INITIALIZE WS-DISPLAY-LINE
+           INITIALIZE WS-CONFIG-PARAMETERS
+           INITIALIZE CA-MQPUTSUB-PARM
+               SET DISCONNECT-ACTION TO TRUE
+               SET TOGGLE-ERROR-FLAG TO TRUE
+               MOVE "COMM BLOCK DATA" TO CA-COMM-BLOCK
+               MOVE "QUEUE DATA" TO WS-QUEUE
+           INITIALIZE SECTIONS-RUN
+               PERFORM B000-INITIALISE.
+           IF WS-DISPLAY-LINE = "* MQPUTSUB V1.0 " AND
+              CA-RETURN-CODE = 0 AND
+              WS-DEBUG = " " AND
+              WS-COMM-QUEUE = "COMM BLOCK DATA" AND
+              B100-NOT-RAN AND
+              B117-NOT-RAN AND
+              W500-RAN THEN
+               DISPLAY "TEST 4 PASSED"
+           ELSE
+               DISPLAY "TEST 4 FAILED"
+           END-IF.
+
+
+
+Answer:
