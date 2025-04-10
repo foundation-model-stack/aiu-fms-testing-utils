@@ -1,22 +1,24 @@
+# Standard
 import argparse
+from functools import partial
 import itertools
 import json
 import os
-import random
-import sys
-import time
 from pathlib import Path
+import random
+import time
 
+# Third Party
 from aiu_fms_testing_utils.utils import aiu_setup
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, rank, local_rank, world_size
 import numpy as np
 import torch
-import torch._inductor.config
+from torch import distributed as dist
 from fms.models import get_model, register_model
 from fms.models.llama import LLaMAConfig, _llama_factory_factory
-from fms.utils import fusion, generation, tokenizers
+from fms.utils import generation, tokenizers
 from fms.utils.generation import generate, pad_input_ids
-from torch import distributed as dist
+
 
 # This example script validates the LLaMA implementation by running inference on a couple of prompts.
 #
@@ -59,9 +61,26 @@ parser.add_argument(
 parser.add_argument(
     "--quantization",
     type=str,
-    choices=["gptq"],
+    choices=["gptq", "int8"],
     default=None,
     help="Type of quantization of the model checkpoint",
+)
+parser.add_argument(
+    "--weight_per_channel",
+    action="store_true",
+    help="Enable per-channel weight quantization in INT8 quantized model",
+)
+parser.add_argument(
+    "--activ_quant_type",
+    default="per_token",
+    choices=["per_token", "per_tensor_symm", "per_tensor_asymm"],
+    type=str,
+    help="Define strategy for activation quantization in INT8 quantized model",
+)
+parser.add_argument(
+    "--smoothquant",
+    action="store_true",
+    help="Enable smoothquant in INT8 quantized model",
 )
 parser.add_argument(
     "--tokenizer",
@@ -196,19 +215,18 @@ parser.add_argument(
 args = parser.parse_args()
 
 if args.quantization == "gptq":
-    GPTQ_ENABLED = True
-    try:
-        if "aiu" in args.device_type:
+    if "aiu" in args.device_type:
+        try:
             from fms_mo.aiu_addons.gptq import gptq_aiu_adapter, gptq_aiu_linear
             print("Loaded `aiu_addons` functionalities")
-        elif args.device_type != "cpu":
-            raise ValueError(f"Device {args.device_type} unsupported for GPTQ run")
-    except ImportError as e:
-        print(f"Failed to import addon packages: {e}")
-        GPTQ_ENABLED = False
-
-    if not GPTQ_ENABLED:
-        raise Exception("GPTQ not enabled")
+        except:
+            raise ImportError("Failed to import GPTQ addons from fms-mo.")
+elif args.quantization == "int8":
+    try:
+        from fms_mo.aiu_addons.i8i8 import i8i8_aiu_adapter, i8i8_aiu_linear
+        print("Loaded `aiu_addons` functionalities")
+    except:
+        raise ImportError("Failed to import INT8 addons from fms-mo.")
 
 # this is a test model config
 config = LLaMAConfig(
@@ -355,9 +373,47 @@ if args.quantization == "gptq":
     # [ATTENTION] for GPTQ on AIU, we must always instantiate an unfused
     # model, the adapter will take care of converting key/values from
     # ckpt into the appropriate form for the model
-    if fused_weights:
+    if fused_weights and is_aiu_backend:
         raise ValueError("GPTQ checkpoints on AIU must always run with --unfuse_weights")
     default_dtype = None  # GPTQ dtype always comes from ckpt, can't be enforced
+elif args.quantization == "int8":
+    def select_int8_module(
+        module_name: str | None = None,
+        smoothquant: bool = True,
+        smoothquant_layers: list[str] | None = None,
+    ):
+        if module_name is None:
+            return "int8_aiu"
+        smoothquant_on_module = (
+            any([m in module_name for m in smoothquant_layers])
+            if smoothquant_layers is not None
+            else True
+        )
+        use_smoothquant = smoothquant and smoothquant_on_module
+        return "int8_smoothquant_aiu" if use_smoothquant else "int8_aiu"
+
+    if args.smoothquant:
+        if any("granite" in p for p in [args.model_path, args.architecture]):
+            smoothquant_layers = ["key", "value", "w1", "wg"]
+        elif any("roberta" in p for p in [args.model_path, args.architecture]):
+            smoothquant_layers = ["query", "key", "value", "w1"]
+        else:
+            raise NotImplementedError("INT8 architecture not supported.")
+    else:
+        smoothquant_layers = []
+
+    linear_config = {
+        "linear_type": partial(
+            select_int8_module,
+            smoothquant = args.smoothquant,
+            smoothquant_layers = smoothquant_layers,
+        ),
+        "weight_per_channel": args.weight_per_channel,
+        "activ_quant_type": args.activ_quant_type,
+    }
+    if fused_weights and is_aiu_backend:
+        raise ValueError("INT8 checkpoints on AIU must always run with --unfuse_weights")
+    default_dtype = None  # INT8 dtype always comes from ckpt
 else:
     linear_config = {"linear_type": "torch_linear"}
 
@@ -381,13 +437,13 @@ model = get_model(
     fused_weights=fused_weights,
 )
 
-if args.quantization == "gptq":
+if args.quantization in ["gptq", "int8"]:
     if rank == 0 and args.verbose > 0:
         dprint("PARAMS:\n" + "\n".join(f"{k:60} {str(v.dtype):15} {str(v.device):10} {list(v.size())}" for k,v in model.named_parameters()))
         dprint("BUFFERS:\n" + "\n".join(f"{k:60} {str(v.dtype):15} {str(v.device):10} {list(v.size())}" for k,v in model.named_buffers()))
         dprint("="*60 + "\n")
     if args.architecture == "llama":
-        dprint("[NOTE] It's OK for unused keys to contain bias and rotary embeddings, in GPTQ LLaMA models")
+        dprint("[NOTE] In Llama models, it's OK for bias and rotary embeddings to be marked as unused keys.")
     dprint(model)
     dprint("="*60 + "\n")
 
