@@ -597,6 +597,13 @@ def infer(use_cache, do_sample, warmup):
         if args.timing == "e2e":
             dprint(f"E2E timing information: {timings[0]:.3f}s")
         elif args.timing == "per-token":
+            if not warmup:
+                dprint(f"First-token latency: {timings[0]*1000:.3f} ms")
+                dprint(f"Average next-token latency: {np.mean(timings[1:])*1000:.3f} ms")
+                dprint(f"Average next-token latency (including first token): {np.mean(timings)*1000:.3f} ms")
+                dprint(f"Max next-token latency: {np.max(timings[1:])*1000:.3f} ms (token #{np.argmax(timings[1:]) + 2})")
+                dprint(f"Min next-token latency: {np.min(timings[1:])*1000:.3f} ms (token #{np.argmin(timings[1:]) + 2})")
+                dprint(f"Std deviation of next-token latencies: {np.std(timings[1:])*1000:.3f} ms")
             timings = [f"{t*1000:.3f}" for t in timings]
             dprint(f"Per-token timing information: {', '.join(timings)} ms")
     if len(result.shape) == 1:
