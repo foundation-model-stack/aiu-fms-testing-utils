@@ -44,6 +44,7 @@ SHARE_GPT_DATASET_PATH = os.environ.get(
 )
 USE_MICRO_MODELS = os.environ.get("FMS_TEST_SHAPES_USE_MICRO_MODELS", "1") == "1"
 USE_DISTRIBUTED = os.environ.get("FMS_TEST_SHAPES_DISTRIBUTED", "0") == "1"
+FORCE_VALIDATION_LEVEL_1 = os.environ.get("FMS_TEST_SHAPES_FORCE_VALIDATION_LEVEL_1", "0") == "1"
 validation_info_dir = os.environ.get(
     "FMS_TEST_SHAPES_VALIDATION_INFO_DIR", "/tmp/models/validation_info"
 )
@@ -394,9 +395,15 @@ def test_common_shapes(model_path, batch_size, seq_length, max_new_tokens):
         aiu_validation_info.get_info("tokens"), cpu_static_tokens
     )
 
+    failed_validation_level_0 = len(failed_responses) != 0
+
     # if level 0 fails validation, validate level 1
-    if len(failed_responses) != 0:
-        print("failed validation level 0, testing validation level 1")
+    if FORCE_VALIDATION_LEVEL_1 or failed_validation_level_0:
+
+        if failed_validation_level_0:
+            dprint("failed validation level 0, testing validation level 1")
+        else:
+            dprint("passed validation level 0, testing validation level 1")
 
         # metric calculator based on the cross-entropy and mean diff for each decode step
         def _metric_calculator(r: torch.Tensor, t: torch.Tensor):
