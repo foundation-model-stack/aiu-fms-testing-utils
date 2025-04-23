@@ -39,7 +39,7 @@ ORIGINAL_HF_HOME = os.environ.get("HF_HOME", None)
 LLAMA_3p1_8B_INSTRUCT = "meta-llama/Llama-3.1-8B-Instruct"
 GRANITE_3p2_8B_INSTRUCT = "ibm-granite/granite-3.2-8b-instruct"
 
-GRANITE_CODE_20B = "/ibm-dmf/models/watsonx/shared/granite-20b-code-cobol-v1/20240603"
+GRANITE_CODE_20B = os.environ.get("CUSTOM_MODEL_PATH","/ibm-dmf/models/granite-20b-code-cobol-v1/20240603")
 
 SHARE_GPT_DATASET_PATH = os.environ.get(
     "SHARE_GPT_DATASET_PATH", os.path.expanduser("~/share_gpt.json")
@@ -133,16 +133,6 @@ fail_thresholds = {
         2.8087631964683535, 
         (-1.3142825898704302e-08, 1.3142825898704302e-08))
 }
-
-
-# found 3 metric files
-# ibm_dmf_lakehouse--models--watsonx--shared--granite-20b-code-cobol-v1 diff_mean -1.3142825898704302e-08 1.3142825898704302e-08
-# found 3 metric files
-# ibm_dmf_lakehouse--models--watsonx--shared--granite-20b-code-cobol-v1 ce 2.8087631964683535
-# found 3 metric files
-# ibm_dmf_lakehouse--models--watsonx--shared--granite-20b-code-cobol-v1 prob_mean 0.018428430296480672
-# found 3 metric files
-# ibm_dmf_lakehouse--models--watsonx--shared--granite-20b-code-cobol-v1 prob_std 0.02062853077426555
 
 # custom weight adaptation to be used in future. For instance if we would like to add some other adaptation, we can register it with this custom adapter
 # and provide it when converting from an aiu fms model's weights to a cpu fms model's weights. Currently this is only done for gptq, but may be done for other
