@@ -27,6 +27,7 @@ parser.add_argument(
     type=str,
     default=None,
     help="The model variant (configuration) to benchmark. E.g. 7b, 13b, 70b.",
+    required=True,
 )
 parser.add_argument(
     "--model_path",
@@ -37,12 +38,13 @@ parser.add_argument(
     "--model_source",
     type=str,
     help="Source of the checkpoint. E.g. 'meta', 'hf', None",
+    required=False,
 )
 parser.add_argument(
     "--tokenizer",
     type=str,
-    required=True,
     help="Path to the tokenizer (e.g. ~/tokenizer.model)",
+    required=True,
 )
 parser.add_argument(
     "--default_dtype",
@@ -50,52 +52,61 @@ parser.add_argument(
     default=None,
     choices=["bf16", "fp16", "fp32"],
     help="If set to one of the choices, overrides the model checkpoint weight format by setting the default pytorch format",
+    required=False,
 )
 parser.add_argument(
     "--batch_size",
     type=int,
     default=1,
     help="size of input batch",
+    required=False,
 )
 parser.add_argument(
     "--min_pad_length",
     type=int,
     help="Pad inputs to a minimum specified length. If any prompt is larger than the specified length, padding will be determined by the largest prompt",
     default=0,
+    required=False,
 )
 parser.add_argument(
     "--max_new_tokens",
     type=int,
     help="max number of generated tokens",
     default=100,
+    required=False,
 )
 parser.add_argument(
     "--sharegpt_path",
     type=str,
     help="path to sharegpt data json",
+    required=False,
 )
 parser.add_argument(
     "--output_dir",
     type=str,
     help="output directory",
+    required=True,
 )
 parser.add_argument(
     "--topk_per_token",
     type=int,
     help="top k values per token to generate loss on",
-    default=20
+    default=20,
+    required=False,
 )
 parser.add_argument(
     "--num_test_tokens_per_sequence",
     type=int,
     help="number of tokens in test. For instance, if max_new_tokens=128 and num_test_tokens_per_sequence=256, this means we will generate data over 2 sample prompts. If not set, will be set to max_new_tokens",
-    default=None
+    default=None,
+    required=False,
 )
 parser.add_argument(
     "--extra_get_model_kwargs",
     nargs='*',
     default={},
-    help="Use this to override model configuration values to get model. Example: --extra_get_model_kwargs nlayers=2,..."
+    help="Use this to override model configuration values to get model. Example: --extra_get_model_kwargs nlayers=2,...",
+    required=False,
 )
 args = parser.parse_args()
 
@@ -128,6 +139,12 @@ if default_dtype is not None:
 tokenizer = tokenizers.get_tokenizer(args.tokenizer)
 
 torch.set_grad_enabled(False)
+
+# As per FMS check https://github.com/foundation-model-stack/foundation-model-stack/blob/ec55d3f4d2a620346a1eb003699db0b0d47e2598/fms/models/__init__.py#L88
+# we need to remove variant if model_arg or model_path is provided
+if args.model_path and args.variant:
+    print("Both variant and model path provided. Removing variant")
+    args.variant = None
 
 # prepare the cuda model
 cuda_model = get_model(
@@ -211,14 +228,14 @@ cuda_static_tokens = cuda_validation_info.get_info("tokens")
 failed_responses = validate_level_0(cpu_static_tokens, cuda_static_tokens)
 
 print("extracted cuda validation information level 0")
-if len(failed_responses) != 0:    
+if len(failed_responses) != 0:
     print_failed_cases(failed_responses, cpu_static_tokens, cuda_static_tokens, tokenizer)
 
 def write_csv(l, path, metric):
     with open(path, 'w') as f:
         f.write(f'{metric}\n')
         for t in l:
-            f.write(f"{t[2].item()}\n") 
+            f.write(f"{t[2].item()}\n")
         f.close()
 
 num_test_tokens_per_sequence = args.num_test_tokens_per_sequence
