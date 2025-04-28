@@ -78,8 +78,8 @@ parser.add_argument(
 parser.add_argument(
     "--sharegpt_path",
     type=str,
-    help="path to sharegpt data json",
-    required=False,
+    help="path to sharegpt data json. If it is not available, then use target path",
+    required=True,
 )
 parser.add_argument(
     "--output_dir",
