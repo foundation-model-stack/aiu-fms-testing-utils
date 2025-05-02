@@ -23,7 +23,7 @@ GRANITE_GUARDIAN_3p1_8B = "ibm-granite/granite-guardian-3.1-8b"
 ROBERTA_SQUAD_v2 = "deepset/roberta-base-squad2"
 torch.manual_seed(42)
 
-micro_models = {LLAMA_3p1_8B_INSTRUCT, GRANITE_3p2_8B_INSTRUCT}
+micro_models = {LLAMA_3p1_8B_INSTRUCT, GRANITE_3p2_8B_INSTRUCT, GRANITE_GUARDIAN_3p1_8B}
 
 
 class AIUModelFixtureMixin(ModelFixtureMixin):
