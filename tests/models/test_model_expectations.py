@@ -19,6 +19,7 @@ if "HF_HOME" not in os.environ:
 model_dir = os.environ.get("FMS_TESTING_MODEL_DIR", "/tmp/models")
 LLAMA_3p1_8B_INSTRUCT = "meta-llama/Llama-3.1-8B-Instruct"
 GRANITE_3p2_8B_INSTRUCT = "ibm-granite/granite-3.2-8b-instruct"
+GRANITE_GUARDIAN_3p1_8B = "ibm-granite/granite-guardian-3.1-8b"
 ROBERTA_SQUAD_v2 = "deepset/roberta-base-squad2"
 torch.manual_seed(42)
 
@@ -52,7 +53,7 @@ class AIUModelFixtureMixin(ModelFixtureMixin):
         return uninitialized_model
 
 
-decoder_models = [LLAMA_3p1_8B_INSTRUCT, GRANITE_3p2_8B_INSTRUCT]
+decoder_models = [LLAMA_3p1_8B_INSTRUCT, GRANITE_3p2_8B_INSTRUCT, GRANITE_GUARDIAN_3p1_8B]
 
 
 class TestAIUDecoderModels(
