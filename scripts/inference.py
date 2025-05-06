@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import random
 import time
+import math
 
 # Third Party
 from aiu_fms_testing_utils.utils import aiu_setup, warmup_model
@@ -216,6 +217,18 @@ parser.add_argument(
     action='count',
     default=0,
     help="Set verbosity level (pass flag as `-v`, `-vv`, `-vvv`)"
+)
+parser.add_argument(
+    "--stagger_load",
+    type=int,
+    default=0,
+    help="Stagger model loading to avoid OOM issues on the host"
+)
+parser.add_argument(
+    "--stagger_update_lazyhandle",
+    type=int,
+    default=0,
+    help="Stagger update_lazyhandle to avoid OOM issues on the host"
 )
 args = parser.parse_args()
 
@@ -437,6 +450,13 @@ dprint(f"{fused_weights=}")
 dprint(f"data_type={default_dtype}")
 dprint("="*60 + "\n")
 
+if args.stagger_load > 0 and args.stagger_load != world_size:
+    for _set in range( math.ceil(world_size / float(args.stagger_load)) ):
+        if rank < (_set+1)*args.stagger_load:
+            break
+        torch.distributed.barrier()
+    dprint(f"Stagger Model Load: Begin (Set: {_set+1} of {math.ceil(world_size / float(args.stagger_load))})")
+
 model = get_model(
     args.architecture,
     args.variant,
@@ -465,6 +485,13 @@ model.eval()
 torch.set_grad_enabled(False)
 loading_model_time = time.time() - loading_model_time
 dprint(f"loading complete, took {loading_model_time:.3f}s")
+
+if args.stagger_load > 0 and args.stagger_load != world_size:
+    for _set in range( math.ceil(world_size / float(args.stagger_load)) ):
+        if rank >= (_set+1)*args.stagger_load:
+            continue
+        torch.distributed.barrier()
+    dprint(f"Stagger Model Load: All Complete")
 
 if args.compile:
     dprint("compiling model")
@@ -691,7 +718,7 @@ use_cache = [
 ]  # True/False are identical with greedy iff `torch.use_deterministic_algorithms(True)`
 
 if args.compile:
-    warmup_model(model, ids, args.max_new_tokens, args.compile_dynamic_sendnn, **extra_generation_kwargs)
+    warmup_model(model, ids, args.max_new_tokens, args.compile_dynamic_sendnn, args.stagger_update_lazyhandle, **extra_generation_kwargs)
 
     if args.device_type == "aiu":  # only run warmup for AIU, no need for senulator
         aiu_warmup_time = time.time()
