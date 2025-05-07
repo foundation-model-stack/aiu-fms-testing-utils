@@ -3,14 +3,15 @@ import torch.nn as nn
 import time
 from fms.utils.tokenizers import BaseTokenizer
 from fms.utils.generation import generate
-from aiu_fms_testing_utils.utils.aiu_setup import dprint
+from aiu_fms_testing_utils.utils.aiu_setup import dprint, rank, local_rank, world_size
 from typing import Optional, List, Tuple
 import os
 import requests
 import json
 import random
+import math
 
-def warmup_model(model: nn.Module, input_ids: torch.Tensor, max_new_tokens: int, compile_dynamic_sendnn = False, **padding_kwargs):
+def warmup_model(model: nn.Module, input_ids: torch.Tensor, max_new_tokens: int, compile_dynamic_sendnn = False, stagger_update_lazyhandle = 0, **padding_kwargs):
     from torch_sendnn import torch_sendnn
     dprint("AIU warmup")
     pt_compile_model_time = time.time()
@@ -22,11 +23,25 @@ def warmup_model(model: nn.Module, input_ids: torch.Tensor, max_new_tokens: int,
     pt_compile_model_time = time.time() - pt_compile_model_time
     dprint(f"PT compile complete, took {pt_compile_model_time:.3f}s")
 
+    if stagger_update_lazyhandle > 0 and stagger_update_lazyhandle != world_size:
+        for _set in range( math.ceil(world_size / float(stagger_update_lazyhandle)) ):
+            if rank < (_set+1)*stagger_update_lazyhandle:
+                break
+            torch.distributed.barrier()
+        dprint(f"Stagger update_lazyhandle: Begin (Set: {_set+1} of {math.ceil(world_size / float(stagger_update_lazyhandle))})")
+
     dprint("executing update_lazyhandle and performing validation")
     update_lh_time = time.time()
     torch_sendnn.update_lazyhandle()
     update_lh_time = time.time() - update_lh_time
     dprint(f"update_lazyhandle complete, took {update_lh_time:.3f}s")
+
+    if stagger_update_lazyhandle > 0 and stagger_update_lazyhandle != world_size:
+        for _set in range( math.ceil(world_size / float(stagger_update_lazyhandle)) ):
+            if rank >= (_set+1)*stagger_update_lazyhandle:
+                continue
+            torch.distributed.barrier()
+        dprint(f"Stagger update_lazyhandle: All Complete")
 
 def ids_for_prompt(prompt, tokenizer):
     tokens = tokenizer.tokenize(prompt)
