@@ -327,7 +327,7 @@ def test_common_shapes(model_path, batch_size, seq_length, max_new_tokens):
 
     distributed_kwargs = {}
     if USE_DISTRIBUTED:
-        distributed_kwargs["distr_param"] = "tp"
+        distributed_kwargs["distributed_strategy"] = "tp"
         distributed_kwargs["group"] = dist.group.WORLD
 
     get_model_kwargs = {}
