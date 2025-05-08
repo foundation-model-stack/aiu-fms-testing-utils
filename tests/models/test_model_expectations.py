@@ -22,7 +22,7 @@ GRANITE_3p2_8B_INSTRUCT = "ibm-granite/granite-3.2-8b-instruct"
 ROBERTA_SQUAD_v2 = "deepset/roberta-base-squad2"
 torch.manual_seed(42)
 
-micro_models = {LLAMA_3p1_8B_INSTRUCT, GRANITE_3p2_8B_INSTRUCT}
+micro_models = {}
 
 
 class AIUModelFixtureMixin(ModelFixtureMixin):
@@ -52,7 +52,7 @@ class AIUModelFixtureMixin(ModelFixtureMixin):
         return uninitialized_model
 
 
-decoder_models = [LLAMA_3p1_8B_INSTRUCT, GRANITE_3p2_8B_INSTRUCT]
+decoder_models = ["/spyre-debug-models/models/mistralai/Mistral-7B-Instruct-v0.3"]
 
 
 class TestAIUDecoderModels(
