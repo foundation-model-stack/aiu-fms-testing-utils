@@ -12,6 +12,7 @@ import contextlib
 # Third Party
 from aiu_fms_testing_utils.utils import aiu_setup, warmup_model
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, rank, local_rank, world_size
+from aiu_fms_testing_utils.utils.paged import prepare_model_inputs_hook
 import numpy as np
 import torch
 from torch import distributed as dist
@@ -217,6 +218,13 @@ parser.add_argument(
     action='count',
     default=0,
     help="Set verbosity level (pass flag as `-v`, `-vv`, `-vvv`)"
+)
+parser.add_argument(
+    "--attention_algorithm",
+    type=str,
+    choices=["sdpa", "paged"],
+    default="sdpa",
+    help="the attention algorithm to use",
 )
 args = parser.parse_args()
 
@@ -652,6 +660,11 @@ def infer(use_cache, do_sample, warmup):
     else:
         eos_token_id = None
 
+    if args.attention_algorithm == "paged":
+        _prepare_model_inputs_hook = prepare_model_inputs_hook(model)
+    else:
+        _prepare_model_inputs_hook = None
+
     result = generate(
         model,
         ids,
@@ -663,6 +676,7 @@ def infer(use_cache, do_sample, warmup):
         eos_token_id=eos_token_id,
         contiguous_cache=True,
         extra_kwargs=extra_generation_kwargs,
+        prepare_model_inputs_hook=_prepare_model_inputs_hook
     )
     if args.timing != "":
         result, timings = result
