@@ -76,8 +76,7 @@ class ValidationInfo:
         :param save_dir_path: the path to save to
         """
         dprint(f"saving validation info to {save_dir_path}")
-        if not os.path.exists(save_dir_path):
-            os.makedirs(save_dir_path)
+        os.makedirs(save_dir_path, exist_ok=True)
 
         for sentence_i, sentence in enumerate(self._validation_info_list):
             file_path = os.path.join(save_dir_path, f"{sentence_i}.pt")
