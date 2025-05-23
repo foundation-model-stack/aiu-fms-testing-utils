@@ -18,7 +18,7 @@ from torch import distributed as dist
 from fms.models import get_model, register_model
 from fms.models.llama import LLaMAConfig, _llama_factory_factory
 from fms.utils import generation, tokenizers
-from fms.utils.generation import generate, pad_input_ids
+from fms.utils.generation import pad_input_ids
 
 
 # This example script validates the LLaMA implementation by running inference on a couple of prompts.
@@ -218,7 +218,19 @@ parser.add_argument(
     default=0,
     help="Set verbosity level (pass flag as `-v`, `-vv`, `-vvv`)"
 )
+parser.add_argument(
+    "--attention_type",
+    type=str,
+    choices=["sdpa", "paged"],
+    default="sdpa",
+    help="which backend attention to use in mha",
+)
 args = parser.parse_args()
+
+if args.attention_type == "paged":
+    from fms.utils.aiu.paged import generate
+else:
+    from fms.utils.generation import generate
 
 if args.quantization == "gptq":
     if "aiu" in args.device_type:
@@ -652,6 +664,10 @@ def infer(use_cache, do_sample, warmup):
     else:
         eos_token_id = None
 
+    attention_specific_kwargs = {}
+    if args.attention_type == "sdpa":
+        attention_specific_kwargs["contiguous_cache"] = True
+
     result = generate(
         model,
         ids,
@@ -661,8 +677,8 @@ def infer(use_cache, do_sample, warmup):
         max_seq_len=max_seq_len,
         timing=args.timing,
         eos_token_id=eos_token_id,
-        contiguous_cache=True,
         extra_kwargs=extra_generation_kwargs,
+        **attention_specific_kwargs
     )
     if args.timing != "":
         result, timings = result
