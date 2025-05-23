@@ -35,6 +35,7 @@ except ImportError:
     GPTQ_ENABLED = False
 
 ORIGINAL_HF_HOME = os.environ.get("HF_HOME", None)
+MODELS_HOME = os.environ.get("FMS_TEST_SHAPES_MODELS_HOME", "/home/senuser/models")
 
 # Add models to test here
 LLAMA_3p1_8B_INSTRUCT = "meta-llama/Llama-3.1-8B-Instruct"
@@ -42,24 +43,35 @@ GRANITE_3p2_8B_INSTRUCT = "ibm-granite/granite-3.2-8b-instruct"
 GRANITE_20B_CODE_INSTRUCT_8K = "ibm-granite/granite-20b-code-instruct-8k"
 LLAMA_3p1_70B_INSTRUCT = "meta-llama/Llama-3.1-70B-Instruct"
 
+micro_model_mapping = {
+    LLAMA_3p1_8B_INSTRUCT: os.path.join(MODELS_HOME, "llama-8b-layers-3-step-24000"),
+}
+
 SHARE_GPT_DATASET_PATH = os.environ.get(
     "SHARE_GPT_DATASET_PATH", os.path.expanduser("~/share_gpt.json")
 )
 USE_MICRO_MODELS = os.environ.get("FMS_TEST_SHAPES_USE_MICRO_MODELS", "1") == "1"
 USE_DISTRIBUTED = os.environ.get("FMS_TEST_SHAPES_DISTRIBUTED", "0") == "1"
-FORCE_VALIDATION_LEVEL_1 = os.environ.get("FMS_TEST_SHAPES_FORCE_VALIDATION_LEVEL_1", "0") == "1"
+FORCE_VALIDATION_LEVEL_1 = (
+    os.environ.get("FMS_TEST_SHAPES_FORCE_VALIDATION_LEVEL_1", "0") == "1"
+)
 validation_info_dir = os.environ.get(
-    "FMS_TEST_SHAPES_VALIDATION_INFO_DIR", "/tmp/models/validation_info"
+    "FMS_TEST_SHAPES_VALIDATION_INFO_DIR", "/home/senuser/models/validation_info"
 )
 common_model_paths = os.environ.get(
     "FMS_TEST_SHAPES_COMMON_MODEL_PATHS",
-    [LLAMA_3p1_8B_INSTRUCT, GRANITE_3p2_8B_INSTRUCT, GRANITE_20B_CODE_INSTRUCT_8K, LLAMA_3p1_70B_INSTRUCT],
+    [
+        LLAMA_3p1_8B_INSTRUCT,
+        GRANITE_3p2_8B_INSTRUCT,
+        GRANITE_20B_CODE_INSTRUCT_8K,
+        LLAMA_3p1_70B_INSTRUCT,
+    ],
 )
 # for validation level 1, the default is a failure rate of 1%
 # set this environment variable if you would like to relax that threshold
 failure_rate_threshold = os.environ.get("FMS_TEST_SHAPES_FAILURE_THRESHOLD", 0.01)
 default_metrics_threshold = os.environ.get(
-    "FMS_TEST_SHAPES_METRICS_THRESHOLD", (3.0, .001)
+    "FMS_TEST_SHAPES_METRICS_THRESHOLD", (3.0, 0.001)
 )
 save_validation_info_outputs = (
     os.environ.get("FMS_TEST_SHAPES_SAVE_VALIDATION_INFO_OUTPUTS", "0") == "1"
@@ -85,7 +97,9 @@ if isinstance(failure_rate_threshold, str):
 
 # pass custom default metrics threshold as a comma separated str of floats <cross-entropy threshold>,<mean diff threshold>
 if isinstance(default_metrics_threshold, str):
-    default_metrics_threshold = tuple([float(m) for m in default_metrics_threshold.split(",")])
+    default_metrics_threshold = tuple(
+        [float(m) for m in default_metrics_threshold.split(",")]
+    )
 
 # pass custom common batch sizes as a comma separated str of ints
 if isinstance(common_batch_sizes, str):
@@ -111,37 +125,21 @@ common_shapes = list(
 # thresholds are chosen based on 1024 tokens per sequence
 # 1% error threshold rate between cpu fp32 and cuda fp16
 # if a models failure thresholds do not exist in this dict, default to the default_metrics_threshold defined above
-# threshold key is (model_id, is_tiny_model)
+# threshold key is model_id
 fail_thresholds = {
-    (LLAMA_3p1_8B_INSTRUCT, True): (
-        3.7392955756187423,
-        .001, # FIXME: compute
-    ),
-    (GRANITE_3p2_8B_INSTRUCT, True): (
-        2.996668996810913,
-        .001, # FIXME: compute
-    ),
-    (GRANITE_20B_CODE_INSTRUCT_8K, True): (
-        3.7392955756187423, # FIXME: compute -- setting to micro llama 3.1 8b instruct
-        .001, # FIXME: compute
-    ),
-    (LLAMA_3p1_70B_INSTRUCT, True): (
-        3.8235735702514626,
-        .001, # FIXME: compute
-    ),
-    (LLAMA_3p1_8B_INSTRUCT, False): (
+    LLAMA_3p1_8B_INSTRUCT: (
         2.6994638133048965,
         0.00047589250549208347,
     ),
-    (GRANITE_3p2_8B_INSTRUCT, False): (
+    GRANITE_3p2_8B_INSTRUCT: (
         2.3919514417648315,
         0.0005767398688476533,
     ),
-    (GRANITE_20B_CODE_INSTRUCT_8K, False): (
+    GRANITE_20B_CODE_INSTRUCT_8K: (
         2.640706129074097,
         0.00034344267623964697,
     ),
-    (LLAMA_3p1_70B_INSTRUCT, False): (
+    LLAMA_3p1_70B_INSTRUCT: (
         2.841279556751251,
         0.0044301633024588115,
     ),
@@ -305,7 +303,7 @@ def test_common_shapes(model_path, batch_size, seq_length, max_new_tokens):
     os.environ["COMPILATION_MODE"] = "offline_decoder"
 
     if "HF_HOME" not in os.environ:
-        os.environ["HF_HOME"] = "/tmp/models/hf_cache"
+        os.environ["HF_HOME"] = "/home/senuser/models/hf_cache"
 
     dprint(
         f"testing model={model_path}, batch_size={batch_size}, seq_length={seq_length}, max_new_tokens={max_new_tokens}, micro_model={USE_MICRO_MODELS}"
@@ -315,13 +313,18 @@ def test_common_shapes(model_path, batch_size, seq_length, max_new_tokens):
     gptq_kwargs_aiu, gptq_kwargs_cpu = __maybe_get_gptq_kwargs(model_path)
     is_gptq = len(gptq_kwargs_aiu) != 0
 
-    if USE_MICRO_MODELS:
+    micro_model_path = micro_model_mapping.get(model_path, None)
+    if USE_MICRO_MODELS and micro_model_path is None:
+        dprint("using randomly initialized model")
         micro_model_kwargs = {"architecture": "hf_configured", "nlayers": 3}
     else:
+        dprint("using trained model")
         micro_model_kwargs = {"architecture": "hf_pretrained"}
 
     if not USE_MICRO_MODELS and os.path.exists(model_path):
         model_path_kwargs = {"model_path": model_path}
+    elif USE_MICRO_MODELS and micro_model_path is not None:
+        model_path_kwargs = {"model_path": micro_model_path}
     else:
         model_path_kwargs = {"variant": model_path}
 
@@ -417,7 +420,6 @@ def test_common_shapes(model_path, batch_size, seq_length, max_new_tokens):
 
     # if level 0 fails validation, validate level 1
     if FORCE_VALIDATION_LEVEL_1 or failed_validation_level_0:
-
         if failed_validation_level_0:
             dprint("failed validation level 0, testing validation level 1")
         else:
@@ -428,10 +430,12 @@ def test_common_shapes(model_path, batch_size, seq_length, max_new_tokens):
             cross_entropy = torch.nn.CrossEntropyLoss()(
                 r, t.softmax(dim=1).to(dtype=torch.float32)
             )
-            diff = torch.mean(torch.abs(
-                r.softmax(dim=1).to(dtype=torch.float32)
-                - t.softmax(dim=1).to(dtype=torch.float32)
-            ))
+            diff = torch.mean(
+                torch.abs(
+                    r.softmax(dim=1).to(dtype=torch.float32)
+                    - t.softmax(dim=1).to(dtype=torch.float32)
+                )
+            )
             return (cross_entropy, diff)
 
         iters = 1024 // max_new_tokens
@@ -499,9 +503,14 @@ def test_common_shapes(model_path, batch_size, seq_length, max_new_tokens):
             # only consider those metrics captured prior to the eos
             level_1_metrics = __filter_before_eos(level_1_metrics, eos_indexes)
 
-            ce_threshold, diff_threshold = fail_thresholds.get(
-                (model_path, USE_MICRO_MODELS), default_metrics_threshold
-            )
+            # if we do not have real model weights, use a default_metrics_threshold
+            if USE_MICRO_MODELS and micro_model_path is None:
+                ce_threshold, diff_threshold = default_metrics_threshold
+            # if we have real weights, try and get the proper validation metrics threshold
+            else:
+                ce_threshold, diff_threshold = fail_thresholds.get(
+                    model_path, default_metrics_threshold
+                )
 
             # get all failed responses for each metric
             ce_fail_responses = filter_failed_level_1_cases(
