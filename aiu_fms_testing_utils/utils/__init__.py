@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import time
 from fms.utils.tokenizers import BaseTokenizer
-from fms.utils.generation import generate
 from aiu_fms_testing_utils.utils.aiu_setup import dprint
 from typing import Optional, List, Tuple
 import os
@@ -10,16 +9,25 @@ import requests
 import json
 import random
 
-def warmup_model(model: nn.Module, input_ids: torch.Tensor, max_new_tokens: int, compile_dynamic_sendnn = False, **padding_kwargs):
+def warmup_model(model: nn.Module, input_ids: torch.Tensor, max_new_tokens: int, compile_dynamic_sendnn = False, attn_type="sdpa", max_seq_len=-1, **padding_kwargs):
     import torch_sendnn
+    attention_specific_kwargs = {}
+    if attn_type == "paged":
+        from fms.utils.aiu.paged import generate
+    else:
+        from fms.utils.generation import generate
+        attention_specific_kwargs["contiguous_cache"] = True
+    
     dprint("AIU warmup")
     pt_compile_model_time = time.time()
     extra_kwargs = {**padding_kwargs, "only_last_token": True}
     max_new_tokens_warmup = max_new_tokens
     if compile_dynamic_sendnn:
         max_new_tokens_warmup = 2
+    if max_seq_len == -1:
+        max_seq_len = model.config.max_expected_seq_len
     with torch_sendnn.warmup_mode():
-        generate(model, input_ids, max_new_tokens=max_new_tokens_warmup, max_seq_len=model.config.max_expected_seq_len, use_cache=True, do_sample=False, contiguous_cache=True, extra_kwargs=extra_kwargs)
+        generate(model, input_ids, max_new_tokens=max_new_tokens_warmup, max_seq_len=max_seq_len, use_cache=True, do_sample=False, extra_kwargs=extra_kwargs, **attention_specific_kwargs)
     pt_compile_model_time = time.time() - pt_compile_model_time
     dprint(f"PT compile complete, took {pt_compile_model_time:.3f}s")
 
