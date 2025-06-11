@@ -1,0 +1,3 @@
+{"model_id": "mistralai/Mistral-7B-Instruct-v0.3", "ce": 2.8364005851745624, "mean_diff": 0.0007839603102183846, "frequency": 2}
+/* FIXME: proper mean_diff, currently using from granite 3.1 8b instruct */
+{"model_id": "ibm-granite/granite-guardian-3.1-8b", "ce": 2.493684446811673, "mean_diff": 0.0005767398688476533, "frequency": 1}

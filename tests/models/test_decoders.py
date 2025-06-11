@@ -22,7 +22,7 @@ from aiu_fms_testing_utils.utils import (
     sample_sharegpt_requests,
     ids_for_prompt,
 )
-
+import json
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, aiu_dist_setup
 
 import os
@@ -55,6 +55,9 @@ common_model_paths = os.environ.get(
     "FMS_TEST_SHAPES_COMMON_MODEL_PATHS",
     [LLAMA_3p1_8B_INSTRUCT, GRANITE_3p2_8B_INSTRUCT, GRANITE_20B_CODE_INSTRUCT_8K, LLAMA_3p1_70B_INSTRUCT],
 )
+model_configuration_path = os.environ.get("FMS_TEST_SHAPES_FROM_MODEL_CONFIGURATION", "")
+model_configuration_frequency = os.environ.get("FMS_TEST_SHAPES_FROM_MODEL_CONFIGURATION_FREQUENCY", "0")
+
 # for validation level 1, the default is a failure rate of 1%
 # set this environment variable if you would like to relax that threshold
 failure_rate_threshold = os.environ.get("FMS_TEST_SHAPES_FAILURE_THRESHOLD", 0.01)
@@ -99,15 +102,6 @@ if isinstance(common_seq_lengths, str):
 if isinstance(common_max_new_tokens, str):
     common_max_new_tokens = [int(mnt) for mnt in common_max_new_tokens.split(",")]
 
-common_shapes = list(
-    itertools.product(
-        common_model_paths,
-        common_batch_sizes,
-        common_seq_lengths,
-        common_max_new_tokens,
-    )
-)
-
 # thresholds are chosen based on 1024 tokens per sequence
 # 1% error threshold rate between cpu fp32 and cuda fp16
 # if a models failure thresholds do not exist in this dict, default to the default_metrics_threshold defined above
@@ -146,6 +140,32 @@ fail_thresholds = {
         0.0044301633024588115,
     ),
 }
+
+if model_configuration_path != "":
+    print("ignoring FMS_TEST_SHAPES_COMMON_MODEL_PATHS, FMS_TEST_SHAPES_USE_MICRO_MODELS as configuration will be set by FMS_TEST_SHAPES_FROM_MODEL_CONFIGURATION")
+    USE_MICRO_MODELS = False
+    common_model_paths = []
+    frequency = int(model_configuration_frequency)
+    with open(model_configuration_path, 'r') as f:
+        for line in f:
+            try:
+                model_config = json.loads(line)
+                if model_config["frequency"] <= frequency:
+                    common_model_paths.append(model_config["model_id"])
+                    # assume fullsize models
+                    fail_thresholds[(model_config["model_id"], USE_MICRO_MODELS)] = (model_config["ce"], model_config["mean_diff"])
+            except json.JSONDecodeError:
+                print(f"config contained an improper json line: {line.strip()}")
+
+common_shapes = list(
+    itertools.product(
+        common_model_paths,
+        common_batch_sizes,
+        common_seq_lengths,
+        common_max_new_tokens,
+    )
+)
+
 # custom weight adaptation to be used in future. For instance if we would like to add some other adaptation, we can register it with this custom adapter
 # and provide it when converting from an aiu fms model's weights to a cpu fms model's weights. Currently this is only done for gptq, but may be done for other
 # formats in the future
