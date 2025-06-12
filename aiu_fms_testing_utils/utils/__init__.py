@@ -10,14 +10,16 @@ import requests
 import json
 import random
 import math
+import contextlib
 
-def stagger_enter(limit: int):
+@contextlib.contextmanager
+def stagger_region(limit: int):
     """
-    Limit the number of concurrent processes into this section of code.
-    Processes return from this funciton when they are allowed to enter the section of code.
-    Must be paired with another call to stagger_leave() when exiting the section of code.
+    Limit the number of concurrent processes into this region of code.
+    Processes yield from this function when they are allowed to enter the region of code.
+    Processes return from this function when all of the processes have completed the region of code.
 
-    :param limit: Number of concurrent processes allowed in the code section if > 0.
+    :param limit: Number of concurrent processes allowed in the code region if > 0.
     """
     if limit > 0 and limit != world_size:
         for _set in range( math.ceil(world_size / float(limit)) ):
@@ -25,15 +27,7 @@ def stagger_enter(limit: int):
                 break
             torch.distributed.barrier()
         dprint(f"Stagger: Enter (Set: {_set+1} of {math.ceil(world_size / float(limit))})")
-
-def stagger_leave(limit: int):
-    """
-    Leave a section code where the number of concurrent processes is limited.
-    Processes return from this funciton when all of the processes have completed the section of code.
-    Must be paired with another call to stagger_enter() when entering the section of code.
-
-    :param limit: Number of concurrent processes allowed in the code section if > 0.
-    """
+    yield {}
     if limit > 0 and limit != world_size:
         for _set in range( math.ceil(world_size / float(limit)) ):
             if rank >= (_set+1)*limit:
@@ -49,15 +43,12 @@ def warmup_model(model: nn.Module, input_ids: torch.Tensor, max_new_tokens: int,
     if compile_dynamic_sendnn:
         max_new_tokens_warmup = 2
 
-    stagger_enter(stagger_update_lazyhandle)
-
-    pt_compile_model_time = time.time()
-    with torch_sendnn.warmup_mode():
-        generate(model, input_ids, max_new_tokens=max_new_tokens_warmup, max_seq_len=model.config.max_expected_seq_len, use_cache=True, do_sample=False, contiguous_cache=True, extra_kwargs=extra_kwargs)
-    pt_compile_model_time = time.time() - pt_compile_model_time
-    dprint(f"PT compile complete, took {pt_compile_model_time:.3f}s")
-
-    stagger_leave(stagger_update_lazyhandle)
+    with stagger_region(stagger_update_lazyhandle) as _s:
+        pt_compile_model_time = time.time()
+        with torch_sendnn.warmup_mode():
+            generate(model, input_ids, max_new_tokens=max_new_tokens_warmup, max_seq_len=model.config.max_expected_seq_len, use_cache=True, do_sample=False, contiguous_cache=True, extra_kwargs=extra_kwargs)
+        pt_compile_model_time = time.time() - pt_compile_model_time
+        dprint(f"PT compile complete, took {pt_compile_model_time:.3f}s")
 
 def ids_for_prompt(prompt, tokenizer):
     tokens = tokenizer.tokenize(prompt)

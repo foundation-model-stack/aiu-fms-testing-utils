@@ -12,7 +12,7 @@ import contextlib
 import math
 
 # Third Party
-from aiu_fms_testing_utils.utils import aiu_setup, warmup_model, stagger_enter, stagger_leave
+from aiu_fms_testing_utils.utils import aiu_setup, warmup_model, stagger_region
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, rank, local_rank, world_size
 import numpy as np
 import torch
@@ -464,38 +464,35 @@ dprint(f"{fused_weights=}")
 dprint(f"data_type={default_dtype}")
 dprint("="*60 + "\n")
 
-stagger_enter(args.stagger_load)
+with stagger_region(args.stagger_load) as _s:
+    model = get_model(
+        args.architecture,
+        args.variant,
+        model_path=args.model_path,
+        device_type="cpu" if is_aiu_backend else args.device_type,
+        data_type=default_dtype,
+        source=args.model_source,
+        distributed_strategy=distr_param,
+        group=dist.group.WORLD,
+        linear_config=linear_config,
+        fused_weights=fused_weights,
+    )
 
-model = get_model(
-    args.architecture,
-    args.variant,
-    model_path=args.model_path,
-    device_type="cpu" if is_aiu_backend else args.device_type,
-    data_type=default_dtype,
-    source=args.model_source,
-    distributed_strategy=distr_param,
-    group=dist.group.WORLD,
-    linear_config=linear_config,
-    fused_weights=fused_weights,
-)
-
-if args.quantization in ["gptq", "int8"]:
-    if rank == 0 and args.verbose > 0:
-        dprint("PARAMS:\n" + "\n".join(f"{k:60} {str(v.dtype):15} {str(v.device):10} {list(v.size())}" for k,v in model.named_parameters()))
-        dprint("BUFFERS:\n" + "\n".join(f"{k:60} {str(v.dtype):15} {str(v.device):10} {list(v.size())}" for k,v in model.named_buffers()))
+    if args.quantization in ["gptq", "int8"]:
+        if rank == 0 and args.verbose > 0:
+            dprint("PARAMS:\n" + "\n".join(f"{k:60} {str(v.dtype):15} {str(v.device):10} {list(v.size())}" for k,v in model.named_parameters()))
+            dprint("BUFFERS:\n" + "\n".join(f"{k:60} {str(v.dtype):15} {str(v.device):10} {list(v.size())}" for k,v in model.named_buffers()))
+            dprint("="*60 + "\n")
+        if args.architecture == "llama":
+            dprint("[NOTE] In Llama models, it's OK for bias and rotary embeddings to be marked as unused keys.")
+        dprint(model)
         dprint("="*60 + "\n")
-    if args.architecture == "llama":
-        dprint("[NOTE] In Llama models, it's OK for bias and rotary embeddings to be marked as unused keys.")
-    dprint(model)
-    dprint("="*60 + "\n")
 
-tokenizer = tokenizers.get_tokenizer(args.tokenizer)
-model.eval()
-torch.set_grad_enabled(False)
-loading_model_time = time.time() - loading_model_time
-dprint(f"loading complete, took {loading_model_time:.3f}s")
-
-stagger_leave(args.stagger_load)
+    tokenizer = tokenizers.get_tokenizer(args.tokenizer)
+    model.eval()
+    torch.set_grad_enabled(False)
+    loading_model_time = time.time() - loading_model_time
+    dprint(f"loading complete, took {loading_model_time:.3f}s")
 
 if args.compile:
     dprint("compiling model")
