@@ -24,6 +24,11 @@ def warmup_model(model: nn.Module, input_ids: torch.Tensor, max_new_tokens: int,
     max_new_tokens_warmup = max_new_tokens
     if compile_dynamic_sendnn:
         max_new_tokens_warmup = 2
+        # ensure batch size is 2 and same size when using attn_type=paged
+        # for sdpa, we always warm up with the same prefills, so no need to do this
+        if attn_type == "paged":
+            input_ids = torch.stack((input_ids[0], input_ids[0]))
+
     if max_seq_len == -1:
         max_seq_len = model.config.max_expected_seq_len
     with torch_sendnn.warmup_mode():
