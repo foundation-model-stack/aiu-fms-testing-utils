@@ -13,9 +13,6 @@ import os
 
 os.environ["COMPILATION_MODE"] = "offline"
 
-if "HF_HOME" not in os.environ:
-    os.environ["HF_HOME"] = "/tmp/models/hf_cache"
-
 model_dir = os.environ.get("FMS_TESTING_MODEL_DIR", "/tmp/models")
 LLAMA_3p1_8B_INSTRUCT = "meta-llama/Llama-3.1-8B-Instruct"
 GRANITE_3p2_8B_INSTRUCT = "ibm-granite/granite-3.2-8b-instruct"

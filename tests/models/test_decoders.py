@@ -34,8 +34,6 @@ try:
 except ImportError:
     GPTQ_ENABLED = False
 
-ORIGINAL_HF_HOME = os.environ.get("HF_HOME", None)
-
 # Add models to test here
 LLAMA_3p1_8B_INSTRUCT = "meta-llama/Llama-3.1-8B-Instruct"
 GRANITE_3p2_8B_INSTRUCT = "ibm-granite/granite-3.2-8b-instruct"
@@ -170,10 +168,6 @@ def reset_compiler():
     torch.compiler.reset()
     torch._dynamo.reset()
     os.environ.pop("COMPILATION_MODE", None)
-    if ORIGINAL_HF_HOME is None:
-        os.environ.pop("HF_HOME", None)
-    else:
-        os.environ["HF_HOME"] = ORIGINAL_HF_HOME
 
 
 # TODO: Currently, gptq does not have the same level of support as non-gptq models for get_model. This method provides the extra requirements for gptq for get_model,
@@ -314,9 +308,6 @@ def __maybe_reset_model(model, is_gptq):
 def test_common_shapes(model_path, batch_size, seq_length, max_new_tokens):
     torch.manual_seed(42)
     os.environ["COMPILATION_MODE"] = "offline_decoder"
-
-    if "HF_HOME" not in os.environ:
-        os.environ["HF_HOME"] = "/tmp/models/hf_cache"
 
     dprint(
         f"testing model={model_path}, batch_size={batch_size}, seq_length={seq_length}, max_new_tokens={max_new_tokens}, micro_model={USE_MICRO_MODELS}"
