@@ -18,7 +18,7 @@ from torch import distributed as dist
 from fms.models import get_model, register_model
 from fms.models.llama import LLaMAConfig, _llama_factory_factory
 from fms.utils import generation, tokenizers
-from fms.utils.generation import generate, pad_input_ids
+from fms.utils.generation import pad_input_ids
 
 
 # This example script validates the LLaMA implementation by running inference on a couple of prompts.
@@ -218,7 +218,25 @@ parser.add_argument(
     default=0,
     help="Set verbosity level (pass flag as `-v`, `-vv`, `-vvv`)"
 )
+parser.add_argument(
+    "--attention_type",
+    type=str,
+    choices=["sdpa", "paged"],
+    default="sdpa",
+    help="which backend attention to use in mha",
+)
+parser.add_argument(
+    "--max_sequence_length",
+    type=int,
+    default=-1,
+    help="override the max sequence length of the prompt + max_new_tokens"
+)
 args = parser.parse_args()
+
+if args.attention_type == "paged":
+    from aiu_fms_testing_utils.utils.paged import generate
+else:
+    from fms.utils.generation import generate
 
 if args.quantization == "gptq":
     if "aiu" in args.device_type:
@@ -596,6 +614,11 @@ else:
         ids = ids[0].unsqueeze(0)
     extra_generation_kwargs = None
 
+if args.max_sequence_length == -1:
+    max_seq_length = ids.size(0) + args.max_new_tokens
+else:
+    max_seq_length = args.max_sequence_length
+
 
 def print_result(result, result_idx: int):
     if local_rank != 0:
@@ -631,17 +654,12 @@ def infer(use_cache, do_sample, warmup):
     if local_rank == 0 and not warmup:
         dprint(f"use_cache {use_cache};; do_sample {do_sample}")
         dprint("==================")
-    if hasattr(model.config, "ntk_scaling") and model.config.ntk_scaling:
-        max_seq_len = max(max_len, model.config.max_expected_seq_len)
-    else:
-        # without ntk scaling, extending the seq length too far gives bogus results.
-        max_seq_len = model.config.max_expected_seq_len
 
     # Add only_last_token optimization
     global extra_generation_kwargs
     if extra_generation_kwargs is None:
         extra_generation_kwargs = {}
-    extra_generation_kwargs["only_last_token"] = True
+    extra_generation_kwargs["only_last_token"] = args.attention_type != "paged"
 
     if args.device_type == "cpu":
         # Bug in 2.3.1 fixed in 2.4.1 for SDPA flash cpu impl when padding too much
@@ -652,17 +670,21 @@ def infer(use_cache, do_sample, warmup):
     else:
         eos_token_id = None
 
+    attention_specific_kwargs = {}
+    if args.attention_type == "sdpa":
+        attention_specific_kwargs["contiguous_cache"] = True
+
     result = generate(
         model,
         ids,
         max_new_tokens=args.max_new_tokens,
         use_cache=use_cache,
         do_sample=do_sample,
-        max_seq_len=max_seq_len,
+        max_seq_len=max_seq_length,
         timing=args.timing,
         eos_token_id=eos_token_id,
-        contiguous_cache=True,
         extra_kwargs=extra_generation_kwargs,
+        **attention_specific_kwargs
     )
     if args.timing != "":
         result, timings = result
@@ -696,7 +718,7 @@ if args.compile:
     dprint(f"compilation warmup")
     pt_compile_model_time = time.time()
     if args.device_type == "aiu":  # only run warmup for AIU, no need for senulator
-        warmup_model(model, ids, args.max_new_tokens, args.compile_dynamic_sendnn, **extra_generation_kwargs)
+        warmup_model(model, ids, args.max_new_tokens, args.compile_dynamic_sendnn, attn_type=args.attention_type, max_seq_len=max_seq_length, **extra_generation_kwargs)
         aiu_warmup_time = time.time()
         for sample, cache in itertools.product(do_sample, use_cache):
             infer(cache, sample, True)
