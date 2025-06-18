@@ -23,7 +23,7 @@ def dprint(text):
 # ==============================================================
 # Common setup
 # ==============================================================
-def aiu_setup(rank=0, world_size=1, local_rank=0, local_size=1, verbose=False):
+def aiu_setup(rank=0, world_size=1, local_rank=0, verbose=False):
     # -------------
     # Envar setup for Sentient backend
     # -------------
@@ -56,13 +56,9 @@ def aiu_setup(rank=0, world_size=1, local_rank=0, local_size=1, verbose=False):
 # ==============================================================
 # Distributed setup
 # ==============================================================
-def aiu_dist_setup(rank, world_size, local_rank=-0, local_size=-1, verbose=False):
+def aiu_dist_setup(rank, world_size, local_rank=-0, verbose=False):
     if local_rank < 0:
         local_rank = rank
-
-    # FIXME: local_size not in use ?
-    if local_size < 0:
-        local_size = world_size
 
     if os.getenv("TORCHELASTIC_RUN_ID") is None:
         os.environ["MASTER_ADDR"] = "localhost"
