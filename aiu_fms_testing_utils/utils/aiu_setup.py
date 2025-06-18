@@ -107,10 +107,6 @@ def set_aiu_env_vars(args: argparse.Namespace) -> None:
         torch._dynamo.config.automatic_dynamic_shapes = False
 
     # This should be set outside!!!
-    os.environ.setdefault("SENCORES", "32")
-    os.environ.setdefault("SENCORELETS", "2")
-    os.environ.setdefault("DATA_PREC", "fp16")
-    os.environ.setdefault("FLEX_OVERWRITE_NMB_FRAME", "1")
     os.environ.setdefault("DTCOMPILER_KEEP_EXPORT", "true")
 
     os.environ.setdefault("COMPILATION_MODE", "offline_decoder")
