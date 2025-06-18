@@ -56,6 +56,30 @@ class EncoderQAInfer():
         self.answer_column_name = ""
         self.pad_on_right = True
 
+        self.validate_arguments()
+
+
+    def validate_arguments(self):
+        """Ensure arguments compatibility with Encoder models."""
+
+        args = self.args
+        if args.min_pad_length != 0:
+            raise ValueError(
+                "Argument min_pad_length should not be provided to encoders. "
+                "To pad the input sequence, use --pad_to_max_length flag instead."
+            )
+        if args.fixed_prompt_length != 0:
+            raise ValueError(
+                "Argument fixed_prompt_length should not be provided to encoders. "
+                "To pad the input sequence, use --pad_to_max_length flag instead."
+            )
+        if args.max_new_tokens != 100:
+            raise ValueError(
+                "Argument max_new_token should not be provided to encoders. "
+                "To define the max length of a generated answer in QuestionAnswering "
+                "use --max_answer_length instead."
+            )
+
 
     def prepare_validation_features(self, examples):
         """Validation preprocessing"""
@@ -64,7 +88,11 @@ class EncoderQAInfer():
         q_col_name = self.question_column_name
         c_col_name = self.context_column_name
         pad_on_right = self.pad_on_right
-        max_seq_length = self.max_seq_length
+        max_prompt_length = (
+            args.max_prompt_length
+            if args.max_prompt_length is not None
+            else 384
+        )
 
         # Some of the questions have lots of whitespace on the left, which is not useful
         # and will make the truncation of the context fail (the tokenized question will
@@ -81,8 +109,8 @@ class EncoderQAInfer():
             examples[q_col_name if pad_on_right else c_col_name],
             examples[c_col_name if pad_on_right else q_col_name],
             truncation="only_second" if pad_on_right else "only_first",
-            max_length=max_seq_length,
-            stride=min(args.doc_stride, max_seq_length // 2),
+            max_length=max_prompt_length,
+            stride=min(args.doc_stride, max_prompt_length // 2),
             return_overflowing_tokens=True,
             return_offsets_mapping=True,
             padding="max_length" if args.pad_to_max_length else False,
@@ -154,14 +182,16 @@ class EncoderQAInfer():
         # Padding side determines if we do (question|context) or (context|question)
         self.pad_on_right = self.tokenizer.padding_side == "right"
 
-        if args.max_seq_length > self.tokenizer.model_max_length:
+        if args.max_prompt_length > self.tokenizer.model_max_length:
             dprint(
-                f"The max_seq_length passed ({args.max_seq_length}) is larger than the "
-                f"maximum length for the model ({self.tokenizer.model_max_length}). "
-                f"Using max_seq_length={self.tokenizer.model_max_length}."
+                f"max_prompt_length ({args.max_prompt_length}) is larger than the "
+                f"maximum length supported ({self.tokenizer.model_max_length}). "
+                f"Using max_prompt_length={self.tokenizer.model_max_length} instead."
             )
-
-        self.max_seq_length = min(args.max_seq_length, self.tokenizer.model_max_length)
+            self.max_prompt_length = min(
+                args.max_seq_length,
+                self.tokenizer.model_max_length,
+            )
 
         eval_examples = raw_datasets["validation"]
         if args.max_eval_samples is not None:
@@ -542,10 +572,10 @@ class EncoderQAInfer():
         dprint(
             f"Runtime: {eval_duration:.0f} s | "
             f"{eval_duration / len(eval_dataloader):.2f} s/batch | "
-            f"{eval_duration / (len(eval_dataloader) * args.per_device_eval_batch_size):.2f}"
+            f"{eval_duration / (len(eval_dataloader) * args.batch_size):.2f}"
             " s/sample "
-            f"(tot = {len(eval_dataloader) * args.per_device_eval_batch_size}, "
-            f"bs = {args.per_device_eval_batch_size})"
+            f"(tot = {len(eval_dataloader) * args.batch_size}, "
+            f"bs = {args.batch_size})"
         )
 
         # concatenate the numpy array
