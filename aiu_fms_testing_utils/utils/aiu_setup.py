@@ -119,4 +119,4 @@ def set_aiu_env_vars(args: argparse.Namespace) -> None:
             print("must set AIU_WORLD_RANK_0")
             exit()
         os.environ.setdefault("FLEX_COMPUTE", "SENTIENT")
-        os.environ.setdefault("FLEX_DEVICE", "VFIO")
+        os.environ.setdefault("FLEX_DEVICE", "PF")  # will use VF eventually
