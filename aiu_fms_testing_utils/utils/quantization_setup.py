@@ -124,24 +124,3 @@ def get_linear_config(args: argparse.Namespace) -> dict[str, Any]:
     else:
         linear_config = {"linear_type": "torch_linear"}
     return linear_config
-
-
-def print_model_params(model: nn.Module, args: argparse.Namespace) -> None:
-    """Printout model and list of model parameters with related statistics."""
-
-    if rank == 0 and args.verbose:
-        dprint("="*60 + "\n")
-        dprint("\n".join(
-            f"{k:80} {str(list(v.size())):15} {str(v.dtype):18} {str(v.device):10} "
-            f"{v.min().item():12.4f} {v.max().item():12.4f}"
-            for k,v in model.state_dict().items()
-        ))
-        dprint("="*60 + "\n")
-    if args.architecture == "llama":
-        dprint(
-            "[NOTE] In Llama models, it's OK for bias and rotary embeddings to be "
-            "marked as unused keys because of different architectural choices between "
-            "FMS and HF models (but model output is preserved)."
-        )
-    dprint(model)
-    dprint("="*60 + "\n")

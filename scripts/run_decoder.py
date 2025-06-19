@@ -11,11 +11,10 @@ from torch import distributed, set_grad_enabled
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, rank
 from aiu_fms_testing_utils.utils.args_parsing import get_args
 from aiu_fms_testing_utils.utils.decoders_utils import run_decoder_eval
-from aiu_fms_testing_utils.utils.model_setup import setup_model
+from aiu_fms_testing_utils.utils.model_setup import setup_model, print_model_params
 from aiu_fms_testing_utils.utils.quantization_setup import (
     import_addons,
     get_linear_config,
-    print_model_params,
 )
 
 

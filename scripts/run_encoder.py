@@ -15,11 +15,10 @@ from aiu_fms_testing_utils.utils.encoders_utils import (
     run_encoder_eval_qa,
     run_encoder_eval_mlm,
 )
-from aiu_fms_testing_utils.utils.model_setup import setup_model
+from aiu_fms_testing_utils.utils.model_setup import setup_model, print_model_params
 from aiu_fms_testing_utils.utils.quantization_setup import (
     import_addons,
     get_linear_config,
-    print_model_params,
 )
 
 
