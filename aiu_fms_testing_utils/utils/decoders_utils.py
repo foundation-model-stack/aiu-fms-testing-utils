@@ -9,7 +9,8 @@ import time
 # Third Party
 from fms.utils import generation
 from fms.utils.generation import generate, pad_input_ids
-from transformers import PreTrainedModel, PreTrainedTokenizerBase
+from fms.utils.tokenizers import BaseTokenizer
+from torch import nn
 import numpy as np
 import torch
 
@@ -22,8 +23,8 @@ class DecoderInfer():
 
     def __init__(
         self,
-        model: PreTrainedModel,
-        tokenizer: PreTrainedTokenizerBase,
+        model: nn.Module,
+        tokenizer: BaseTokenizer,
         args: argparse.Namespace,
         device: torch.device,
     ):
@@ -40,6 +41,21 @@ class DecoderInfer():
         # !!! Inference arguments (hardcoded, as in the original script)
         self.do_sample = [False]
         self.use_cache = [args.no_use_cache]  # True/False identical with greedy iff `torch.use_deterministic_algorithms(True)`
+
+        self.validate_decoder_arguments()
+
+    def validate_decoder_arguments(self):
+        """Ensure arguments compatibility with Encoder models."""
+
+        args = self.args
+        if getattr(args, "is_encoder", True):
+            raise ValueError(
+                "Running decoder model but is_encoder argument is either not set or True"
+            )
+        if "bert" in args.architecture.lower():
+            raise ValueError(
+                f"Architecture {args.architecture} should be run as an encoder model."
+            )
 
     def ids_for_prompt(self, prompt):
         """Process textual prompt and return tokenized ids."""
@@ -319,8 +335,8 @@ class DecoderInfer():
 
 
 def run_decoder_eval(
-        model: PreTrainedModel,
-        tokenizer: PreTrainedTokenizerBase,
+        model: nn.Module,
+        tokenizer: BaseTokenizer,
         args: argparse.Namespace,
         device: torch.device,
     ):

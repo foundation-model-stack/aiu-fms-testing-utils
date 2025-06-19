@@ -9,15 +9,14 @@ import time
 # Third Party
 from datasets import load_dataset
 from fms.models.hf import to_hf_api
+from fms.utils.tokenizers import BaseTokenizer
+from torch import nn
 from torch.utils.data import DataLoader
 from transformers import (
     default_data_collator,
     DataCollatorWithPadding,
     EvalPrediction,
     pipeline,
-    PreTrainedModel,
-    PreTrainedTokenizerBase,
-    RobertaTokenizerFast,
 )
 import evaluate
 import numpy as np
@@ -25,10 +24,6 @@ import torch
 
 # Local Packages
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, rank
-
-
-def get_roberta_tokenizer(tokenizer_path):
-    return RobertaTokenizerFast.from_pretrained(tokenizer_path)
 
 
 def wrap_encoder(model):
@@ -43,8 +38,8 @@ class EncoderQAInfer():
 
     def __init__(
         self,
-        model: PreTrainedModel,
-        tokenizer: PreTrainedTokenizerBase,
+        model: nn.Module,
+        tokenizer: BaseTokenizer,
         args: argparse.Namespace,
     ):
         self.model = model
@@ -56,13 +51,17 @@ class EncoderQAInfer():
         self.answer_column_name = ""
         self.pad_on_right = True
 
-        self.validate_arguments()
+        self.validate_encoder_arguments()
 
 
-    def validate_arguments(self):
+    def validate_encoder_arguments(self):
         """Ensure arguments compatibility with Encoder models."""
 
         args = self.args
+        if not getattr(args, "is_encoder", False):
+            raise ValueError(
+                "Running encoder model but is_encoder argument is either not set or False."
+            )
         if args.min_pad_length != 0:
             raise ValueError(
                 "Argument min_pad_length should not be provided to encoders. "
@@ -105,7 +104,7 @@ class EncoderQAInfer():
         # using a stride. This results in one example possible giving several features
         # when a context is long, each of those features having a context that overlaps
         # a bit the context of the previous feature.
-        tokenized_examples = self.tokenizer(
+        tokenized_examples = self.tokenizer.tokenize(
             examples[q_col_name if pad_on_right else c_col_name],
             examples[c_col_name if pad_on_right else q_col_name],
             truncation="only_second" if pad_on_right else "only_first",
@@ -182,15 +181,16 @@ class EncoderQAInfer():
         # Padding side determines if we do (question|context) or (context|question)
         self.pad_on_right = self.tokenizer.padding_side == "right"
 
-        if args.max_prompt_length > self.tokenizer.model_max_length:
+        model_max_length = self.tokenizer.tokenizer.model_max_length  # TODO: add model_max_length to FMS _HFTokenizer
+        if args.max_prompt_length > model_max_length:
             dprint(
                 f"max_prompt_length ({args.max_prompt_length}) is larger than the "
-                f"maximum length supported ({self.tokenizer.model_max_length}). "
-                f"Using max_prompt_length={self.tokenizer.model_max_length} instead."
+                f"maximum length supported ({model_max_length}). "
+                f"Using max_prompt_length={model_max_length} instead."
             )
             self.max_prompt_length = min(
                 args.max_seq_length,
-                self.tokenizer.model_max_length,
+                model_max_length,
             )
 
         eval_examples = raw_datasets["validation"]
@@ -226,7 +226,7 @@ class EncoderQAInfer():
             # (by padding to the maximum length of the samples passed).
             pad_to_multiple_of = None
             self.data_collator = DataCollatorWithPadding(
-                self.tokenizer,
+                self.tokenizer.tokenizer,
                 pad_to_multiple_of=pad_to_multiple_of,
             )
 
@@ -612,8 +612,8 @@ class EncoderMLMInfer():
 
     def __init__(
         self,
-        model: PreTrainedModel,
-        tokenizer: PreTrainedTokenizerBase,
+        model: nn.Module,
+        tokenizer: BaseTokenizer,
         args: argparse.Namespace,
     ):
         self.model = model
@@ -633,7 +633,11 @@ class EncoderMLMInfer():
 
         dprint(f"Starting evaluation ({warmup=})...")
         warmup_start_time = time.time()
-        unmasker = pipeline("fill-mask", model=self.model, tokenizer=self.tokenizer)
+        unmasker = pipeline(
+            "fill-mask",
+            model=self.model,
+            tokenizer=self.tokenizer.tokenizer,
+        )
         output = unmasker(self.prompt)
         if rank == 0:
             dprint(f"Run completed in {time.time() - warmup_start_time:.1f} s\n---")
@@ -644,8 +648,8 @@ class EncoderMLMInfer():
 
 
 def run_encoder_eval_qa(
-    model: PreTrainedModel,
-    tokenizer: PreTrainedTokenizerBase,
+    model: nn.Module,
+    tokenizer: BaseTokenizer,
     args: argparse.Namespace,
 ):
     """Entry point to run QuestionAnswering Evaluation of encoder model.
@@ -663,8 +667,8 @@ def run_encoder_eval_qa(
 
 
 def run_encoder_eval_mlm(
-    model: PreTrainedModel,
-    tokenizer: PreTrainedTokenizerBase,
+    model: nn.Module,
+    tokenizer: BaseTokenizer,
     args: argparse.Namespace,
 ):
     """Entry point to run evaluation of encoder models."""

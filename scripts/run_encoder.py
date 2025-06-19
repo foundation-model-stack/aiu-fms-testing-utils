@@ -11,7 +11,6 @@ from torch import distributed, set_grad_enabled
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, rank, world_size
 from aiu_fms_testing_utils.utils.args_parsing import get_args
 from aiu_fms_testing_utils.utils.encoders_utils import (
-    get_roberta_tokenizer,
     wrap_encoder,
     run_encoder_eval_qa,
     run_encoder_eval_mlm,
@@ -78,10 +77,7 @@ model = get_model(
 if args.is_quantized:
     print_model_params(model, args)
 
-if "roberta" in args.architecture:
-    tokenizer = get_roberta_tokenizer(args.tokenizer)
-else:
-    tokenizer = tokenizers.get_tokenizer(args.tokenizer)
+tokenizer = tokenizers.get_tokenizer(args.tokenizer)
 
 model.eval()
 set_grad_enabled(False)
