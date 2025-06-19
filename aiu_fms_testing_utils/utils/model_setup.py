@@ -7,7 +7,7 @@ import sys
 import numpy as np
 import random
 import torch
-from torch import distributed
+from torch import nn, distributed
 
 # Local
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, rank, local_rank, world_size

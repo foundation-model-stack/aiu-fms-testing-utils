@@ -315,14 +315,14 @@ class DecoderInfer():
                 self.args.compile_dynamic_sendnn,
                 **self.extra_generation_kwargs,
             )
-            aiu_warmup_time = time.time()
+            aiu_warmup_start = time.time()
             self.infer(ids, warmup=True)
-            aiu_warmup_time = time.time() - aiu_warmup_time
+            aiu_warmup_time = time.time() - aiu_warmup_start
             dprint(f"AIU warmup completed, took {aiu_warmup_time:.3f}s")
         else:
             for sample, cache in itertools.product(self.do_sample, self.use_cache):
                 self.infer(cache, sample, True)
-        pt_compile_model_time = time.time() - pt_compile_model_time
+        pt_compile_model_time = time.time() - pt_compile_model_start
         dprint(f"PT compile complete, took {pt_compile_model_time:.3f}s")
 
     def run_generation(self, ids):
