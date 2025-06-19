@@ -167,6 +167,11 @@ def get_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
         action="store_true",
         help="Use dynamic shapes with torch.compile",
     )
+    args_compile.add_argument(
+        "--compile_dynamic_sendnn",
+        action="store_true",
+        help="Use dynamic shapes with aiu compile",
+    )
 
     # Arguments shared between Decoder and Encoder models
     args_dec_enc = parser.add_argument_group("Decoders or Encoders (shared args)")
