@@ -9,21 +9,27 @@ import time
 # Third Party
 from datasets import load_dataset
 from fms.models.hf import to_hf_api
+from fms.utils import has_package
 from fms.utils.tokenizers import BaseTokenizer
 from torch import nn
 from torch.utils.data import DataLoader
-from transformers import (
-    default_data_collator,
-    DataCollatorWithPadding,
-    EvalPrediction,
-    pipeline,
-)
 import evaluate
 import numpy as np
 import torch
 
 # Local Packages
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, rank
+
+
+# Optional imports (required for QA)
+has_hf = has_package("transformers")
+if has_hf:
+    from transformers import (
+        default_data_collator,
+        DataCollatorWithPadding,
+        EvalPrediction,
+        pipeline,
+    )
 
 
 def wrap_encoder(model):
@@ -52,7 +58,6 @@ class EncoderQAInfer():
         self.pad_on_right = True
 
         self.validate_encoder_arguments()
-
 
     def validate_encoder_arguments(self):
         """Ensure arguments compatibility with Encoder models."""
@@ -151,6 +156,12 @@ class EncoderQAInfer():
 
     def process_eval_set(self):
         """Pre-process evaluation dataset for QuestionAnswering task."""
+
+        if not has_hf:
+            raise ImportError(
+                "QuestionAnswering Encoder requires transformer package but import "
+                "was unsuccessful."
+            )
 
         args = self.args
         if args.dataset_name is not None:
@@ -403,8 +414,7 @@ class EncoderQAInfer():
             if len(predictions) == 0 or (len(predictions) == 1 and predictions[0]["text"] == ""):
                 predictions.insert(0, {"text": "empty", "start_logit": 0.0, "end_logit": 0.0, "score": 0.0})
 
-            # Compute the softmax of all scores (we do it with numpy to stay independent from torch/tf in this file, using
-            # the LogSumExp trick).
+            # Compute the softmax of all scores
             scores = np.array([pred.pop("score") for pred in predictions])
             exp_scores = np.exp(scores - np.max(scores))
             probs = exp_scores / exp_scores.sum()
