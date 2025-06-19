@@ -15,6 +15,7 @@ import numpy as np
 import torch
 
 # Local Packages
+from aiu_fms_testing_utils.utils import warmup_model
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, local_rank
 
 
@@ -286,11 +287,12 @@ class DecoderInfer():
                 elif args.timing == "per-token":
                     if not warmup:
                         dprint(f"First-token latency: {timings[0]*1000:.3f} ms")
-                        dprint(f"Average next-token latency: {np.mean(timings[1:])*1000:.3f} ms")
                         dprint(f"Average next-token latency (including first token): {np.mean(timings)*1000:.3f} ms")
-                        dprint(f"Max next-token latency: {np.max(timings[1:])*1000:.3f} ms (token #{np.argmax(timings[1:]) + 2})")
-                        dprint(f"Min next-token latency: {np.min(timings[1:])*1000:.3f} ms (token #{np.argmin(timings[1:]) + 2})")
-                        dprint(f"Std deviation of next-token latencies: {np.std(timings[1:])*1000:.3f} ms")
+                        if len(timings) > 1:
+                            dprint(f"Average next-token latency: {np.mean(timings[1:])*1000:.3f} ms")
+                            dprint(f"Max next-token latency: {np.max(timings[1:])*1000:.3f} ms (token #{np.argmax(timings[1:]) + 2})")
+                            dprint(f"Min next-token latency: {np.min(timings[1:])*1000:.3f} ms (token #{np.argmin(timings[1:]) + 2})")
+                            dprint(f"Std deviation of next-token latencies: {np.std(timings[1:])*1000:.3f} ms")
                     timings = [f"{t*1000:.3f}" for t in timings]
                     dprint(f"Per-token timing information: {', '.join(timings)} ms")
             if len(result.shape) == 1:
@@ -305,26 +307,23 @@ class DecoderInfer():
 
         dprint(f"Start compilation warmup...")
         pt_compile_model_start = time.time()
-        self.infer(ids, warmup=True)
-        dprint(
-            "PyTorch compile completed, "
-            f"took {time.time() - pt_compile_model_start:.2f} s."
-        )
-
-        if self.args.is_aiu_backend:
-            from torch_sendnn import torch_sendnn
-
-            dprint("Executing update_lazyhandle and compiling for AIU")
-            update_lh_time = time.time()
-            torch_sendnn.update_lazyhandle()
-            update_lh_time = time.time() - update_lh_time
-            dprint(f"Update_lazyhandle completed, took {update_lh_time:.3f}s")
-
         if self.args.device_type == "aiu":  # only run warmup for AIU, not senulator
+            warmup_model(
+                self.model,
+                ids,
+                self.args.max_new_tokens,
+                self.args.compile_dynamic_sendnn,
+                **self.extra_generation_kwargs,
+            )
             aiu_warmup_time = time.time()
             self.infer(ids, warmup=True)
             aiu_warmup_time = time.time() - aiu_warmup_time
             dprint(f"AIU warmup completed, took {aiu_warmup_time:.3f}s")
+        else:
+            for sample, cache in itertools.product(self.do_sample, self.use_cache):
+                self.infer(cache, sample, True)
+        pt_compile_model_time = time.time() - pt_compile_model_time
+        dprint(f"PT compile complete, took {pt_compile_model_time:.3f}s")
 
     def run_generation(self, ids):
         """Run inference generation (not a warmup)."""
