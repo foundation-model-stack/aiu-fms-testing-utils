@@ -6,7 +6,7 @@ import json
 import os
 
 # Third Party
-from transformers import PreTrainedModel
+from torch import nn
 
 # Local Packages
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, rank
@@ -126,10 +126,10 @@ def get_linear_config(args: argparse.Namespace) -> dict[str, Any]:
     return linear_config
 
 
-def print_model_params(model: PreTrainedModel, args: argparse.Namespace) -> None:
+def print_model_params(model: nn.Module, args: argparse.Namespace) -> None:
     """Printout model and list of model parameters with related statistics."""
 
-    if rank == 0 and args.verbose > 0:
+    if rank == 0 and args.verbose:
         dprint("="*60 + "\n")
         dprint("\n".join(
             f"{k:80} {str(list(v.size())):15} {str(v.dtype):18} {str(v.device):10} "
@@ -138,10 +138,10 @@ def print_model_params(model: PreTrainedModel, args: argparse.Namespace) -> None
         ))
         dprint("="*60 + "\n")
     if args.architecture == "llama":
-        # TODO: unused keys behavior in FMS may change to return ERRORS
         dprint(
             "[NOTE] In Llama models, it's OK for bias and rotary embeddings to be "
-            "marked as unused keys."
+            "marked as unused keys because of different architectural choices between "
+            "FMS and HF models (but model output is preserved)."
         )
     dprint(model)
     dprint("="*60 + "\n")

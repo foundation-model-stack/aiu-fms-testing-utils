@@ -56,7 +56,7 @@ def get_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
     args_quantization.add_argument(
         "--quantization",
         type=str,
-        choices=["gptq", "int8"],
+        choices=["gptq", "int8"],  # TODO: add "fp8" when available in FMS
         default=None,
         help="Type of quantization of the model checkpoint",
     )
@@ -102,7 +102,7 @@ def get_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
         "--seed",
         type=int,
         default=81072,
-        help="Run seed (only needed if eval dataset is shuffled)",
+        help="Fix run seed for reproducibility",
     )
     args_run_settings.add_argument(
         "--output_path",
@@ -340,13 +340,12 @@ def get_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
     args = parser.parse_args()
 
     # Add convenient arguments to parser
-    args.is_encoder = "bert" in args.architecture.lower()  # TODO: improve this check
     args.is_quantized = args.quantization is not None
     args.is_aiu_backend = "aiu" in args.device_type
     args.dynamo_backend = "sendnn" if args.is_aiu_backend else "inductor"
     args.fused_weights = not args.unfuse_weights
 
-    if args.verbose > 0:
+    if args.verbose:
         dprint("=" * 60)
         dprint(args)
         dprint("=" * 60)
