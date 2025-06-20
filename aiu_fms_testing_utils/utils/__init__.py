@@ -37,17 +37,17 @@ def __download_file(url, filename):
     try:
         response = requests.get(url, stream=True)
         response.raise_for_status()
-        
+
         with open(filename, 'wb') as file:
             for chunk in response.iter_content(chunk_size=8192):
                 file.write(chunk)
         print(f"Successfully downloaded {filename}")
-    
+
     except requests.exceptions.RequestException as e:
         print(f"An error occurred: {e}")
 
 def __sample_requests(
-    prompt_list: List[str], 
+    prompt_list: List[str],
     num_requests: int,
     tokenizer: BaseTokenizer,
     prompt_length_min: int = 32,
@@ -67,16 +67,14 @@ def __sample_requests(
         # Tokenize the prompts and completions.
         prompt = prompt_list[i]
         prompt_token_ids = ids_for_prompt(prompt, tokenizer)
-        
+
         prompt_len = len(prompt_token_ids)
         if prompt_len < prompt_length_min or prompt_len > prompt_length_max:
             # Prune too short or too long sequences.
             continue
         filtered_dataset.append((prompt, prompt_len))
-    
-    return filtered_dataset
-    
 
+    return filtered_dataset
 
 def sample_sharegpt_requests(
     dataset_path: str,
@@ -96,15 +94,15 @@ def sample_sharegpt_requests(
     # Filter out the conversations with less than 2 turns.
     dataset = [data for data in dataset if len(data["conversations"]) >= 2]
     dataset = [data["conversations"][0]["value"] for data in dataset]
-    
+
     return __sample_requests(dataset, num_requests, tokenizer, prompt_length_min, prompt_length_max, seed)
 
 def sample_squad_v2_qa_requests(
     dataset_path: str,
-    num_requests: int, 
-    tokenizer: BaseTokenizer, 
-    prompt_length_min: int = 32, 
-    prompt_length_max: int = 64, 
+    num_requests: int,
+    tokenizer: BaseTokenizer,
+    prompt_length_min: int = 32,
+    prompt_length_max: int = 64,
     seed: Optional[int] = None
 ) -> List[Tuple[str, int]]:
     from datasets import load_dataset
@@ -113,10 +111,10 @@ def sample_squad_v2_qa_requests(
         ds = load_dataset(dataset_path)['train']
     else:
         ds = load_dataset("rajpurkar/squad_v2", cache_dir=dataset_path)['train']
-        
-    
+
+
     ds = [f"{data['context']}\n{data['question']}" for data in ds]
 
     return __sample_requests(ds, num_requests, tokenizer, prompt_length_min, prompt_length_max, seed)
-    
+
 

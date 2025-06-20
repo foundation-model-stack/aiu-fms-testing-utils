@@ -15,7 +15,7 @@ import numpy as np
 import torch
 
 # Local Packages
-from aiu_fms_testing_utils.utils import warmup_model
+from aiu_fms_testing_utils.utils import ids_for_prompt, warmup_model
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, local_rank
 
 
@@ -34,12 +34,10 @@ class DecoderInfer():
         self.args = args
         self.device = device
 
-        self.add_special_tokens = False
         self.has_padding = True
         self.max_len = 0
         self.extra_generation_kwargs = {}
 
-        # !!! Inference arguments (hardcoded, as in the original script)
         self.do_sample = [False]
         self.use_cache = [args.no_use_cache]  # True/False identical with greedy iff `torch.use_deterministic_algorithms(True)`
 
@@ -58,16 +56,6 @@ class DecoderInfer():
                 f"Architecture {args.architecture} should be run as an encoder model."
             )
 
-    def ids_for_prompt(self, prompt):
-        """Process textual prompt and return tokenized ids."""
-
-        tokens = self.tokenizer.tokenize(prompt)
-        ids = self.tokenizer.convert_tokens_to_ids(tokens)
-        if self.add_special_tokens:
-            ids = [self.tokenizer.bos_token_id] + ids
-        ids = torch.tensor(ids, dtype=torch.long, device=self.device)
-        return ids
-
     def truncate_prompts_to_max_length(self, prompts, max_len, max_allowed_length):
         """Truncate a series of prompts to a selected max length.
         This function ensures prompt truncation prior to padding the input ids."""
@@ -83,10 +71,6 @@ class DecoderInfer():
         """
 
         args = self.args
-        self.add_special_tokens = (
-            self.tokenizer.bos_token_id != self.tokenizer.eos_token_id
-        )
-
         if args.prompt_path != "":
             # Before creating the Path object, check if prompt_path has a glob pattern
             if isinstance(args.prompt_path, str):
@@ -114,50 +98,69 @@ class DecoderInfer():
                 prompt_file_paths = [prompt_path]
 
             # Check if we found some files
-            assert len(prompt_file_paths) > 0, f"Can't find any prompt files at {prompt_path}"
+            assert len(prompt_file_paths) > 0, (
+                f"Can't find any prompt files at {prompt_path}"
+            )
 
             # Check if we have enough files
-            assert (
-                len(prompt_file_paths) >= args.batch_size
-            ), f"Not enough prompt files at {prompt_path} for a batch size of {args.batch_size}"
+            assert len(prompt_file_paths) >= args.batch_size, (
+                f"Not enough prompt files at {prompt_path} "
+                f"for a batch size of {args.batch_size}"
+            )
 
             prompts = []
             for i, prompt_file_path in enumerate(prompt_file_paths):
                 if i == args.batch_size:
                     break
-                prompts.append(self.ids_for_prompt(prompt_file_path.read_text(encoding="utf-8")))
+                prompts.append(
+                    ids_for_prompt(
+                        prompt_file_path.read_text(encoding="utf-8"),
+                        self.tokenizer,
+                    )
+                )
         else:
             if args.prompt_type == "chat":
-                template = "Below is an instruction that describes a task. Write a response that appropriately completes the request.\n\n### Instruction:\n{}\n\n### Response:"
-
+                template = (
+                    "Below is an instruction that describes a task. Write a response "
+                    "that appropriately completes the request.\n\n### Instruction:"
+                    "\n{}\n\n### Response:"
+                )
                 prompt1 = template.format(
                     "Provide a list of instructions for preparing chicken soup."
                 )
                 prompt2 = template.format("Explain some popular greetings in Spanish.")
                 prompt3 = template.format("Explain to me why ignorance is bliss.")
                 prompt4 = template.format(
-                    "I have just come into a very large sum of money. Provide me a list of things that I can do with my new found wealth."
+                    "I have just come into a very large sum of money. Provide me a "
+                    "list of things that I can do with my new found wealth."
                 )
             elif args.prompt_type == "code":
-                template = "[INST] Write code to solve the following coding problem that obeys the constraints and passes the example test cases. Please wrap your code answer using ```:\n{}\n[/INST]"
+                template = (
+                    "[INST] Write code to solve the following coding problem that "
+                    "obeys the constraints and passes the example test cases. "
+                    "Please wrap your code answer using ```:\n{}\n[/INST]"
+                )
                 prompt1 = template.format("Write a bubble sort function in python.")
                 prompt2 = template.format(
-                    "Using the Java streams API, write a simple function which will get the cumulative sum of a list of integers."
+                    "Using the Java streams API, write a simple function which will "
+                    "get the cumulative sum of a list of integers."
                 )
                 prompt3 = template.format(
-                    "In bash, how do I list all directories and sub-directories which contain a .py file."
+                    "In bash, how do I list all directories and sub-directories which "
+                    "contain a .py file."
                 )
                 prompt4 = template.format(
-                    "Write a simple decorator in python which will modify all string inputs to ints if possible."
+                    "Write a simple decorator in python which will modify all string "
+                    "inputs to ints if possible."
                 )
             else:
                 dprint("prompt_type must be one of chat or code")
                 exit()
 
-            prompt1 = self.ids_for_prompt(prompt1)
-            prompt2 = self.ids_for_prompt(prompt2)
-            prompt3 = self.ids_for_prompt(prompt3)
-            prompt4 = self.ids_for_prompt(prompt4)
+            prompt1 = ids_for_prompt(prompt1, self.tokenizer)
+            prompt2 = ids_for_prompt(prompt2, self.tokenizer)
+            prompt3 = ids_for_prompt(prompt3, self.tokenizer)
+            prompt4 = ids_for_prompt(prompt4, self.tokenizer)
             prompts = [prompt1, prompt2, prompt3, prompt4]
             prompts = prompts * ((args.batch_size // 4) + 1)
             prompts = prompts[: args.batch_size]
