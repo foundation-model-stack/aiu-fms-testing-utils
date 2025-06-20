@@ -8,7 +8,6 @@ from fms.utils import tokenizers
 from torch import distributed, set_grad_enabled
 
 # Local Packages
-from aiu_fms_testing_utils.utils import aiu_setup, warmup_model
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, rank
 from aiu_fms_testing_utils.utils.args_parsing import get_args
 from aiu_fms_testing_utils.utils.decoders_utils import run_decoder_eval
@@ -80,7 +79,7 @@ if args.compile:
         model.compile(mode=args.compile_mode, backend=args.compile_backend)
     dprint("Model compiled.")
 else:
-    dprint("[WARNING] SKIP COMPILE.")
+    dprint("Skip model compiling. Only for debug purpose.")
 
 run_decoder_eval(model, tokenizer, args, device)
 

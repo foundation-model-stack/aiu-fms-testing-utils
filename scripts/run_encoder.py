@@ -42,6 +42,7 @@ if args.int8_direct_quantization:
     save_path = None
 
     # !!! insert DQ for encoders here
+    # pass default_dtype to DQ function
 
     # if DQ is used, args.model_path represent FP16 ckpt but we need to load the
     # newly-created INT8 ckpt. Without DQ, args.model_path is the INT8 ckpt already.
@@ -96,7 +97,7 @@ if args.compile:
         model.compile(mode=args.compile_mode, backend=args.compile_backend)
     dprint("Model compiled.")
 else:
-    dprint("[WARNING] SKIP COMPILE.")
+    dprint("Skip model compiling. Only for debug purpose.")
 
 if args.architecture == "roberta_question_answering":
     run_encoder_eval_qa(model, tokenizer, args)
