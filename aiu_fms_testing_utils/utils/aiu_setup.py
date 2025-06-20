@@ -103,7 +103,6 @@ def set_aiu_env_vars(args: argparse.Namespace) -> None:
             )
 
         torch._dynamo.config.assume_static_by_default = True
-        torch._dynamo.config.dynamic_shapes = False
         torch._dynamo.config.automatic_dynamic_shapes = False
 
     # os.environ.setdefault("DTCOMPILER_KEEP_EXPORT", "true")  # CONFIRM IF THIS IS NEEDE
