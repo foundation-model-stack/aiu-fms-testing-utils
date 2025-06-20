@@ -7,8 +7,9 @@ import os
 import time
 
 # Third Party
-from datasets import load_dataset
+from datasets import Dataset, load_dataset
 from fms.models.hf import to_hf_api
+from fms.models.hf.modeling_hf_adapter import HFModelArchitecture
 from fms.utils import has_package
 from fms.utils.tokenizers import BaseTokenizer
 from torch import nn
@@ -32,8 +33,14 @@ if has_hf:
     )
 
 
-def wrap_encoder(model):
+def wrap_encoder(model: nn.Module) -> HFModelArchitecture:
     """Add config info and wrapper to run pipeline for RoBERTa MaskedLM."""
+
+    if not has_hf:
+        raise ImportError(
+            "MaskedLM Encoder requires transformer package but import "
+            "was unsuccessful."
+        )
 
     model.config.linear_config.pop("linear_type", None)
     return to_hf_api(model, task_specific_params=None)
@@ -47,9 +54,9 @@ class EncoderQAInfer():
         model: nn.Module,
         tokenizer: BaseTokenizer,
         args: argparse.Namespace,
-    ):
+    ) -> None:
         self.model = model
-        self.tokenizer = tokenizer
+        self.tokenizer = tokenizer.tokenizer  # extract original HF tokenizer
         self.args = args
 
         self.question_column_name = ""
@@ -59,7 +66,7 @@ class EncoderQAInfer():
 
         self.validate_encoder_arguments()
 
-    def validate_encoder_arguments(self):
+    def validate_encoder_arguments(self) -> None:
         """Ensure arguments compatibility with Encoder models."""
 
         args = self.args
@@ -85,10 +92,14 @@ class EncoderQAInfer():
             )
 
 
-    def prepare_validation_features(self, examples):
+    def prepare_validation_features(
+        self,
+        examples: dict[str, list[str | dict]],
+    ) -> dict[str, list]:
         """Validation preprocessing"""
 
         args = self.args
+
         q_col_name = self.question_column_name
         c_col_name = self.context_column_name
         pad_on_right = self.pad_on_right
@@ -109,7 +120,7 @@ class EncoderQAInfer():
         # using a stride. This results in one example possible giving several features
         # when a context is long, each of those features having a context that overlaps
         # a bit the context of the previous feature.
-        tokenized_examples = self.tokenizer.tokenize(
+        tokenized_examples = self.tokenizer(
             examples[q_col_name if pad_on_right else c_col_name],
             examples[c_col_name if pad_on_right else q_col_name],
             truncation="only_second" if pad_on_right else "only_first",
@@ -149,12 +160,15 @@ class EncoderQAInfer():
 
         return tokenized_examples
 
-    def convert_batch_to_fms_style(self, batch):
+    def convert_batch_to_fms_style(
+        self,
+        batch: dict[str, torch.Tensor],
+    ) -> dict[str, torch.Tensor]:
         """FMS uses a different standard than HF for encoder inputs."""
 
         return {'x': batch['input_ids'], 'mask': batch['attention_mask']}
 
-    def process_eval_set(self):
+    def process_eval_set(self) -> None:
         """Pre-process evaluation dataset for QuestionAnswering task."""
 
         if not has_hf:
@@ -192,7 +206,7 @@ class EncoderQAInfer():
         # Padding side determines if we do (question|context) or (context|question)
         self.pad_on_right = self.tokenizer.padding_side == "right"
 
-        model_max_length = self.tokenizer.tokenizer.model_max_length  # TODO: add model_max_length to FMS _HFTokenizer
+        model_max_length = self.tokenizer.model_max_length
         if args.max_prompt_length > model_max_length:
             dprint(
                 f"max_prompt_length ({args.max_prompt_length}) is larger than the "
@@ -259,8 +273,8 @@ class EncoderQAInfer():
 
     def postprocess_qa_predictions(
         self,
-        examples,
-        features,
+        examples: Dataset,
+        features: Dataset,
         predictions: tuple[np.ndarray, np.ndarray],
         version_2_with_negative: bool = False,
         n_best_size: int = 20,
@@ -268,7 +282,7 @@ class EncoderQAInfer():
         null_score_diff_threshold: float = 0.0,
         output_dir: str | None = None,
         prefix: str | None = None,
-    ):
+    ) -> None:
         """
         Post-processes the predictions of a question-answering model to convert them to answers that are substrings of the
         original contexts. This is the base postprocessing functions for models that only return start and end logits.
@@ -476,7 +490,13 @@ class EncoderQAInfer():
 
         return all_predictions
 
-    def post_processing_function(self, examples, features, predictions, stage="eval"):
+    def post_processing_function(
+        self,
+        examples: Dataset,
+        features: Dataset,
+        predictions: list[np.ndarray],
+        stage: str = "eval",
+    ) -> dict[list[str, str]]:
         """Post-processing: we match the start logits and end logits to answers in
         the original context."""
 
@@ -492,6 +512,7 @@ class EncoderQAInfer():
             output_dir=None,
             prefix=stage,
         )
+        breakpoint()
         # Format the result to the format the metric expects.
         if args.version_2_with_negative:
             formatted_predictions = [
@@ -508,7 +529,12 @@ class EncoderQAInfer():
         ]
         return EvalPrediction(predictions=formatted_predictions, label_ids=references)
 
-    def create_and_fill_np_array(self, start_or_end_logits, dataset, max_len):
+    def create_and_fill_np_array(
+        self,
+        start_or_end_logits: list[np.ndarray],
+        dataset: Dataset,
+        max_len: int,
+    ) -> np.ndarray:
         """
         Create and fill numpy array of size
         len_of_validation_data * max_length_of_output_tensor
@@ -543,7 +569,7 @@ class EncoderQAInfer():
 
         return logits_concat
 
-    def run_warmup(self):
+    def run_warmup(self) -> None:
         """Run warmup cycle of compiled encoder model set for QuestionAnswering task."""
 
         dprint(f"Starting warm-up...")
@@ -559,7 +585,7 @@ class EncoderQAInfer():
         if rank == 0:
             dprint(f"Warmup completed in {time.time() - warmup_start_time:.1f} s\n---")
 
-    def run_evaluation(self):
+    def run_evaluation(self) -> None:
         """Run QuestionAnswering evaluation."""
 
         args = self.args
@@ -587,7 +613,7 @@ class EncoderQAInfer():
             f"(tot = {len(eval_dataloader) * args.batch_size}, "
             f"bs = {args.batch_size})"
         )
-
+        breakpoint()
         # concatenate the numpy array
         max_len = max([x.shape[1] for x in all_start_logits])
         start_logits_concat = self.create_and_fill_np_array(
@@ -622,21 +648,27 @@ class EncoderMLMInfer():
 
     def __init__(
         self,
-        model: nn.Module,
+        model: HFModelArchitecture,
         tokenizer: BaseTokenizer,
         args: argparse.Namespace,
-    ):
+    ) -> None:
         self.model = model
         self.tokenizer = tokenizer
         self.args = args
 
 
-    def process_eval_set(self):
+    def process_eval_set(self) -> None:
         """Barebone function that sets up a single example prompt (for now)."""
+
+        if not has_hf:
+            raise ImportError(
+                "MaskedLM Encoder requires transformer package but import "
+                "was unsuccessful."
+            )
 
         self.prompt = "the dog chased the cat while<mask> aggressively"
 
-    def run_evaluation(self, warmup=False):
+    def run_evaluation(self, warmup: bool = False) -> None:
         """Run evaluation cycle of compiled encoder model set for MaskedLM task.
         No output printout if warmup is True.
         """
@@ -658,10 +690,10 @@ class EncoderMLMInfer():
 
 
 def run_encoder_eval_qa(
-    model: nn.Module,
+    model: nn.Module,  # FMS-style model
     tokenizer: BaseTokenizer,
     args: argparse.Namespace,
-):
+) -> None:
     """Entry point to run QuestionAnswering Evaluation of encoder model.
 
     Processing based on pytorch example:
@@ -677,10 +709,10 @@ def run_encoder_eval_qa(
 
 
 def run_encoder_eval_mlm(
-    model: nn.Module,
+    model: HFModelArchitecture,  # model wrapped by to_hf_api
     tokenizer: BaseTokenizer,
     args: argparse.Namespace,
-):
+) -> None:
     """Entry point to run evaluation of encoder models."""
 
     encoder_mlm_infer = EncoderMLMInfer(model, tokenizer, args)

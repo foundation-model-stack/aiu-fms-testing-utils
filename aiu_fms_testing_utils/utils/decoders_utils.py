@@ -260,7 +260,6 @@ class DecoderInfer():
             extra_generation_kwargs["only_last_token"] = True
 
             if args.device_type == "cpu":
-                # Bug in 2.3.1 fixed in 2.4.1 for SDPA flash cpu impl when pad too much
                 extra_generation_kwargs["attn_algorithm"] = "math"
 
             if not args.no_early_termination and not warmup:
@@ -338,7 +337,7 @@ def run_decoder_eval(
         tokenizer: BaseTokenizer,
         args: argparse.Namespace,
         device: torch.device,
-    ):
+    ) -> None:
     """Entry point to run evaluation of LLM decoder models."""
 
     decoder_infer = DecoderInfer(model, tokenizer, args, device)
