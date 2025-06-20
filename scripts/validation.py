@@ -15,9 +15,20 @@ from fms.utils import generation, tokenizers
 from fms.utils.generation import pad_input_ids
 from torch import distributed as dist
 from aiu_fms_testing_utils.utils import warmup_model
-from aiu_fms_testing_utils.testing.validation import LogitsExtractorHook, capture_level_1_metrics, extract_validation_information, StaticTokenInjectorHook, GoldenTokenHook, filter_failed_level_1_cases, validate_level_0, load_validation_information, print_failed_cases
+from aiu_fms_testing_utils.testing.validation import (
+    LogitsExtractorHook,
+    capture_level_1_metrics,
+    extract_validation_information,
+    StaticTokenInjectorHook,
+    GoldenTokenHook,
+    filter_failed_level_1_cases,
+    validate_level_0,
+    load_validation_information,
+    print_failed_cases,
+)
 from aiu_fms_testing_utils.utils import aiu_setup
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, rank, local_rank, world_size
+from transformers import AutoTokenizer
 
 # This example script validates models on AIU through comparisons to other devices.
 parser = argparse.ArgumentParser(
@@ -28,7 +39,7 @@ parser.add_argument(
     type=str,
     choices=["aiu", "aiu-senulator"],
     default="aiu",
-    help="The device to run the model on"
+    help="The device to run the model on",
 )
 parser.add_argument("--validation_device", type=str, default="cpu")
 parser.add_argument(
@@ -212,22 +223,22 @@ parser.add_argument(
     "--save_validation_info_path",
     type=str,
     default=None,
-    help="If set, will save the validation info into the path specified for later use"
+    help="If set, will save the validation info into the path specified for later use",
 )
 parser.add_argument(
     "--extra_get_model_kwargs",
-    nargs='*',
+    nargs="*",
     default={},
-    help="Use this to override model configuration values to get model. Example: --extra_get_model_kwargs nlayers=2,..."
+    help="Use this to override model configuration values to get model. Example: --extra_get_model_kwargs nlayers=2,...",
 )
 args = parser.parse_args()
 
 extra_get_model_kwargs = {}
 for a in args.extra_get_model_kwargs:
-     a_split = a.split("=")
-     try:
+    a_split = a.split("=")
+    try:
         extra_get_model_kwargs[a_split[0]] = ast.literal_eval(a_split[1])
-     except ValueError:
+    except ValueError:
         extra_get_model_kwargs[a_split[0]] = a_split[1]
 
 # this is a test model config
@@ -243,7 +254,9 @@ dprint(f"{args}")
 
 needs_validation_generation = args.validation_files_path == ""
 needs_validation_forward = (
-    not needs_validation_generation and args.validation_files_type in ["text", "tokens"] and args.validation_level == 1
+    not needs_validation_generation
+    and args.validation_files_type in ["text", "tokens"]
+    and args.validation_level == 1
 )
 needs_validation_run = needs_validation_forward or needs_validation_generation
 
@@ -251,11 +264,10 @@ fused_weights = not args.unfuse_weights
 
 if args.quantization == "gptq":
     try:
-
         # validation script always loads AIU addon
         from fms_mo.aiu_addons.gptq import gptq_aiu_adapter, gptq_aiu_linear
-        print("Loaded `aiu_addons` functionalities")
 
+        print("Loaded `aiu_addons` functionalities")
 
     except ImportError:
         print("Failed to import addon packages")
@@ -354,7 +366,7 @@ else:
 if args.quantization == "gptq":
     qconfig_path = args.model_path + "/quantize_config.json"
     if os.path.exists(qconfig_path):
-        with open(qconfig_path, 'r') as f:
+        with open(qconfig_path, "r") as f:
             dprint(f"loading quantization config from {qconfig_path}")
             qconfig = json.load(f)
             group_size = qconfig["group_size"]
@@ -395,8 +407,10 @@ if args.quantization == "gptq":
     # model, the adapter will take care of converting key/values from
     # ckpt into the appropriate form for the model
     if fused_weights:
-        raise ValueError("GPTQ checkpoints on AIU must always run with --unfuse_weights")
-    default_dtype=None  # GPTQ dtype always comes from ckpt, can't be enforced
+        raise ValueError(
+            "GPTQ checkpoints on AIU must always run with --unfuse_weights"
+        )
+    default_dtype = None  # GPTQ dtype always comes from ckpt, can't be enforced
 else:
     linear_config = {"linear_type": "torch_linear"}
     linear_config_validation = {"linear_type": "torch_linear"}
@@ -412,7 +426,7 @@ model = get_model(
     group=dist.group.WORLD,
     linear_config=linear_config,
     fused_weights=fused_weights,
-    **extra_get_model_kwargs
+    **extra_get_model_kwargs,
 )
 
 if args.quantization == "gptq":
@@ -422,14 +436,12 @@ if args.quantization == "gptq":
             "and rotary embeddings, in GPTQ LLaMA models"
         )
     dprint(model)
-    dprint("="*60 + "\n")
+    dprint("=" * 60 + "\n")
 
 if needs_validation_run:
     if args.quantization != "gptq":
         data_type_validation = (
-            torch.float32
-            if validation_device == aiu_device
-            else default_dtype
+            torch.float32 if validation_device == aiu_device else default_dtype
         )
     else:
         data_type_validation = default_dtype
@@ -444,7 +456,7 @@ if needs_validation_run:
         group=dist.group.WORLD,
         linear_config=linear_config_validation,
         fused_weights=fused_weights,
-        **extra_get_model_kwargs
+        **extra_get_model_kwargs,
     )
     validation_model.load_state_dict(model.state_dict())
     if args.quantization == "gptq":
@@ -454,9 +466,9 @@ if needs_validation_run:
                 "rotary embeddings, in GPTQ LLaMA models"
             )
         dprint(validation_model)
-        dprint("="*60 + "\n")
+        dprint("=" * 60 + "\n")
 
-tokenizer = tokenizers.get_tokenizer(args.tokenizer)
+tokenizer = AutoTokenizer.from_pretrained(args.tokenizer)
 model.eval()
 torch.set_grad_enabled(False)
 loading_model_time = time.time() - loading_model_time
@@ -475,15 +487,6 @@ if needs_validation_run and args.validation_compile:
     validation_model.compile(mode=args.compile_mode, backend=args.compile_backend)
 
 add_special_tokens = tokenizer.bos_token_id != tokenizer.eos_token_id
-
-
-def ids_for_prompt(prompt):
-    tokens = tokenizer.tokenize(prompt)
-    ids = tokenizer.convert_tokens_to_ids(tokens)
-    if add_special_tokens:
-        ids = [tokenizer.bos_token_id] + ids
-    ids = torch.tensor(ids, dtype=torch.long, device="cpu")
-    return ids
 
 
 def truncate_prompts_to_max_length(prompts, max_len, max_allowed_length):
@@ -526,15 +529,19 @@ if args.prompt_path != "":
     assert len(prompt_file_paths) > 0, f"Can't find any prompt files at {prompt_path}"
 
     # Check if we have enough files
-    assert (
-        len(prompt_file_paths) >= args.batch_size
-    ), f"Not enough prompt files at {prompt_path} for a batch size of {args.batch_size}"
+    assert len(prompt_file_paths) >= args.batch_size, (
+        f"Not enough prompt files at {prompt_path} for a batch size of {args.batch_size}"
+    )
 
     prompts = []
     for i, prompt_file_path in enumerate(prompt_file_paths):
         if i == args.batch_size:
             break
-        prompts.append(ids_for_prompt(prompt_file_path.read_text(encoding="utf-8")))
+        prompts.append(
+            tokenizer.encode(
+                prompt_file_path.read_text(encoding="utf-8"), return_tensors="pt"
+            )
+        )
 
 else:
     if args.prompt_type == "chat":
@@ -564,10 +571,10 @@ else:
         dprint("prompt_type must be one of chat or code")
         exit()
 
-    prompt1 = ids_for_prompt(prompt1)
-    prompt2 = ids_for_prompt(prompt2)
-    prompt3 = ids_for_prompt(prompt3)
-    prompt4 = ids_for_prompt(prompt4)
+    prompt1 = tokenizer.encode(prompt1, return_tensors="pt").squeeze(0)
+    prompt2 = tokenizer.encode(prompt2, return_tensors="pt").squeeze(0)
+    prompt3 = tokenizer.encode(prompt3, return_tensors="pt").squeeze(0)
+    prompt4 = tokenizer.encode(prompt4, return_tensors="pt").squeeze(0)
     prompts = [prompt1, prompt2, prompt3, prompt4]
     prompts = prompts * ((args.batch_size // 4) + 1)
     prompts = prompts[: args.batch_size]
@@ -594,6 +601,7 @@ else:
     ids = prompts
     padding_kwargs = {}
 
+
 def print_result(result, result_idx: int = 0, file_prefix: str = ""):
     if local_rank != 0:
         return
@@ -608,9 +616,7 @@ def print_result(result, result_idx: int = 0, file_prefix: str = ""):
     if not args.no_early_termination:
         result = generation.truncate_after_eos(result, tokenizer.eos_token_id)
 
-    output_str = tokenizer.convert_tokens_to_string(
-        tokenizer.convert_ids_to_tokens(result)
-    )
+    output_str = tokenizer.decode(result)
 
     if args.output_path != "":
         output_path = Path(args.output_path)
@@ -644,7 +650,7 @@ if not needs_validation_generation:
     # Truncate each answer to its prompt length + max_new_tokens
     for i, prompt in enumerate(prompts):
         prompt_len = prompt.size(0)
-        val_tokens[i] = val_tokens[i][:prompt_len+val_num_gen_tokens]
+        val_tokens[i] = val_tokens[i][: prompt_len + val_num_gen_tokens]
 
     if has_padding:
         val_ids, padding_val_kwargs = pad_input_ids(
@@ -683,10 +689,12 @@ else:
         args.max_new_tokens,
         LogitsExtractorHook(),
         attn_algorithm="math",
-        **padding_kwargs
+        **padding_kwargs,
     )
 
-warmup_model(model, ids, args.max_new_tokens, args.compile_dynamic_sendnn, **padding_kwargs)
+warmup_model(
+    model, ids, args.max_new_tokens, args.compile_dynamic_sendnn, **padding_kwargs
+)
 
 ### AIU generation loop
 static_tokens = validation_info.get_info("tokens")
@@ -699,10 +707,10 @@ aiu_validation_info = extract_validation_information(
     ids,
     args.max_new_tokens,
     post_iteration_hook,
-    eos_token_id = None if args.no_early_termination else tokenizer.eos_token_id,
+    eos_token_id=None if args.no_early_termination else tokenizer.eos_token_id,
     only_last_token=True,
     timing=args.timing,
-    **padding_kwargs
+    **padding_kwargs,
 )
 
 if args.save_validation_info_path is not None:
@@ -714,11 +722,12 @@ if args.validation_level == 0:
     failed_cases = validate_level_0(aiu_static_tokens, static_tokens)
 else:
     level_1_metrics = capture_level_1_metrics(
-        validation_info.get_info("logits"),
-        aiu_validation_info.get_info("logits")
+        validation_info.get_info("logits"), aiu_validation_info.get_info("logits")
     )
 
-    failed_cases = filter_failed_level_1_cases(level_1_metrics, lambda m: m >= args.logits_loss_threshold)
+    failed_cases = filter_failed_level_1_cases(
+        level_1_metrics, lambda m: m >= args.logits_loss_threshold
+    )
 
 validation_passed = len(failed_cases) == 0
 
