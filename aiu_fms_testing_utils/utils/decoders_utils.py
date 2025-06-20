@@ -192,7 +192,7 @@ class DecoderInfer():
             ids = prompts
             if isinstance(ids, list) and len(ids) == 1:
                 ids = ids[0].unsqueeze(0)
-            extra_generation_kwargs = None
+            extra_generation_kwargs = {}
 
         self.extra_generation_kwargs = extra_generation_kwargs
 
@@ -252,15 +252,10 @@ class DecoderInfer():
                 max_seq_len = self.model.config.max_expected_seq_len
 
             # Add only_last_token optimization
-            extra_generation_kwargs = (
-                {}
-                if self.extra_generation_kwargs is None
-                else self.extra_generation_kwargs
-            )
-            extra_generation_kwargs["only_last_token"] = True
+            self.extra_generation_kwargs["only_last_token"] = True
 
             if args.device_type == "cpu":
-                extra_generation_kwargs["attn_algorithm"] = "math"
+                self.extra_generation_kwargs["attn_algorithm"] = "math"
 
             if not args.no_early_termination and not warmup:
                 eos_token_id = self.tokenizer.eos_token_id
@@ -277,7 +272,7 @@ class DecoderInfer():
                 timing=args.timing,
                 eos_token_id=eos_token_id,
                 contiguous_cache=True,
-                extra_kwargs=extra_generation_kwargs,
+                extra_kwargs=self.extra_generation_kwargs,
             )
             if args.timing != "":
                 result, timings = result
