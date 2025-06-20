@@ -72,7 +72,8 @@ class EncoderQAInfer():
         args = self.args
         if not getattr(args, "is_encoder", False):
             raise ValueError(
-                "Running encoder model but is_encoder argument is either not set or False."
+                "Running encoder model but is_encoder argument is not set to True. "
+                "Verify your launch script."
             )
         if args.min_pad_length != 0:
             raise ValueError(
@@ -84,7 +85,7 @@ class EncoderQAInfer():
                 "Argument fixed_prompt_length should not be provided to encoders. "
                 "To pad the input sequence, use --pad_to_max_length flag instead."
             )
-        if args.max_new_tokens != 100:
+        if args.max_new_tokens != 100:  # default value for decoder models
             raise ValueError(
                 "Argument max_new_token should not be provided to encoders. "
                 "To define the max length of a generated answer in QuestionAnswering "
@@ -512,7 +513,7 @@ class EncoderQAInfer():
             output_dir=None,
             prefix=stage,
         )
-        breakpoint()
+
         # Format the result to the format the metric expects.
         if args.version_2_with_negative:
             formatted_predictions = [
@@ -613,7 +614,7 @@ class EncoderQAInfer():
             f"(tot = {len(eval_dataloader) * args.batch_size}, "
             f"bs = {args.batch_size})"
         )
-        breakpoint()
+
         # concatenate the numpy array
         max_len = max([x.shape[1] for x in all_start_logits])
         start_logits_concat = self.create_and_fill_np_array(
