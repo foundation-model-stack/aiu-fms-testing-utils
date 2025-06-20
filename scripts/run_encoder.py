@@ -37,17 +37,6 @@ if args.distributed:
 # Main model setup
 default_dtype, device, dist_strat = setup_model(args)
 
-model_path = args.model_path
-if args.int8_direct_quantization:
-    save_path = None
-
-    # !!! insert DQ for encoders here
-    # pass default_dtype to DQ function
-
-    # if DQ is used, args.model_path represent FP16 ckpt but we need to load the
-    # newly-created INT8 ckpt. Without DQ, args.model_path is the INT8 ckpt already.
-    model_path = save_path
-
 # Retrieve linear configuration (quantized or not) to instantiate FMS model
 linear_config = get_linear_config(args)
 
@@ -64,7 +53,7 @@ loading_model_start = time.time()
 model = get_model(
     args.architecture,
     args.variant,
-    model_path=model_path,
+    model_path=args.model_path,
     device_type="cpu" if args.is_aiu_backend else args.device_type,
     data_type=default_dtype,
     source=args.model_source,
