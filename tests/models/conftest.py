@@ -18,8 +18,7 @@ def pytest_sessionstart(session):
 
     os.environ.setdefault("COMPILATION_MODE", "offline_decoder")
     os.environ["FLEX_COMPUTE"] = "SENTIENT"
-    os.environ["FLEX_DEVICE"] = "VFIO"
-    os.environ.setdefault("DT_OPT", "dtversion=2,varsub=1,lxopt=1,opfusion=1,arithfold=1,dataopt=1,patchinit=1,patchprog=1,autopilot=1,weipreload=0,kvcacheopt=1,progshareopt=1")
+    os.environ["FLEX_DEVICE"] = "PF"
 
     os.environ.setdefault("DTLOG_LEVEL", "error")
     os.environ.setdefault("DT_DEEPRT_VERBOSE", "-1")

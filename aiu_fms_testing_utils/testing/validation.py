@@ -2,7 +2,6 @@ from pathlib import Path
 from typing import List, Tuple, Callable, MutableMapping, Any, Optional
 
 import torch
-from fms.utils.generation import generate
 from aiu_fms_testing_utils.utils import ids_for_prompt
 from aiu_fms_testing_utils.utils.aiu_setup import dprint
 import os
@@ -188,8 +187,16 @@ def load_validation_information(validation_path, validation_files_type, batch_si
 
     return ValidationInfo(validation_info)
 
-def extract_validation_information(model, input_ids, max_new_tokens, post_iteration_hook, attn_algorithm=None, eos_token_id = None, only_last_token=False, timing="", **padding_kwargs):
+def extract_validation_information(model, input_ids, max_new_tokens, post_iteration_hook, attn_algorithm=None, eos_token_id = None, only_last_token=False, timing="", attn_type="sdpa", **padding_kwargs):
     max_seq_len = model.config.max_expected_seq_len
+    attention_specific_kwargs = {}
+    if attn_type == "paged":
+        from aiu_fms_testing_utils.utils.paged import generate
+    else:
+        # TODO: Add a unified generation dependent on attn_type
+        from fms.utils.generation import generate
+        attention_specific_kwargs["contiguous_cache"] = True
+        attention_specific_kwargs["max_seq_len"] = max_seq_len
 
     # Add only_last_token optimization
     extra_generation_kwargs = {**padding_kwargs}
@@ -204,12 +211,11 @@ def extract_validation_information(model, input_ids, max_new_tokens, post_iterat
         max_new_tokens=max_new_tokens,
         use_cache=True,
         do_sample=False,
-        max_seq_len=max_seq_len,
         post_iteration_hook=post_iteration_hook,
         eos_token_id=eos_token_id,
         timing=timing,
-        contiguous_cache=True,
         extra_kwargs=extra_generation_kwargs,
+        **attention_specific_kwargs
     )
 
     if timing != "":

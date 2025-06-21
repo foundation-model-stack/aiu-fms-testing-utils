@@ -57,6 +57,7 @@ SHARE_GPT_DATASET_PATH = os.environ.get(
 USE_MICRO_MODELS = os.environ.get("FMS_TEST_SHAPES_USE_MICRO_MODELS", "1") == "1"
 USE_DISTRIBUTED = os.environ.get("FMS_TEST_SHAPES_DISTRIBUTED", "0") == "1"
 
+ATTN_TYPE = os.environ.get("FMS_TEST_SHAPES_ATTN_TYPE", "sdpa")
 FORCE_VALIDATION_LEVEL_1 = (
     os.environ.get("FMS_TEST_SHAPES_FORCE_VALIDATION_LEVEL_1", "0") == "1"
 )
@@ -130,6 +131,12 @@ if isinstance(skip_assertions, str):
         _skip_assertions.append(metric)
     skip_assertions = set(_skip_assertions)
 
+compile_dynamic_sendnn = ATTN_TYPE == "paged"
+
+if compile_dynamic_sendnn:
+    os.environ["VLLM_DT_MAX_CONTEXT_LEN"] = str((((max(common_seq_lengths) + max(common_max_new_tokens)) // 64) + 1) * 64)
+    os.environ["VLLM_DT_MAX_BATCH_SIZE"] = str(max(common_batch_sizes))
+
 common_shapes = list(
     itertools.product(
         common_model_paths,
@@ -175,9 +182,10 @@ __custom_adapter = {"architecture": "llama", "source": "fms_aiu"}
 @pytest.fixture(autouse=True)
 def reset_compiler():
     yield  # run the test
-    torch.compiler.reset()
-    torch._dynamo.reset()
-    os.environ.pop("COMPILATION_MODE", None)
+    if not compile_dynamic_sendnn:
+        torch.compiler.reset()
+        torch._dynamo.reset()
+        os.environ.pop("COMPILATION_MODE", None)
 
 
 # TODO: Currently, gptq does not have the same level of support as non-gptq models for get_model. This method provides the extra requirements for gptq for get_model,
@@ -286,37 +294,67 @@ def __load_validation_info(
     else:
         return None
 
+class PersistentModel:
+    """This class will either get a model that is pre-compiled (if compile_dynamic_sendnn) or re-create the model for each test"""
+    def __init__(self):
+        self.model = None
 
-# TODO: This was added as we require a special reset for gptq models. Ideally, we would be able to do something like this reset when calling reset_parameters() on the model
-#  however the gptq modules are yet to support this
-def __maybe_reset_model(model, is_gptq):
-    if USE_MICRO_MODELS and is_gptq:
-        sd = model.state_dict()
-        for key, param in sd.items():
-            if "qweight" in key:
-                res = torch.randint(
-                    low=0,
-                    high=torch.iinfo(torch.int32).max,
-                    size=param.shape,
-                    dtype=torch.int32,
-                )
-                sd[key].copy_(res)
-            elif "qzeros" in key:
-                res = torch.ones(param.shape, dtype=torch.int32) * 8
-            elif "g_idx" in key:
-                res = param
-            else:
-                res = torch.randn_like(param)
-                res -= 0.5
-                res /= 20.0
-            param.copy_(res)
+    def get_or_create(self, is_gptq, **kwargs):
+        if self.model is None:
+            model = get_model(
+                device_type="cpu",
+                data_type=None if is_gptq else torch.float16,
+                fused_weights=False,
+                **kwargs,
+            )
+            self.__maybe_reset_model(model, is_gptq)
+
+            model.eval()
+            model.compile(backend="sendnn", options={'sendnn.dynamic': compile_dynamic_sendnn})
+
+            if compile_dynamic_sendnn:
+                self.model = model
+            
+            return model
+        else:
+            return self.model
+    
+    # TODO: This was added as we require a special reset for gptq models. Ideally, we would be able to do something like this reset when calling reset_parameters() on the model
+    #  however the gptq modules are yet to support this
+    @staticmethod
+    def __maybe_reset_model(model, is_gptq):
+        if USE_MICRO_MODELS and is_gptq:
+            sd = model.state_dict()
+            for key, param in sd.items():
+                if "qweight" in key:
+                    res = torch.randint(
+                        low=0,
+                        high=torch.iinfo(torch.int32).max,
+                        size=param.shape,
+                        dtype=torch.int32,
+                    )
+                    sd[key].copy_(res)
+                elif "qzeros" in key:
+                    res = torch.ones(param.shape, dtype=torch.int32) * 8
+                elif "g_idx" in key:
+                    res = param
+                else:
+                    res = torch.randn_like(param)
+                    res -= 0.5
+                    res /= 20.0
+                param.copy_(res)
+
+@pytest.fixture
+def persistent_model():
+    return PersistentModel()
 
 
 @pytest.mark.parametrize(
     "model_path,batch_size,seq_length,max_new_tokens", common_shapes
 )
-def test_common_shapes(model_path, batch_size, seq_length, max_new_tokens):
+def test_common_shapes(model_path, batch_size, seq_length, max_new_tokens, persistent_model):
     torch.manual_seed(42)
+    torch.set_grad_enabled(False)
     os.environ["COMPILATION_MODE"] = "offline_decoder"
 
     dprint(
@@ -358,18 +396,7 @@ def test_common_shapes(model_path, batch_size, seq_length, max_new_tokens):
     tokenizer = tokenizers.get_tokenizer(model_path)
 
     # prepare the AIU model
-    model = get_model(
-        device_type="cpu",
-        data_type=None if is_gptq else torch.float16,
-        fused_weights=False,
-        **gptq_kwargs_aiu,
-        **get_model_kwargs,
-    )
-    __maybe_reset_model(model, is_gptq)
-
-    model.eval()
-    torch.set_grad_enabled(False)
-    model.compile(backend="sendnn")
+    model = persistent_model.get_or_create(is_gptq, **gptq_kwargs_aiu, **get_model_kwargs)
 
     # prepare the cpu model
     validation_model = get_model(
@@ -389,7 +416,7 @@ def test_common_shapes(model_path, batch_size, seq_length, max_new_tokens):
     input_ids, padding_kwargs = __prepare_inputs(batch_size, seq_length, tokenizer)
 
     # warmup aiu model
-    warmup_model(model, input_ids, max_new_tokens, **padding_kwargs)
+    warmup_model(model, input_ids, max_new_tokens, compile_dynamic_sendnn, attn_type=ATTN_TYPE, **padding_kwargs)
 
     # generate cpu validation info
     cpu_validation_info = __load_validation_info(
@@ -421,7 +448,7 @@ def test_common_shapes(model_path, batch_size, seq_length, max_new_tokens):
 
     # first test validation level 0
     aiu_validation_info = extract_validation_information(
-        model, input_ids, max_new_tokens, None, only_last_token=True, **padding_kwargs
+        model, input_ids, max_new_tokens, None, only_last_token=ATTN_TYPE != "paged", attn_type=ATTN_TYPE, **padding_kwargs
     )
     dprint("aiu validation info extracted for validation level 0")
 
@@ -498,7 +525,8 @@ def test_common_shapes(model_path, batch_size, seq_length, max_new_tokens):
                 input_ids,
                 max_new_tokens,
                 GoldenTokenHook(cpu_static_tokens),
-                only_last_token=True,
+                only_last_token=ATTN_TYPE != "paged",
+                attn_type=ATTN_TYPE, 
                 **padding_kwargs,
             )
             dprint(f"aiu validation info extracted for validation level 1 - iter={i}")

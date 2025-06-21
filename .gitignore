@@ -7,3 +7,6 @@ aiu-fms-testing-utils.egg-info
 */**/*.pyc
 .vscode
 aiu-fms-testing-utils.egg-info
+export_deeprt
+export_dtcompiler
+*.egg-info
