@@ -11,6 +11,7 @@ import contextlib
 
 # Third Party
 from aiu_fms_testing_utils.utils import aiu_setup, warmup_model
+from aiu_fms_testing_utils.utils import fp8_attention
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, rank, local_rank, world_size
 import numpy as np
 import torch
@@ -606,7 +607,8 @@ else:
     ids = prompts
     if isinstance(ids, list) and len(ids) == 1:
         ids = ids[0].unsqueeze(0)
-    extra_generation_kwargs = None
+    extra_generation_kwargs = {}
+extra_generation_kwargs["attn_name"] = "math_fp8"
 
 
 def print_result(result, result_idx: int):
