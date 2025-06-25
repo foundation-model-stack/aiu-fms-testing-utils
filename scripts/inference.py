@@ -601,7 +601,8 @@ if args.fixed_prompt_length != 0 and args.fixed_prompt_length < max_len:
     exit(1)
 prompts = truncate_prompts_to_max_length(prompts, max_len, max_allowed_length)
 if has_padding:
-    ids, extra_generation_kwargs = pad_input_ids(prompts, min_pad_length=padding_length)
+    padding_side = "left" if args.attention_type == "sdpa" else "right"
+    ids, extra_generation_kwargs = pad_input_ids(prompts, min_pad_length=padding_length, padding_side=padding_side)
 else:
     ids = prompts
     if isinstance(ids, list) and len(ids) == 1:
@@ -618,8 +619,8 @@ def print_result(result, result_idx: int):
     result = generation.trim_prefix(result, tokenizer.bos_token_id)
 
     # stop at EOS token if present and remove padding
-    if not args.no_early_termination:
-        result = generation.truncate_after_eos(result, tokenizer.eos_token_id)
+    # if not args.no_early_termination:
+    #     result = generation.truncate_after_eos(result, tokenizer.eos_token_id)
 
     output_str = tokenizer.convert_tokens_to_string(
         tokenizer.convert_ids_to_tokens(result)
@@ -694,7 +695,7 @@ def infer(use_cache, do_sample, warmup):
 
     if not warmup:
         for i in range(result.shape[0]):
-            print_result(result[i], i)
+            print_result(torch.cat((result[i][:len(prompts[i])], result[i][-args.max_new_tokens:])), i)
 
 
 do_sample = [False]
