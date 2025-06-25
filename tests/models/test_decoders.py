@@ -48,7 +48,8 @@ micro_model_mapping = {
     GRANITE_3p2_8B_INSTRUCT: os.path.join(MICRO_MODELS_HOME, "granite-3.2-8b-layers-3-step-100000"),
     # FIXME: Because this uses the same config as 3.2, re-using here, but should update
     GRANITE_3p3_8B_INSTRUCT: os.path.join(MICRO_MODELS_HOME, "granite-3.2-8b-layers-3-step-100000"),
-    GRANITE_20B_CODE_INSTRUCT_8K: os.path.join(MICRO_MODELS_HOME, "granite-20b-code-layers-3-step-100000")
+    GRANITE_20B_CODE_INSTRUCT_8K: os.path.join(MICRO_MODELS_HOME, "granite-20b-code-layers-3-step-100000"),
+    LLAMA_3p1_70B_INSTRUCT: os.path.join(MICRO_MODELS_HOME, "llama-3.1-70b-layers-3-step-24000")
 }
 
 SHARE_GPT_DATASET_PATH = os.environ.get(
