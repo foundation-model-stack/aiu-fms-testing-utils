@@ -315,12 +315,11 @@ def __find_eos_index(reference_tokens, eos_token_id, seq_length, max_new_tokens)
     return result
 
 
-def __filter_before_eos(level_metric, filter_indexes):
+def __filter_before_eos(metrics, filter_indexes):
     from itertools import groupby
 
     filtered_results = [
-        list(g)[: filter_indexes[k]]
-        for k, g in groupby(level_metric, key=lambda x: x[0])
+        list(g)[: filter_indexes[k]] for k, g in groupby(metrics, key=lambda x: x[0])
     ]
     return [item for sublist in filtered_results for item in sublist]
 

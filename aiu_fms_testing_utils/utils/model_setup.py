@@ -47,6 +47,8 @@ def get_device(args: argparse.Namespace) -> torch.device:
         device = torch.device(args.device_type, local_rank)
         torch.cuda.set_device(device)
     elif args.is_aiu_backend:
+        from torch_sendnn import torch_sendnn  # noqa: F401
+
         if args.distributed:
             aiu_setup.aiu_dist_setup(
                 distributed.get_rank(),

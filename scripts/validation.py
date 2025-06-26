@@ -297,6 +297,7 @@ if args.distributed:
     aiu_setup.aiu_dist_setup(dist.get_rank(), dist.get_world_size())
 
 # Always initialize AIU in this script
+from torch_sendnn import torch_sendnn  # noqa
 
 if not args.distributed:
     aiu_setup.aiu_setup(rank, world_size)

@@ -252,16 +252,20 @@ else:
     from fms.utils.generation import generate
 
 if "fp8" in attn_name:
-    pass
+    import fms_mo.aiu_addons.fp8.fp8_attn  # noqa: F401
 
 if args.quantization == "gptq":
     if "aiu" in args.device_type:
         try:
+            from fms_mo.aiu_addons.gptq import gptq_aiu_adapter, gptq_aiu_linear  # noqa
+
             print("Loaded `aiu_addons` functionalities")
         except ImportError:
             raise ImportError("Failed to import GPTQ addons from fms-mo.")
 elif args.quantization == "int8":
     try:
+        from fms_mo.aiu_addons.i8i8 import i8i8_aiu_adapter, i8i8_aiu_linear  # noqa
+
         print("Loaded `aiu_addons` functionalities")
     except ImportError:
         raise ImportError("Failed to import INT8 addons from fms-mo.")
@@ -301,6 +305,8 @@ if args.device_type == "cuda":
     device = torch.device(args.device_type, local_rank)
     torch.cuda.set_device(device)
 elif is_aiu_backend:
+    from torch_sendnn import torch_sendnn  # noqa
+
     if not args.distributed:
         aiu_setup.aiu_setup(rank, world_size)
 

@@ -175,12 +175,11 @@ def find_eos_index(reference_tokens, eos_token_id):
     return result
 
 
-def filter_before_eos(level_metric, filter_indexes):
+def filter_before_eos(metrics, filter_indexes):
     from itertools import groupby
 
     filtered_results = [
-        list(g)[: filter_indexes[k]]
-        for k, g in groupby(level_metric, key=lambda x: x[0])
+        list(g)[: filter_indexes[k]] for k, g in groupby(metrics, key=lambda x: x[0])
     ]
     return [item for sublist in filtered_results for item in sublist]
 
@@ -197,10 +196,10 @@ def __prepare_inputs(batch_size, seq_length, tokenizer, seed=0):
     return input_ids, padding_kwargs
 
 
-def write_csv(metric, path, metric_name):
+def write_csv(metrics, path, metric_name):
     with open(path, "w") as f:
         f.write(f"{metric_name}\n")
-        for t in metric:
+        for t in metrics:
             f.write(f"{t[2].item()}\n")
         f.close()
 

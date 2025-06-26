@@ -3,6 +3,7 @@ import random
 import time
 from typing import Any, Callable, List, MutableMapping, Optional, Tuple, Union
 import torch
+import fms.utils.spyre.paged  # noqa
 
 
 def adjust_inputs_to_batch(input_ids: torch.Tensor, **extra_kwargs):
