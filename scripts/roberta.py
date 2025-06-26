@@ -29,6 +29,7 @@ from fms.models import get_model
 from fms.models.hf import to_hf_api
 
 # Import AIU Libraries
+from torch_sendnn import torch_sendnn  # noqa
 
 # ==============================================================
 # Main

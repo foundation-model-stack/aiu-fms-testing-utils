@@ -16,6 +16,7 @@ from fms.modules.feedforward import FeedForwardBlock
 from fms.utils.tp_wrapping import apply_tp
 
 # Import AIU Libraries
+from torch_sendnn import torch_sendnn  # noqa
 
 
 # ==============================================================
