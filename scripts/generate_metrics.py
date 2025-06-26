@@ -1,14 +1,20 @@
 import argparse
 import ast
-import json
 import os
-import random
-from typing import List, Optional, Tuple
 
 import torch
 from torch import distributed as dist
-from aiu_fms_testing_utils.testing.validation import capture_level_1_metrics, extract_validation_information, LogitsExtractorHook, get_default_validation_prefix, load_validation_information, print_failed_cases, \
-    validate_level_0, GoldenTokenHook, top_k_loss_calculator
+from aiu_fms_testing_utils.testing.validation import (
+    capture_level_1_metrics,
+    extract_validation_information,
+    LogitsExtractorHook,
+    get_default_validation_prefix,
+    load_validation_information,
+    print_failed_cases,
+    validate_level_0,
+    GoldenTokenHook,
+    top_k_loss_calculator,
+)
 from aiu_fms_testing_utils.utils import ids_for_prompt, sample_sharegpt_requests
 from fms.models import get_model
 from fms.utils import tokenizers
@@ -83,19 +89,19 @@ parser.add_argument(
     "--topk_per_token",
     type=int,
     help="top k values per token to generate loss on",
-    default=20
+    default=20,
 )
 parser.add_argument(
     "--num_test_tokens_per_sequence",
     type=int,
     help="number of tokens in test. For instance, if max_new_tokens=128 and num_test_tokens_per_sequence=256, this means we will generate data over 2 sample prompts. If not set, will be set to max_new_tokens",
-    default=None
+    default=None,
 )
 parser.add_argument(
     "--extra_get_model_kwargs",
-    nargs='*',
+    nargs="*",
     default={},
-    help="Use this to override model configuration values to get model. Example: --extra_get_model_kwargs nlayers=2,..."
+    help="Use this to override model configuration values to get model. Example: --extra_get_model_kwargs nlayers=2,...",
 )
 parser.add_argument(
     "--distributed",
@@ -105,7 +111,7 @@ parser.add_argument(
 parser.add_argument(
     "--skip_computation",
     action="store_true",
-    help="Set this if the output is already assumed to be computed and would like to regenerate metrics without model loading or computation"
+    help="Set this if the output is already assumed to be computed and would like to regenerate metrics without model loading or computation",
 )
 local_rank = int(os.getenv("LOCAL_RANK", 0))
 world_size = int(os.getenv("WORLD_SIZE", 1))
@@ -120,14 +126,20 @@ else:
 
 extra_get_model_kwargs = {}
 for a in args.extra_get_model_kwargs:
-     a_split = a.split("=")
-     try:
+    a_split = a.split("=")
+    try:
         extra_get_model_kwargs[a_split[0]] = ast.literal_eval(a_split[1])
-     except ValueError:
+    except ValueError:
         extra_get_model_kwargs[a_split[0]] = a_split[1]
 
 # this follows the same pattern of naming in test_shapes. This way we can save and re-use for quicker shape testing.
-prefix = get_default_validation_prefix(args.variant, args.max_new_tokens, args.batch_size, args.min_pad_length, args.default_dtype)
+prefix = get_default_validation_prefix(
+    args.variant,
+    args.max_new_tokens,
+    args.batch_size,
+    args.min_pad_length,
+    args.default_dtype,
+)
 if os.path.exists(os.path.join(args.output_dir, f"{prefix}.prob_mean.csv")):
     print("skipping metric generation as it has already been done")
     exit(0)
@@ -148,11 +160,12 @@ tokenizer = tokenizers.get_tokenizer(args.tokenizer)
 
 torch.set_grad_enabled(False)
 
+
 def find_eos_index(reference_tokens, eos_token_id):
     result = []
     for sentence in reference_tokens:
         found_eos = False
-        for token_idx, token in enumerate(sentence[args.min_pad_length:]):
+        for token_idx, token in enumerate(sentence[args.min_pad_length :]):
             if token.item() == eos_token_id:
                 found_eos = True
                 result.append(token_idx)
@@ -161,13 +174,20 @@ def find_eos_index(reference_tokens, eos_token_id):
             result.append(args.max_new_tokens)
     return result
 
-def filter_before_eos(l, filter_indexes):
+
+def filter_before_eos(metrics, filter_indexes):
     from itertools import groupby
-    filtered_results = [list(g)[:filter_indexes[k]] for k, g in groupby(l, key=lambda x: x[0])]
+
+    filtered_results = [
+        list(g)[: filter_indexes[k]] for k, g in groupby(metrics, key=lambda x: x[0])
+    ]
     return [item for sublist in filtered_results for item in sublist]
 
+
 def __prepare_inputs(batch_size, seq_length, tokenizer, seed=0):
-    prompts_and_sizes = sample_sharegpt_requests(args.sharegpt_path, batch_size, tokenizer, seq_length // 2, seq_length, seed)
+    prompts_and_sizes = sample_sharegpt_requests(
+        args.sharegpt_path, batch_size, tokenizer, seq_length // 2, seq_length, seed
+    )
     prompt_list = []
     for prompt, _ in prompts_and_sizes:
         prompt_list.append(ids_for_prompt(prompt, tokenizer))
@@ -175,12 +195,14 @@ def __prepare_inputs(batch_size, seq_length, tokenizer, seed=0):
     input_ids, padding_kwargs = pad_input_ids(prompt_list, min_pad_length=seq_length)
     return input_ids, padding_kwargs
 
-def write_csv(l, path, metric):
-    with open(path, 'w') as f:
-        f.write(f'{metric}\n')
-        for t in l:
-            f.write(f"{t[2].item()}\n") 
+
+def write_csv(metrics, path, metric_name):
+    with open(path, "w") as f:
+        f.write(f"{metric_name}\n")
+        for t in metrics:
+            f.write(f"{t[2].item()}\n")
         f.close()
+
 
 # prepare the cuda model
 if not args.skip_computation:
@@ -212,7 +234,9 @@ if not args.skip_computation:
     cpu_model.eval()
     print("loaded cpu model")
 
-    ids, padding_kwargs = __prepare_inputs(args.batch_size, args.min_pad_length, tokenizer)
+    ids, padding_kwargs = __prepare_inputs(
+        args.batch_size, args.min_pad_length, tokenizer
+    )
 
     # first test validation level 0
     cpu_validation_info = extract_validation_information(
@@ -221,7 +245,7 @@ if not args.skip_computation:
         args.max_new_tokens,
         LogitsExtractorHook(),
         attn_algorithm="math",
-        **padding_kwargs
+        **padding_kwargs,
     )
     cpu_static_tokens = cpu_validation_info.get_info("tokens")
     print("extracted cpu validation information")
@@ -236,24 +260,41 @@ if not args.skip_computation:
         args.max_new_tokens,
         None,
         only_last_token=True,
-        **{k: v.to("cuda") for k,v in padding_kwargs.items()}
+        **{k: v.to("cuda") for k, v in padding_kwargs.items()},
     )
     cuda_static_tokens = cuda_validation_info.get_info("tokens")
     failed_responses = validate_level_0(cpu_static_tokens, cuda_static_tokens)
 
     print("extracted cuda validation information level 0")
     if local_rank == 0:
-        if len(failed_responses) != 0:    
-            print_failed_cases(failed_responses, cpu_static_tokens, cuda_static_tokens, tokenizer)
+        if len(failed_responses) != 0:
+            print_failed_cases(
+                failed_responses, cpu_static_tokens, cuda_static_tokens, tokenizer
+            )
 
 num_test_tokens_per_sequence = args.num_test_tokens_per_sequence
 if num_test_tokens_per_sequence is None:
     num_test_tokens_per_sequence = args.max_new_tokens
 
-cross_entropy = lambda r, t: torch.nn.CrossEntropyLoss()(r, t.softmax(dim=1).to(dtype=torch.float32))
-prob_mean = lambda r, t: torch.mean((r.softmax(dim=1).to(dtype=torch.float32) / t.softmax(dim=1).to(dtype=torch.float32)) - 1.0)
-prob_std = lambda r, t: torch.std(r.softmax(dim=1).to(dtype=torch.float32) / t.softmax(dim=1).to(dtype=torch.float32))
-diff_mean = lambda r, t: torch.mean(torch.abs(r.softmax(dim=1).to(dtype=torch.float32) - t.softmax(dim=1).to(dtype=torch.float32)))
+cross_entropy = lambda r, t: torch.nn.CrossEntropyLoss()(  # noqa: E731
+    r, t.softmax(dim=1).to(dtype=torch.float32)
+)
+prob_mean = lambda r, t: torch.mean(  # noqa: E731
+    (
+        r.softmax(dim=1).to(dtype=torch.float32)
+        / t.softmax(dim=1).to(dtype=torch.float32)
+    )
+    - 1.0
+)
+prob_std = lambda r, t: torch.std(  # noqa: E731
+    r.softmax(dim=1).to(dtype=torch.float32) / t.softmax(dim=1).to(dtype=torch.float32)
+)
+diff_mean = lambda r, t: torch.mean(  # noqa: E731
+    torch.abs(
+        r.softmax(dim=1).to(dtype=torch.float32)
+        - t.softmax(dim=1).to(dtype=torch.float32)
+    )
+)
 
 prob_mean_metrics = []
 prob_std_metrics = []
@@ -265,10 +306,16 @@ for i in range(num_test_tokens_per_sequence // args.max_new_tokens):
     cuda_path = os.path.join(args.output_dir, f"{prefix}.cuda_validation_info.{i}.out")
     if os.path.exists(cpu_path) and os.path.exists(cuda_path):
         print(f"found the logits at {cpu_path}, reusing")
-        cpu_validation_info = load_validation_information(cpu_path, "logits", args.batch_size, tokenizer)
-        cuda_validation_info = load_validation_information(cuda_path, "logits", args.batch_size, tokenizer)
+        cpu_validation_info = load_validation_information(
+            cpu_path, "logits", args.batch_size, tokenizer
+        )
+        cuda_validation_info = load_validation_information(
+            cuda_path, "logits", args.batch_size, tokenizer
+        )
     elif not args.skip_computation:
-        ids, padding_kwargs = __prepare_inputs(args.batch_size, args.min_pad_length, tokenizer, i)
+        ids, padding_kwargs = __prepare_inputs(
+            args.batch_size, args.min_pad_length, tokenizer, i
+        )
 
         # only need to compute this once if we aren't generating more test data
         if num_test_tokens_per_sequence > args.max_new_tokens:
@@ -278,7 +325,7 @@ for i in range(num_test_tokens_per_sequence // args.max_new_tokens):
                 args.max_new_tokens,
                 LogitsExtractorHook(),
                 attn_algorithm="math",
-                **padding_kwargs
+                **padding_kwargs,
             )
 
         # generate aiu validation info
@@ -288,7 +335,7 @@ for i in range(num_test_tokens_per_sequence // args.max_new_tokens):
             args.max_new_tokens,
             GoldenTokenHook(cpu_validation_info.get_info("tokens"), "cuda"),
             only_last_token=True,
-            **{k: v.to("cuda") for k,v in padding_kwargs.items()}
+            **{k: v.to("cuda") for k, v in padding_kwargs.items()},
         )
 
         print("extracted cuda validation information level 1")
@@ -296,8 +343,10 @@ for i in range(num_test_tokens_per_sequence // args.max_new_tokens):
         if local_rank == 0:
             cpu_validation_info.save(cpu_path)
             cuda_validation_info.save(cuda_path)
-    
-    eos_indexes = find_eos_index(cpu_validation_info.get_info("tokens"), tokenizer.eos_token_id)
+
+    eos_indexes = find_eos_index(
+        cpu_validation_info.get_info("tokens"), tokenizer.eos_token_id
+    )
     level_1_metrics = capture_level_1_metrics(
         cpu_validation_info.get_info("logits"),
         cuda_validation_info.get_info("logits"),
@@ -327,7 +376,21 @@ for i in range(num_test_tokens_per_sequence // args.max_new_tokens):
     prob_diff_metrics.extend(filter_before_eos(level_1_metrics, eos_indexes))
 
 if local_rank == 0:
-    write_csv(prob_mean_metrics, os.path.join(args.output_dir, f"{prefix}.prob_mean.csv"), "prob_mean")
-    write_csv(prob_std_metrics, os.path.join(args.output_dir, f"{prefix}.prob_std.csv"), "prob_std")
-    write_csv(prob_ce_loss_metrics, os.path.join(args.output_dir, f"{prefix}.ce.csv"), "ce")
-    write_csv(prob_diff_metrics, os.path.join(args.output_dir, f"{prefix}.diff_mean.csv"), "diff_mean")
+    write_csv(
+        prob_mean_metrics,
+        os.path.join(args.output_dir, f"{prefix}.prob_mean.csv"),
+        "prob_mean",
+    )
+    write_csv(
+        prob_std_metrics,
+        os.path.join(args.output_dir, f"{prefix}.prob_std.csv"),
+        "prob_std",
+    )
+    write_csv(
+        prob_ce_loss_metrics, os.path.join(args.output_dir, f"{prefix}.ce.csv"), "ce"
+    )
+    write_csv(
+        prob_diff_metrics,
+        os.path.join(args.output_dir, f"{prefix}.diff_mean.csv"),
+        "diff_mean",
+    )
