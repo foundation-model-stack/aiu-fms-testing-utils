@@ -5,11 +5,12 @@ from typing import Any, Callable, List, MutableMapping, Optional, Tuple, Union
 import torch
 import fms.utils.spyre.paged
 
+
 def adjust_inputs_to_batch(input_ids: torch.Tensor, **padding_kwargs):
     """
-    Adjusts the inputs to a batch. Batch size 1 cannot be handled since we want a symbolic shape for the batch 
+    Adjusts the inputs to a batch. Batch size 1 cannot be handled since we want a symbolic shape for the batch
     and pytorch automatically sets size 1 dimensions as static
-    
+
     Note: This is fixed in pytorch 2.7
     """
     input_ids = input_ids[0].repeat(2, 1)
@@ -22,6 +23,7 @@ def adjust_inputs_to_batch(input_ids: torch.Tensor, **padding_kwargs):
     if position_ids is not None:
         kwargs["position_ids"] = position_ids[0].repeat(2, 1)
     return input_ids, kwargs
+
 
 # FIXME: We should use default generate, but that will require a larger re-work of generate
 def generate(
@@ -88,7 +90,7 @@ def generate(
     if isinstance(input_ids, torch.Tensor):
         if len(input_ids.shape) == 1:
             input_ids = input_ids.unsqueeze(0)
-        
+
         is_batch = input_ids.shape[0] > 1
         # our model requires batch dimension
         if not is_batch:
@@ -106,8 +108,18 @@ def generate(
     result = input_ids
     next_input = input_ids
     BLOCK_SIZE = 64
-    _MAX_BATCH = int(os.environ.setdefault("VLLM_DT_MAX_BATCH_SIZE", str(input_ids.size(0))))
-    _MAX_CONTEXT_LENGTH = int(os.environ.setdefault("VLLM_DT_MAX_CONTEXT_LEN", str((((input_ids.size(1) + max_new_tokens - 1) // BLOCK_SIZE) + 1) * BLOCK_SIZE)))
+    _MAX_BATCH = int(
+        os.environ.setdefault("VLLM_DT_MAX_BATCH_SIZE", str(input_ids.size(0)))
+    )
+    _MAX_CONTEXT_LENGTH = int(
+        os.environ.setdefault(
+            "VLLM_DT_MAX_CONTEXT_LEN",
+            str(
+                (((input_ids.size(1) + max_new_tokens - 1) // BLOCK_SIZE) + 1)
+                * BLOCK_SIZE
+            ),
+        )
+    )
     NUM_BLOCKS = (_MAX_BATCH * _MAX_CONTEXT_LENGTH) // BLOCK_SIZE
     max_seq_len = input_ids.size(1) + max_new_tokens
     if hasattr(model, "head"):

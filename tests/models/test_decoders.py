@@ -34,7 +34,9 @@ try:
 except ImportError:
     GPTQ_ENABLED = False
 
-MICRO_MODELS_HOME = os.environ.get("FMS_TEST_SHAPES_MICRO_MODELS_HOME", "/mnt/home/models/tiny-models")
+MICRO_MODELS_HOME = os.environ.get(
+    "FMS_TEST_SHAPES_MICRO_MODELS_HOME", "/mnt/home/models/tiny-models"
+)
 
 # Add models to test here
 LLAMA_3p1_8B_INSTRUCT = "meta-llama/Llama-3.1-8B-Instruct"
@@ -44,11 +46,19 @@ GRANITE_20B_CODE_INSTRUCT_8K = "ibm-granite/granite-20b-code-instruct-8k"
 LLAMA_3p1_70B_INSTRUCT = "meta-llama/Llama-3.1-70B-Instruct"
 
 micro_model_mapping = {
-    LLAMA_3p1_8B_INSTRUCT: os.path.join(MICRO_MODELS_HOME, "llama-3.1-8b-layers-3-step-24000"),
-    GRANITE_3p2_8B_INSTRUCT: os.path.join(MICRO_MODELS_HOME, "granite-3.2-8b-layers-3-step-100000"),
+    LLAMA_3p1_8B_INSTRUCT: os.path.join(
+        MICRO_MODELS_HOME, "llama-3.1-8b-layers-3-step-24000"
+    ),
+    GRANITE_3p2_8B_INSTRUCT: os.path.join(
+        MICRO_MODELS_HOME, "granite-3.2-8b-layers-3-step-100000"
+    ),
     # FIXME: Because this uses the same config as 3.2, re-using here, but should update
-    GRANITE_3p3_8B_INSTRUCT: os.path.join(MICRO_MODELS_HOME, "granite-3.3-8b-layers-3-step-100000"),
-    LLAMA_3p1_70B_INSTRUCT: os.path.join(MICRO_MODELS_HOME, "llama-3.1-70b-layers-3-step-24000")
+    GRANITE_3p3_8B_INSTRUCT: os.path.join(
+        MICRO_MODELS_HOME, "granite-3.3-8b-layers-3-step-100000"
+    ),
+    LLAMA_3p1_70B_INSTRUCT: os.path.join(
+        MICRO_MODELS_HOME, "llama-3.1-70b-layers-3-step-24000"
+    ),
 }
 
 SHARE_GPT_DATASET_PATH = os.environ.get(
@@ -127,14 +137,18 @@ if isinstance(skip_assertions, str):
     for metric in skip_assertions.split(","):
         metric = metric.lower()
         if metric not in {"ce", "mean_diff"}:
-            pytest.fail("FMS_TEST_SHAPES_SKIP_ASSERTIONS can only accept metrics ce and mean_diff")
+            pytest.fail(
+                "FMS_TEST_SHAPES_SKIP_ASSERTIONS can only accept metrics ce and mean_diff"
+            )
         _skip_assertions.append(metric)
     skip_assertions = set(_skip_assertions)
 
 compile_dynamic_sendnn = ATTN_TYPE == "paged"
 
 if compile_dynamic_sendnn:
-    os.environ["VLLM_DT_MAX_CONTEXT_LEN"] = str((((max(common_seq_lengths) + max(common_max_new_tokens)) // 64) + 1) * 64)
+    os.environ["VLLM_DT_MAX_CONTEXT_LEN"] = str(
+        (((max(common_seq_lengths) + max(common_max_new_tokens)) // 64) + 1) * 64
+    )
     os.environ["VLLM_DT_MAX_BATCH_SIZE"] = str(max(common_batch_sizes))
 
 common_shapes = list(
@@ -294,8 +308,10 @@ def __load_validation_info(
     else:
         return None
 
+
 class PersistentModel:
     """This class will either get a model that is pre-compiled (if compile_dynamic_sendnn) or re-create the model for each test"""
+
     def __init__(self):
         self.model = None
 
@@ -310,15 +326,17 @@ class PersistentModel:
             self.__maybe_reset_model(model, is_gptq)
 
             model.eval()
-            model.compile(backend="sendnn", options={'sendnn.dynamic': compile_dynamic_sendnn})
+            model.compile(
+                backend="sendnn", options={"sendnn.dynamic": compile_dynamic_sendnn}
+            )
 
             if compile_dynamic_sendnn:
                 self.model = model
-            
+
             return model
         else:
             return self.model
-    
+
     # TODO: This was added as we require a special reset for gptq models. Ideally, we would be able to do something like this reset when calling reset_parameters() on the model
     #  however the gptq modules are yet to support this
     @staticmethod
@@ -344,6 +362,7 @@ class PersistentModel:
                     res /= 20.0
                 param.copy_(res)
 
+
 @pytest.fixture
 def persistent_model():
     return PersistentModel()
@@ -352,7 +371,9 @@ def persistent_model():
 @pytest.mark.parametrize(
     "model_path,batch_size,seq_length,max_new_tokens", common_shapes
 )
-def test_common_shapes(model_path, batch_size, seq_length, max_new_tokens, persistent_model):
+def test_common_shapes(
+    model_path, batch_size, seq_length, max_new_tokens, persistent_model
+):
     torch.manual_seed(42)
     torch.set_grad_enabled(False)
     os.environ["COMPILATION_MODE"] = "offline_decoder"
@@ -396,7 +417,9 @@ def test_common_shapes(model_path, batch_size, seq_length, max_new_tokens, persi
     tokenizer = tokenizers.get_tokenizer(model_path)
 
     # prepare the AIU model
-    model = persistent_model.get_or_create(is_gptq, **gptq_kwargs_aiu, **get_model_kwargs)
+    model = persistent_model.get_or_create(
+        is_gptq, **gptq_kwargs_aiu, **get_model_kwargs
+    )
 
     # prepare the cpu model
     validation_model = get_model(
@@ -416,7 +439,14 @@ def test_common_shapes(model_path, batch_size, seq_length, max_new_tokens, persi
     input_ids, padding_kwargs = __prepare_inputs(batch_size, seq_length, tokenizer)
 
     # warmup aiu model
-    warmup_model(model, input_ids, max_new_tokens, compile_dynamic_sendnn, attn_type=ATTN_TYPE, **padding_kwargs)
+    warmup_model(
+        model,
+        input_ids,
+        max_new_tokens,
+        compile_dynamic_sendnn,
+        attn_type=ATTN_TYPE,
+        **padding_kwargs,
+    )
 
     # generate cpu validation info
     cpu_validation_info = __load_validation_info(
@@ -448,7 +478,13 @@ def test_common_shapes(model_path, batch_size, seq_length, max_new_tokens, persi
 
     # first test validation level 0
     aiu_validation_info = extract_validation_information(
-        model, input_ids, max_new_tokens, None, only_last_token=ATTN_TYPE != "paged", attn_type=ATTN_TYPE, **padding_kwargs
+        model,
+        input_ids,
+        max_new_tokens,
+        None,
+        only_last_token=ATTN_TYPE != "paged",
+        attn_type=ATTN_TYPE,
+        **padding_kwargs,
     )
     dprint("aiu validation info extracted for validation level 0")
 
@@ -461,7 +497,6 @@ def test_common_shapes(model_path, batch_size, seq_length, max_new_tokens, persi
 
     # if level 0 fails validation, validate level 1
     if FORCE_VALIDATION_LEVEL_1 or failed_validation_level_0:
-
         if failed_validation_level_0:
             dprint("failed validation level 0, testing validation level 1")
         else:
@@ -526,7 +561,7 @@ def test_common_shapes(model_path, batch_size, seq_length, max_new_tokens, persi
                 max_new_tokens,
                 GoldenTokenHook(cpu_static_tokens),
                 only_last_token=ATTN_TYPE != "paged",
-                attn_type=ATTN_TYPE, 
+                attn_type=ATTN_TYPE,
                 **padding_kwargs,
             )
             dprint(f"aiu validation info extracted for validation level 1 - iter={i}")
@@ -554,7 +589,10 @@ def test_common_shapes(model_path, batch_size, seq_length, max_new_tokens, persi
                 # if we have a micro model with real weights, but no real thresholds, default to the full model thresholds
                 if USE_MICRO_MODELS:
                     ce_threshold, diff_threshold = fail_thresholds.get(
-                        (model_path, True), fail_thresholds.get((model_path, False), default_metrics_threshold)
+                        (model_path, True),
+                        fail_thresholds.get(
+                            (model_path, False), default_metrics_threshold
+                        ),
                     )
                 else:
                     ce_threshold, diff_threshold = fail_thresholds.get(

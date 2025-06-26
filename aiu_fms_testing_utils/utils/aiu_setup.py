@@ -3,20 +3,23 @@ import os
 # ==============================================================
 # Common utilities
 # ==============================================================
-#-------------
+# -------------
 # Discover the world size and my rank (envars set by torchrun)
 # https://pytorch.org/docs/stable/elastic/run.html#environment-variables
-#-------------
+# -------------
 local_rank = int(os.getenv("LOCAL_RANK", 0))
 rank = int(os.getenv("RANK", 0))
 world_rank = rank
 world_size = int(os.getenv("WORLD_SIZE", 1))
 
+
 def dprint_str(text):
     return f"[{rank:2d}/{world_size:2d}]: {text}"
 
+
 def dprint(text):
     print(dprint_str(text))
+
 
 # ==============================================================
 # Common setup

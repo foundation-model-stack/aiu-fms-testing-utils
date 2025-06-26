@@ -36,7 +36,7 @@ parser.add_argument(
     type=str,
     choices=["cuda", "cpu", "aiu", "aiu-senulator"],
     default="cuda",
-    help="The device to run the model on"
+    help="The device to run the model on",
 )
 parser.add_argument(
     "--architecture",
@@ -213,10 +213,11 @@ parser.add_argument(
     help="Number of iterations of inference to perform. Used for variance performance capture.",
 )
 parser.add_argument(
-    '-v', '--verbose',
-    action='count',
+    "-v",
+    "--verbose",
+    action="count",
     default=0,
-    help="Set verbosity level (pass flag as `-v`, `-vv`, `-vvv`)"
+    help="Set verbosity level (pass flag as `-v`, `-vv`, `-vvv`)",
 )
 parser.add_argument(
     "--attention_type",
@@ -236,12 +237,14 @@ if args.quantization == "gptq":
     if "aiu" in args.device_type:
         try:
             from fms_mo.aiu_addons.gptq import gptq_aiu_adapter, gptq_aiu_linear
+
             print("Loaded `aiu_addons` functionalities")
         except:
             raise ImportError("Failed to import GPTQ addons from fms-mo.")
 elif args.quantization == "int8":
     try:
         from fms_mo.aiu_addons.i8i8 import i8i8_aiu_adapter, i8i8_aiu_linear
+
         print("Loaded `aiu_addons` functionalities")
     except:
         raise ImportError("Failed to import INT8 addons from fms-mo.")
@@ -356,7 +359,9 @@ else:
 fused_weights = not args.unfuse_weights
 if args.quantization == "gptq":
     if fused_weights and is_aiu_backend:
-        raise ValueError("GPTQ checkpoints on AIU must always run with --unfuse_weights")
+        raise ValueError(
+            "GPTQ checkpoints on AIU must always run with --unfuse_weights"
+        )
     if default_dtype is not None:
         raise ValueError(
             "GPTQ default_dtype must be None to preserve the checkpoint data types."
@@ -373,7 +378,7 @@ if args.quantization == "gptq":
 
     qconfig_path = args.model_path + "/quantize_config.json"
     if os.path.exists(qconfig_path):
-        with open(qconfig_path, 'r') as f:
+        with open(qconfig_path, "r") as f:
             dprint(f"loading quantization config from {qconfig_path}")
             qconfig = json.load(f)
             group_size = qconfig["group_size"]
@@ -397,7 +402,9 @@ if args.quantization == "gptq":
     }
 elif args.quantization == "int8":
     if fused_weights and is_aiu_backend:
-        raise ValueError("INT8 checkpoints on AIU must always run with --unfuse_weights")
+        raise ValueError(
+            "INT8 checkpoints on AIU must always run with --unfuse_weights"
+        )
     if default_dtype is not None:
         raise ValueError(
             "INT8 default_dtype must be None to preserve the checkpoint data types."
@@ -425,17 +432,15 @@ elif args.quantization == "int8":
         elif any("roberta" in p.lower() for p in [args.model_path, args.architecture]):
             smoothquant_layers = ["query", "key", "value", "w1"]
         else:
-            raise NotImplementedError(
-                "INT8 architecture does not support smoothquant."
-            )
+            raise NotImplementedError("INT8 architecture does not support smoothquant.")
     else:
         smoothquant_layers = []
 
     linear_config = {
         "linear_type": partial(
             select_int8_module,
-            smoothquant = args.int8_smoothquant,
-            smoothquant_layers = smoothquant_layers,
+            smoothquant=args.int8_smoothquant,
+            smoothquant_layers=smoothquant_layers,
         ),
         "weight_per_channel": args.int8_weight_per_channel,
         "activ_quant_type": args.int8_activ_quant_type,
@@ -443,12 +448,12 @@ elif args.quantization == "int8":
 else:
     linear_config = {"linear_type": "torch_linear"}
 
-dprint("="*60)
+dprint("=" * 60)
 dprint(f"model_path={args.model_path}")
 dprint(f"{linear_config=}")
 dprint(f"{fused_weights=}")
 dprint(f"data_type={default_dtype}")
-dprint("="*60 + "\n")
+dprint("=" * 60 + "\n")
 
 model = get_model(
     args.architecture,
@@ -465,13 +470,27 @@ model = get_model(
 
 if args.quantization in ["gptq", "int8"]:
     if rank == 0 and args.verbose > 0:
-        dprint("PARAMS:\n" + "\n".join(f"{k:60} {str(v.dtype):15} {str(v.device):10} {list(v.size())}" for k,v in model.named_parameters()))
-        dprint("BUFFERS:\n" + "\n".join(f"{k:60} {str(v.dtype):15} {str(v.device):10} {list(v.size())}" for k,v in model.named_buffers()))
-        dprint("="*60 + "\n")
+        dprint(
+            "PARAMS:\n"
+            + "\n".join(
+                f"{k:60} {str(v.dtype):15} {str(v.device):10} {list(v.size())}"
+                for k, v in model.named_parameters()
+            )
+        )
+        dprint(
+            "BUFFERS:\n"
+            + "\n".join(
+                f"{k:60} {str(v.dtype):15} {str(v.device):10} {list(v.size())}"
+                for k, v in model.named_buffers()
+            )
+        )
+        dprint("=" * 60 + "\n")
     if args.architecture == "llama":
-        dprint("[NOTE] In Llama models, it's OK for bias and rotary embeddings to be marked as unused keys.")
+        dprint(
+            "[NOTE] In Llama models, it's OK for bias and rotary embeddings to be marked as unused keys."
+        )
     dprint(model)
-    dprint("="*60 + "\n")
+    dprint("=" * 60 + "\n")
 
 tokenizer = tokenizers.get_tokenizer(args.tokenizer)
 model.eval()
@@ -482,7 +501,9 @@ dprint(f"loading complete, took {loading_model_time:.3f}s")
 if args.compile:
     dprint("compiling model")
     if is_aiu_backend:
-        model.compile(backend="sendnn", options={'sendnn.dynamic': args.compile_dynamic_sendnn})
+        model.compile(
+            backend="sendnn", options={"sendnn.dynamic": args.compile_dynamic_sendnn}
+        )
     else:
         # compiling can make first inference pass slow
         model.compile(mode=args.compile_mode, backend=args.compile_backend)
@@ -538,9 +559,9 @@ if args.prompt_path != "":
     assert len(prompt_file_paths) > 0, f"Can't find any prompt files at {prompt_path}"
 
     # Check if we have enough files
-    assert (
-        len(prompt_file_paths) >= args.batch_size
-    ), f"Not enough prompt files at {prompt_path} for a batch size of {args.batch_size}"
+    assert len(prompt_file_paths) >= args.batch_size, (
+        f"Not enough prompt files at {prompt_path} for a batch size of {args.batch_size}"
+    )
 
     prompts = []
     for i, prompt_file_path in enumerate(prompt_file_paths):
@@ -672,7 +693,7 @@ def infer(use_cache, do_sample, warmup):
         timing=args.timing,
         eos_token_id=eos_token_id,
         extra_kwargs=extra_generation_kwargs,
-        **attention_specific_kwargs
+        **attention_specific_kwargs,
     )
     if args.timing != "":
         result, timings = result
@@ -680,14 +701,24 @@ def infer(use_cache, do_sample, warmup):
             dprint(f"E2E timing information: {timings[0]:.3f}s")
         elif args.timing == "per-token":
             if not warmup:
-                dprint(f"First-token latency: {timings[0]*1000:.3f} ms")
-                dprint(f"Average next-token latency (including first token): {np.mean(timings)*1000:.3f} ms")
+                dprint(f"First-token latency: {timings[0] * 1000:.3f} ms")
+                dprint(
+                    f"Average next-token latency (including first token): {np.mean(timings) * 1000:.3f} ms"
+                )
                 if len(timings) > 1:
-                    dprint(f"Average next-token latency: {np.mean(timings[1:])*1000:.3f} ms")
-                    dprint(f"Max next-token latency: {np.max(timings[1:])*1000:.3f} ms (token #{np.argmax(timings[1:]) + 2})")
-                    dprint(f"Min next-token latency: {np.min(timings[1:])*1000:.3f} ms (token #{np.argmin(timings[1:]) + 2})")
-                    dprint(f"Std deviation of next-token latencies: {np.std(timings[1:])*1000:.3f} ms")
-            timings = [f"{t*1000:.3f}" for t in timings]
+                    dprint(
+                        f"Average next-token latency: {np.mean(timings[1:]) * 1000:.3f} ms"
+                    )
+                    dprint(
+                        f"Max next-token latency: {np.max(timings[1:]) * 1000:.3f} ms (token #{np.argmax(timings[1:]) + 2})"
+                    )
+                    dprint(
+                        f"Min next-token latency: {np.min(timings[1:]) * 1000:.3f} ms (token #{np.argmin(timings[1:]) + 2})"
+                    )
+                    dprint(
+                        f"Std deviation of next-token latencies: {np.std(timings[1:]) * 1000:.3f} ms"
+                    )
+            timings = [f"{t * 1000:.3f}" for t in timings]
             dprint(f"Per-token timing information: {', '.join(timings)} ms")
     if len(result.shape) == 1:
         result = result.unsqueeze(0)
@@ -706,7 +737,14 @@ if args.compile:
     dprint(f"compilation warmup")
     pt_compile_model_time = time.time()
     if args.device_type == "aiu":  # only run warmup for AIU, no need for senulator
-        warmup_model(model, ids, args.max_new_tokens, args.compile_dynamic_sendnn, attn_type=args.attention_type, **extra_generation_kwargs)
+        warmup_model(
+            model,
+            ids,
+            args.max_new_tokens,
+            args.compile_dynamic_sendnn,
+            attn_type=args.attention_type,
+            **extra_generation_kwargs,
+        )
         aiu_warmup_time = time.time()
         for sample, cache in itertools.product(do_sample, use_cache):
             infer(cache, sample, True)
