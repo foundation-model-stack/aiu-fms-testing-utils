@@ -32,7 +32,7 @@ def warmup_model(model: nn.Module, input_ids: torch.Tensor, max_new_tokens: int,
         if attn_type == "paged":
             _warmup_input_ids, _padding_kwargs = adjust_inputs_to_batch(input_ids, **padding_kwargs)
 
-    extra_kwargs = {**_padding_kwargs, "only_last_token": attn_type != "paged"}
+    extra_kwargs = {**_padding_kwargs, "only_last_token": True}
 
     with torch_sendnn.warmup_mode():
         generate(model, _warmup_input_ids, max_new_tokens=_max_new_tokens, use_cache=True, do_sample=False, extra_kwargs=extra_kwargs, **attention_specific_kwargs)

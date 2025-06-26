@@ -212,7 +212,7 @@ def generate(
                 input_ids_i = input_ids[seq_i].unsqueeze(0)
                 slot_mapping_i = kwargs["slot_mapping"][seq_i].unsqueeze(0)
                 position_ids_i = kwargs["position_ids"][seq_i].unsqueeze(0)
-                mask_i = kwargs["mask"][seq_i].unsqueeze(0)
+                mask_i = kwargs["mask"][seq_i].unsqueeze(0).contiguous()
 
                 # batch dynamic
                 torch._dynamo.mark_static(input_ids_i, 0)
@@ -240,6 +240,10 @@ def generate(
                     attn_name=kwargs["attn_name"],
                 )
 
+                # only last token must be handled here to properly stack the tensors
+                if not only_last_token:
+                    output = output[:, -1, :]
+
                 outputs_list.append(output[0].squeeze(0))
 
             output = (torch.stack(outputs_list), current_kv_cache)
@@ -262,7 +266,14 @@ def generate(
             torch._dynamo.mark_static(kwargs["slot_mapping"], 1)  # always 1
             torch._dynamo.mark_static(kwargs["position_ids"], 1)  # always 1
 
-            output = model(input_ids, **kwargs)
+            logits, past_key_value_states = model(input_ids, **kwargs)
+
+            # handle the only_last_token here as it is already being handled above in prefill
+            if not kwargs.get("only_last_token", False):
+                logits = logits[:, -1, :]
+
+            output = (logits, past_key_value_states)
+
         if use_cache:
             logits, past_key_value_states = output
             # TODO: this should go away when reduce-overhead issues are fixed, or
