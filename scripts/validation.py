@@ -19,7 +19,6 @@ from aiu_fms_testing_utils.testing.validation import (
     LogitsExtractorHook,
     capture_level_1_metrics,
     extract_validation_information,
-    StaticTokenInjectorHook,
     GoldenTokenHook,
     filter_failed_level_1_cases,
     validate_level_0,
@@ -264,7 +263,7 @@ fused_weights = not args.unfuse_weights
 if args.quantization == "gptq":
     try:
         # validation script always loads AIU addon
-        from fms_mo.aiu_addons.gptq import gptq_aiu_adapter, gptq_aiu_linear
+        from fms_mo.aiu_addons.gptq import gptq_aiu_adapter, gptq_aiu_linear  # noqa: F401
 
         print("Loaded `aiu_addons` functionalities")
 
@@ -295,7 +294,6 @@ if args.distributed:
     aiu_setup.aiu_dist_setup(dist.get_rank(), dist.get_world_size())
 
 # Always initialize AIU in this script
-from torch_sendnn import torch_sendnn
 
 if not args.distributed:
     aiu_setup.aiu_setup(rank, world_size)
@@ -595,7 +593,7 @@ max_len = max([len(prompt) for prompt in prompts])
 
 if args.fixed_prompt_length != 0 and args.fixed_prompt_length < max_len:
     dprint(
-        f"One or more prompts require truncation. Truncation has been disabled as fixed_prompt_length has been set."
+        "One or more prompts require truncation. Truncation has been disabled as fixed_prompt_length has been set."
     )
     exit(1)
 prompts = truncate_prompts_to_max_length(prompts, max_len, max_allowed_length)
@@ -645,7 +643,7 @@ if not needs_validation_generation:
         tokenizer,
     )
 
-    val_tokens = [torch.tensor(l) for l in validation_info.get_info("tokens")]
+    val_tokens = [torch.tensor(_) for _ in validation_info.get_info("tokens")]
     max_val_len = max([prompt.size(0) for prompt in val_tokens])
     val_num_gen_tokens = int(args.max_new_tokens)
     if max_allowed_length is not None:

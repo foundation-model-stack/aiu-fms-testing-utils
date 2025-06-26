@@ -2,7 +2,6 @@
 
 from aiu_fms_testing_utils.utils.aiu_setup import aiu_setup, rank, world_size
 import os
-import pytest
 
 
 def pytest_sessionstart(session):

@@ -1,9 +1,6 @@
 import argparse
 import ast
-import json
 import os
-import random
-from typing import List, Optional, Tuple
 
 import torch
 from torch import distributed as dist
@@ -178,11 +175,11 @@ def find_eos_index(reference_tokens, eos_token_id):
     return result
 
 
-def filter_before_eos(l, filter_indexes):
+def filter_before_eos(metrics, filter_indexes):
     from itertools import groupby
 
     filtered_results = [
-        list(g)[: filter_indexes[k]] for k, g in groupby(l, key=lambda x: x[0])
+        list(g)[: filter_indexes[k]] for k, g in groupby(metrics, key=lambda x: x[0])
     ]
     return [item for sublist in filtered_results for item in sublist]
 
@@ -199,10 +196,10 @@ def __prepare_inputs(batch_size, seq_length, tokenizer, seed=0):
     return input_ids, padding_kwargs
 
 
-def write_csv(l, path, metric):
+def write_csv(metrics, path, metric_name):
     with open(path, "w") as f:
-        f.write(f"{metric}\n")
-        for t in l:
+        f.write(f"{metric_name}\n")
+        for t in metrics:
             f.write(f"{t[2].item()}\n")
         f.close()
 
@@ -279,20 +276,20 @@ num_test_tokens_per_sequence = args.num_test_tokens_per_sequence
 if num_test_tokens_per_sequence is None:
     num_test_tokens_per_sequence = args.max_new_tokens
 
-cross_entropy = lambda r, t: torch.nn.CrossEntropyLoss()(
+cross_entropy = lambda r, t: torch.nn.CrossEntropyLoss()(  # noqa: E731
     r, t.softmax(dim=1).to(dtype=torch.float32)
 )
-prob_mean = lambda r, t: torch.mean(
+prob_mean = lambda r, t: torch.mean(  # noqa: E731
     (
         r.softmax(dim=1).to(dtype=torch.float32)
         / t.softmax(dim=1).to(dtype=torch.float32)
     )
     - 1.0
 )
-prob_std = lambda r, t: torch.std(
+prob_std = lambda r, t: torch.std(  # noqa: E731
     r.softmax(dim=1).to(dtype=torch.float32) / t.softmax(dim=1).to(dtype=torch.float32)
 )
-diff_mean = lambda r, t: torch.mean(
+diff_mean = lambda r, t: torch.mean(  # noqa: E731
     torch.abs(
         r.softmax(dim=1).to(dtype=torch.float32)
         - t.softmax(dim=1).to(dtype=torch.float32)

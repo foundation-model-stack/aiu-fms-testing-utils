@@ -28,7 +28,7 @@ from aiu_fms_testing_utils.utils.aiu_setup import dprint, aiu_dist_setup
 import os
 
 try:
-    from fms_mo.aiu_addons.gptq import gptq_aiu_adapter, gptq_aiu_linear
+    from fms_mo.aiu_addons.gptq import gptq_aiu_adapter, gptq_aiu_linear  # noqa
 
     GPTQ_ENABLED = True
 except ImportError:
@@ -278,11 +278,11 @@ def __find_eos_index(reference_tokens, eos_token_id, seq_length, max_new_tokens)
     return result
 
 
-def __filter_before_eos(l, filter_indexes):
+def __filter_before_eos(metrics, filter_indexes):
     from itertools import groupby
 
     filtered_results = [
-        list(g)[: filter_indexes[k]] for k, g in groupby(l, key=lambda x: x[0])
+        list(g)[: filter_indexes[k]] for k, g in groupby(metrics, key=lambda x: x[0])
     ]
     return [item for sublist in filtered_results for item in sublist]
 

@@ -288,8 +288,8 @@ def extract_validation_information(
 
     if hasattr(post_iteration_hook, "extracted_logits"):
         validation_info = [
-            {"tokens": t.to("cpu"), "logits": l.to("cpu")}
-            for t, l in zip(
+            {"tokens": t.to("cpu"), "logits": logits.to("cpu")}
+            for t, logits in zip(
                 torch.unbind(result), torch.unbind(post_iteration_hook.extracted_logits)
             )
         ]

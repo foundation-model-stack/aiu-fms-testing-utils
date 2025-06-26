@@ -1,4 +1,5 @@
-import pytest, os
+import pytest
+import os
 from subprocess import Popen, PIPE
 from pathlib import Path
 import itertools
@@ -19,7 +20,7 @@ GRANITE_3_8B_CODE_BASE = f"{model_dir}/granite-3-8b-base"
 
 # pass custom model path list for eg: EXPORT FMS_TESTING_COMMON_MODEL_PATHS="/tmp/models/granite-3-8b-base,/tmp/models/granite-7b-base"
 if (
-    os.environ.get("FMS_TESTING_COMMON_MODEL_PATHS") == None
+    os.environ.get("FMS_TESTING_COMMON_MODEL_PATHS") is None
     or os.environ.get("FMS_TESTING_COMMON_MODEL_PATHS") == ""
 ):
     common_model_paths = [LLAMA_194M]

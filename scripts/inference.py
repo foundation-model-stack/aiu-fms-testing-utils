@@ -7,7 +7,6 @@ import os
 from pathlib import Path
 import random
 import time
-import contextlib
 
 # Third Party
 from aiu_fms_testing_utils.utils import aiu_setup, warmup_model
@@ -236,17 +235,13 @@ else:
 if args.quantization == "gptq":
     if "aiu" in args.device_type:
         try:
-            from fms_mo.aiu_addons.gptq import gptq_aiu_adapter, gptq_aiu_linear
-
             print("Loaded `aiu_addons` functionalities")
-        except:
+        except ImportError:
             raise ImportError("Failed to import GPTQ addons from fms-mo.")
 elif args.quantization == "int8":
     try:
-        from fms_mo.aiu_addons.i8i8 import i8i8_aiu_adapter, i8i8_aiu_linear
-
         print("Loaded `aiu_addons` functionalities")
-    except:
+    except ImportError:
         raise ImportError("Failed to import INT8 addons from fms-mo.")
 
 # this is a test model config
@@ -284,8 +279,6 @@ if args.device_type == "cuda":
     device = torch.device(args.device_type, local_rank)
     torch.cuda.set_device(device)
 elif is_aiu_backend:
-    from torch_sendnn import torch_sendnn
-
     if not args.distributed:
         aiu_setup.aiu_setup(rank, world_size)
 
@@ -617,7 +610,7 @@ max_len = max([len(prompt) for prompt in prompts])
 
 if args.fixed_prompt_length != 0 and args.fixed_prompt_length < max_len:
     dprint(
-        f"One or more prompts require truncation. Truncation has been disabled as fixed_prompt_length has been set."
+        "One or more prompts require truncation. Truncation has been disabled as fixed_prompt_length has been set."
     )
     exit(1)
 prompts = truncate_prompts_to_max_length(prompts, max_len, max_allowed_length)
@@ -734,7 +727,7 @@ use_cache = [
 ]  # True/False are identical with greedy iff `torch.use_deterministic_algorithms(True)`
 
 if args.compile:
-    dprint(f"compilation warmup")
+    dprint("compilation warmup")
     pt_compile_model_time = time.time()
     if args.device_type == "aiu":  # only run warmup for AIU, no need for senulator
         warmup_model(
@@ -756,7 +749,7 @@ if args.compile:
     pt_compile_model_time = time.time() - pt_compile_model_time
     dprint(f"PT compile complete, took {pt_compile_model_time:.3f}s")
 
-dprint(f"generating output")
+dprint("generating output")
 
 for sample, cache in itertools.product(do_sample, use_cache):
     for _ in range(args.iters):

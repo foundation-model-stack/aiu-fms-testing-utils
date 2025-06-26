@@ -3,7 +3,6 @@ from fms.models import get_model
 from fms.utils.generation import pad_input_ids, generate
 from aiu_fms_testing_utils.utils.paged import generate as paged_generate
 from fms.utils.tokenizers import get_tokenizer
-import pytest
 
 
 def test_paged_equivalence():

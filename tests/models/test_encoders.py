@@ -1,6 +1,5 @@
 from fms.testing.comparison import (
     ModelSignatureParams,
-    compare_model_signatures,
     get_signature,
 )
 from fms.utils import tokenizers
@@ -144,7 +143,7 @@ def test_common_shapes(model_path, batch_size, seq_length):
     input_ids, padding_kwargs = __prepare_inputs(batch_size, seq_length, tokenizer)
 
     # warmup model
-    logits_getter_fn = (
+    logits_getter_fn = (  # noqa: E731
         lambda x: x if isinstance(x, torch.Tensor) else torch.cat(list(x), dim=-1)
     )
     aiu_msp = ModelSignatureParams(

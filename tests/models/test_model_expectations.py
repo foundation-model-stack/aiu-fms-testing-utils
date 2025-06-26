@@ -1,8 +1,6 @@
 from fms.models import get_model
 from fms.utils.generation import pad_input_ids
-from fms.utils.tokenizers import get_tokenizer
 import pytest
-from aiu_fms_testing_utils.utils import sample_squad_v2_qa_requests
 import torch
 
 from fms.testing._internal.model_test_suite import (

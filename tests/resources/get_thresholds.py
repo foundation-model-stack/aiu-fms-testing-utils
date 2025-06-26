@@ -2,7 +2,6 @@ import glob
 import os
 import numpy as np
 import argparse
-import os
 
 parser = argparse.ArgumentParser(description="Script to get thresholds metrics")
 

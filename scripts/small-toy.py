@@ -16,7 +16,6 @@ from fms.modules.feedforward import FeedForwardBlock
 from fms.utils.tp_wrapping import apply_tp
 
 # Import AIU Libraries
-from torch_sendnn import torch_sendnn
 
 
 # ==============================================================
@@ -136,7 +135,7 @@ if __name__ == "__main__":
     # Create the model
     # -------------
     if 0 == world_rank:
-        dprint(f"Creating the model...")
+        dprint("Creating the model...")
     the_model = ToyModelFM()
     if is_distributed:
         # Create a Tensor Parallel version of the model
@@ -146,7 +145,7 @@ if __name__ == "__main__":
     # Compile the model
     # -------------
     if 0 == world_rank:
-        dprint(f"Compiling the model...")
+        dprint("Compiling the model...")
     the_compiled_model = torch.compile(the_model, backend=dynamo_backend)
     the_compiled_model.eval()  # inference only mode
     torch.set_grad_enabled(False)
@@ -164,19 +163,19 @@ if __name__ == "__main__":
 
     # First run will create compiled artifacts
     if 0 == world_rank:
-        dprint(f"Running model: First Time...")
+        dprint("Running model: First Time...")
     the_outputs = the_compiled_model(the_inputs)
 
     # Second run will be faster as it uses the cached artifacts
     if 0 == world_rank:
-        dprint(f"Running model: Second Time...")
+        dprint("Running model: Second Time...")
     the_outputs = the_compiled_model(the_inputs)
 
     # -------------
     # Cleanup
     # -------------
     if 0 == world_rank:
-        dprint(f"Done")
+        dprint("Done")
     if is_distributed:
         torch.distributed.barrier()
         torch.distributed.destroy_process_group()

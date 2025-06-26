@@ -29,7 +29,6 @@ from fms.models import get_model
 from fms.models.hf import to_hf_api
 
 # Import AIU Libraries
-from torch_sendnn import torch_sendnn
 
 # ==============================================================
 # Main
@@ -99,7 +98,7 @@ if __name__ == "__main__":
     # Create the model
     # -------------
     if 0 == world_rank:
-        dprint(f"Creating the model...")
+        dprint("Creating the model...")
     # model_name = "roberta-base"
     # model_name = "deepset/roberta-base-squad2-distilled"
     model_name = "FacebookAI/roberta-base"
@@ -128,7 +127,7 @@ if __name__ == "__main__":
     # Compile the model
     # -------------
     if 0 == world_rank:
-        dprint(f"Compiling the model...")
+        dprint("Compiling the model...")
     the_compiled_model = torch.compile(hf_model_fms, backend=dynamo_backend)
     the_compiled_model.eval()  # inference only mode
     torch.set_grad_enabled(False)
@@ -149,7 +148,7 @@ if __name__ == "__main__":
 
     # First run will create compiled artifacts
     if 0 == world_rank:
-        dprint(f"Running model: First Time...")
+        dprint("Running model: First Time...")
     unmasker = pipeline("fill-mask", model=the_compiled_model, tokenizer=tokenizer)
     the_output = unmasker(prompt)
     if 0 == world_rank:
@@ -157,7 +156,7 @@ if __name__ == "__main__":
 
     # Second run will be faster as it uses the cached artifacts
     if 0 == world_rank:
-        dprint(f"Running model: Second Time...")
+        dprint("Running model: Second Time...")
     unmasker = pipeline("fill-mask", model=the_compiled_model, tokenizer=tokenizer)
     the_output = unmasker(prompt)
     if 0 == world_rank:
@@ -167,7 +166,7 @@ if __name__ == "__main__":
     # Cleanup
     # -------------
     if 0 == world_rank:
-        dprint(f"Done")
+        dprint("Done")
     if is_distributed:
         torch.distributed.barrier()
         torch.distributed.destroy_process_group()
