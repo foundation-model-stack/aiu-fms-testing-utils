@@ -1,0 +1,109 @@
+kind: Pod
+apiVersion: v1
+metadata:
+  name: <user>-dev-e2e-1x-aiu
+spec:
+  restartPolicy: Always
+  serviceAccountName: default
+  imagePullSecrets:
+    - name: <user>-secret
+  priority: 0
+  schedulerName: aiu-scheduler
+  enableServiceLinks: true
+  containers:
+    - resources:
+        limits:
+          ibm.com/aiu_pf: '1'
+        requests:
+          ibm.com/aiu_pf: '1'
+      terminationMessagePath: /dev/termination-log
+      name: <user>-dev-e2e-1x-aiu
+      command:
+        - bash
+        - '-c'
+      env:
+        - name: FLEX_COMPUTE
+          value: SENTIENT
+        - name: FLEX_DEVICE
+          value: PF
+        - name: FLEX_OVERWRITE_NMB_FRAME
+          value: '1'
+        - name: FLEX_UNLINK_DEVMEM
+          value: 'false'
+        - name: PYTHONUNBUFFERED
+          value: '1'
+        - name: HOME
+          value: /home/senuser
+        - name: HF_HUB_OFFLINE
+          value: '1'
+        - name: HF_HOME
+          value: /home/senuser/models/huggingface_cache
+        - name: HF_HUB_CACHE
+          value: /home/senuser/models/huggingface_cache/hub
+        - name: DTLOG_LEVEL
+          value: error
+        - name: TORCH_SENDNN_LOG
+          value: CRITICAL
+        - name: DT_DEEPRT_VERBOSE
+          value: '-1'
+        - name: POD_IMAGE
+          value: *pod_image
+        - name: FMS_CHECKOUT
+          value: v1.1.0
+      securityContext:
+        capabilities:
+          drop:
+            - ALL
+        runAsUser: 1000810000
+        runAsNonRoot: true
+        allowPrivilegeEscalation: false
+      imagePullPolicy: IfNotPresent
+      volumeMounts:
+        - name: dev-shm
+          mountPath: /dev/shm
+      terminationMessagePolicy: File
+      image: &pod_image icr.io/ibmaiu_internal/x86_64/dd2/e2e_stable:latest
+      workingDir: /home/senuser
+      args:
+        - |
+          source ~/.bashrc
+          unset HF_HOME
+          cd $HOME
+          pip3 install -q -U transformers
+          git clone https://github.com/foundation-model-stack/foundation-model-stack.git
+          cd foundation-model-stack
+          git checkout $FMS_CHECKOUT
+          cp ${AIU_AUTOGEN_SENLIB_CONFIG_FILE} /tmp/etc/aiu/senlib_config.json
+          FILE=/tmp/etc/aiu/senlib_config.json
+          cat $FILE | jq '. += {"RISCV": {"DOOM": { "enable" : false}}, "SNT_MCI" : { "DCR": {"MCI_CTRL": {"ENABLE_RISCV": "0x0"} } }}' > $FILE.jq
+          mv $FILE.jq $FILE
+          cp /tmp/etc/aiu/senlib_config.json $HOME/.senlib.json
+          echo "POD_IMAGE:" $POD_IMAGE >> /tmp/aiu-query-devices.txt
+          echo " " >> /tmp/aiu-query-devices.txt
+          /opt/sentient/bin/aiu-query-devices >> /tmp/aiu-query-devices.txt
+          echo " " >> ~/.bashrc
+          echo "cat /tmp/aiu-query-devices.txt" >> ~/.bashrc
+          echo 'FLEX_COMPUTE      = ' $FLEX_COMPUTE
+          echo 'FLEX_DEVICE       = ' $FLEX_DEVICE
+          echo 'DTLOG_LEVEL       = ' $DTLOG_LEVEL
+          echo 'TORCH_SENDNN_LOG  = ' $TORCH_SENDNN_LOG
+          echo 'DT_DEEPRT_VERBOSE = ' $DT_DEEPRT_VERBOSE
+          echo 'INFER_SCRIPT      = ' $INFER_SCRIPT
+          echo 'MODEL             = ' $MODEL
+          tail -f /dev/null
+  serviceAccount: default
+  volumes:
+    - name: dev-shm
+      emptyDir:
+        medium: Memory
+        sizeLimit: 64Gi
+  dnsPolicy: ClusterFirst
+  tolerations:
+    - key: node.kubernetes.io/not-ready
+      operator: Exists
+      effect: NoExecute
+      tolerationSeconds: 300
+    - key: node.kubernetes.io/unreachable
+      operator: Exists
+      effect: NoExecute
+      tolerationSeconds: 300
