@@ -208,6 +208,7 @@ def extract_validation_information(model, input_ids, max_new_tokens, post_iterat
     result = generate(
         model,
         input_ids,
+        max_seq_len=input_ids.shape[1] + max_new_tokens,
         max_new_tokens=max_new_tokens,
         use_cache=True,
         do_sample=False,

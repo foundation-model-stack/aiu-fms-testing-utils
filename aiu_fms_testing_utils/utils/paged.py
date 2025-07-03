@@ -27,6 +27,7 @@ def adjust_inputs_to_batch(input_ids: torch.Tensor, **extra_kwargs):
 def generate(
     model: Union[Callable, torch.nn.Module],
     input_ids: torch.Tensor,
+    max_seq_len: int = 4096,
     max_new_tokens: int = 256,
     temperature: float = 1.0,
     top_k: int = 10,
