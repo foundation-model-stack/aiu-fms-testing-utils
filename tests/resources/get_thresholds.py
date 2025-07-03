@@ -2,25 +2,22 @@ import glob
 import os
 import numpy as np
 import argparse
-import os
 
-parser = argparse.ArgumentParser(
-    description="Script to get thresholds metrics"
-)
+parser = argparse.ArgumentParser(description="Script to get thresholds metrics")
 
 parser.add_argument(
     "--models",
     type=str,
     default=[],
-    nargs='+',
+    nargs="+",
     required=True,
-    help="List of models id separated by space. Eg.: ibm-granite/granite-20b-code-instruct-8k /tmp/models/granite-20b-code-cobol-v1"
+    help="List of models id separated by space. Eg.: ibm-granite/granite-20b-code-instruct-8k /tmp/models/granite-20b-code-cobol-v1",
 )
 parser.add_argument(
     "--metrics",
     type=str,
     default=[],
-    nargs='+',
+    nargs="+",
     required=True,
     help="List of metrics separated by space. Eg.: diff_mean ce",
 )
@@ -43,7 +40,6 @@ for model in models:
 
         metric_list = []
         for metric_file in metric_files:
-
             with open(metric_file, "r") as file:
                 next(file)
                 for line in file:

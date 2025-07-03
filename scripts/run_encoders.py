@@ -19,7 +19,7 @@ from aiu_fms_testing_utils.utils.encoders_utils import (
 from aiu_fms_testing_utils.utils.model_setup import (
     setup_model,
     print_model_params,
-    recast_16b
+    recast_16b,
 )
 from aiu_fms_testing_utils.utils.quantization_setup import (
     import_addons,
@@ -46,12 +46,12 @@ args.device = device
 # Retrieve linear configuration (quantized or not) to instantiate FMS model
 linear_config = get_linear_config(args)
 
-dprint("="*60)
+dprint("=" * 60)
 dprint(f"model_path={args.model_path}")
 dprint(f"{linear_config=}")
 dprint(f"fused_weights={args.fused_weights}")
 dprint(f"data_type={default_dtype}")
-dprint("="*60 + "\n")
+dprint("=" * 60 + "\n")
 
 dprint("Loading model...")
 loading_model_start = time.time()
