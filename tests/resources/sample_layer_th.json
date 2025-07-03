@@ -1,0 +1,2917 @@
+{
+    "model_id": "ibm-granite--granite-3.2-8b-instruct",
+    "abs_diff": [
+        {
+            "model.base_model.embedding": 1.7258892434335918e-07
+        },
+        {
+            "model.base_model.layers0.ln": 0.4083323414747196
+        },
+        {
+            "model.base_model.layers0.attn.in_proj.query": 0.7099368339133884
+        },
+        {
+            "model.base_model.layers0.attn.in_proj.key": 0.40915828503373886
+        },
+        {
+            "model.base_model.layers0.attn.in_proj.value": 0.12381335209555287
+        },
+        {
+            "model.base_model.layers0.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers0.attn.dense": 0.20848351243216826
+        },
+        {
+            "model.base_model.layers0.ff_ln": 0.341461752477386
+        },
+        {
+            "model.base_model.layers0.ff_sub_layer.wg": 0.567641596277766
+        },
+        {
+            "model.base_model.layers0.ff_sub_layer.a": 0.22434598762517147
+        },
+        {
+            "model.base_model.layers0.ff_sub_layer.w1": 0.6067234563084546
+        },
+        {
+            "model.base_model.layers0.ff_sub_layer.w2": 0.26350909056410365
+        },
+        {
+            "model.base_model.layers0.ff_sub_layer": 0.26350909056410365
+        },
+        {
+            "model.base_model.layers1.ln": 0.8336723703984307
+        },
+        {
+            "model.base_model.layers1.attn.in_proj.query": 0.8916629422172441
+        },
+        {
+            "model.base_model.layers1.attn.in_proj.key": 0.9832392219817886
+        },
+        {
+            "model.base_model.layers1.attn.in_proj.value": 0.19266429901472298
+        },
+        {
+            "model.base_model.layers1.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers1.attn.dense": 0.22844734196163022
+        },
+        {
+            "model.base_model.layers1.ff_ln": 0.5521520840910448
+        },
+        {
+            "model.base_model.layers1.ff_sub_layer.wg": 0.7689933213289677
+        },
+        {
+            "model.base_model.layers1.ff_sub_layer.a": 0.21604948169231603
+        },
+        {
+            "model.base_model.layers1.ff_sub_layer.w1": 0.6776186104315166
+        },
+        {
+            "model.base_model.layers1.ff_sub_layer.w2": 0.28674962163968093
+        },
+        {
+            "model.base_model.layers1.ff_sub_layer": 0.28674962163968093
+        },
+        {
+            "model.base_model.layers2.ln": 0.8847133906331596
+        },
+        {
+            "model.base_model.layers2.attn.in_proj.query": 0.9420112644015102
+        },
+        {
+            "model.base_model.layers2.attn.in_proj.key": 0.97354122886582
+        },
+        {
+            "model.base_model.layers2.attn.in_proj.value": 0.22630204790296457
+        },
+        {
+            "model.base_model.layers2.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers2.attn.dense": 0.18332329740252973
+        },
+        {
+            "model.base_model.layers2.ff_ln": 0.525927330521208
+        },
+        {
+            "model.base_model.layers2.ff_sub_layer.wg": 0.7853817552255021
+        },
+        {
+            "model.base_model.layers2.ff_sub_layer.a": 0.2126492684120587
+        },
+        {
+            "model.base_model.layers2.ff_sub_layer.w1": 0.7100478846115829
+        },
+        {
+            "model.base_model.layers2.ff_sub_layer.w2": 0.47577485764898225
+        },
+        {
+            "model.base_model.layers2.ff_sub_layer": 0.47577485764898225
+        },
+        {
+            "model.base_model.layers3.ln": 1.187278312784196
+        },
+        {
+            "model.base_model.layers3.attn.in_proj.query": 1.1850289651507167
+        },
+        {
+            "model.base_model.layers3.attn.in_proj.key": 0.7688321305049673
+        },
+        {
+            "model.base_model.layers3.attn.in_proj.value": 0.3176595376400436
+        },
+        {
+            "model.base_model.layers3.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers3.attn.dense": 0.13923853417583815
+        },
+        {
+            "model.base_model.layers3.ff_ln": 0.5475849962664296
+        },
+        {
+            "model.base_model.layers3.ff_sub_layer.wg": 0.807950986423741
+        },
+        {
+            "model.base_model.layers3.ff_sub_layer.a": 0.23481427667647428
+        },
+        {
+            "model.base_model.layers3.ff_sub_layer.w1": 0.7336249578728383
+        },
+        {
+            "model.base_model.layers3.ff_sub_layer.w2": 0.24303756003178248
+        },
+        {
+            "model.base_model.layers3.ff_sub_layer": 0.24303756003178248
+        },
+        {
+            "model.base_model.layers4.ln": 1.2737879599094148
+        },
+        {
+            "model.base_model.layers4.attn.in_proj.query": 1.2522564221698715
+        },
+        {
+            "model.base_model.layers4.attn.in_proj.key": 0.782955991324812
+        },
+        {
+            "model.base_model.layers4.attn.in_proj.value": 0.3420645136385523
+        },
+        {
+            "model.base_model.layers4.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers4.attn.dense": 0.1515373454933509
+        },
+        {
+            "model.base_model.layers4.ff_ln": 0.569624540933297
+        },
+        {
+            "model.base_model.layers4.ff_sub_layer.wg": 0.8330374753554995
+        },
+        {
+            "model.base_model.layers4.ff_sub_layer.a": 0.2518642658931705
+        },
+        {
+            "model.base_model.layers4.ff_sub_layer.w1": 0.7665822056062829
+        },
+        {
+            "model.base_model.layers4.ff_sub_layer.w2": 0.49593585284155767
+        },
+        {
+            "model.base_model.layers4.ff_sub_layer": 0.49593585284155767
+        },
+        {
+            "model.base_model.layers5.ln": 1.5829002271302295
+        },
+        {
+            "model.base_model.layers5.attn.in_proj.query": 1.38363090033142
+        },
+        {
+            "model.base_model.layers5.attn.in_proj.key": 0.8454332397205699
+        },
+        {
+            "model.base_model.layers5.attn.in_proj.value": 0.3697437891574192
+        },
+        {
+            "model.base_model.layers5.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers5.attn.dense": 0.15887531995943088
+        },
+        {
+            "model.base_model.layers5.ff_ln": 0.5912267834568247
+        },
+        {
+            "model.base_model.layers5.ff_sub_layer.wg": 0.8652184969534987
+        },
+        {
+            "model.base_model.layers5.ff_sub_layer.a": 0.2788222446063635
+        },
+        {
+            "model.base_model.layers5.ff_sub_layer.w1": 0.805531576372046
+        },
+        {
+            "model.base_model.layers5.ff_sub_layer.w2": 6.458161847668088
+        },
+        {
+            "model.base_model.layers5.ff_sub_layer": 6.458161847668088
+        },
+        {
+            "model.base_model.layers6.ln": 1.6201492274756133
+        },
+        {
+            "model.base_model.layers6.attn.in_proj.query": 1.4744989120293985
+        },
+        {
+            "model.base_model.layers6.attn.in_proj.key": 0.846251372966467
+        },
+        {
+            "model.base_model.layers6.attn.in_proj.value": 0.5015866949449543
+        },
+        {
+            "model.base_model.layers6.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers6.attn.dense": 0.16340297135545534
+        },
+        {
+            "model.base_model.layers6.ff_ln": 0.6227574873739156
+        },
+        {
+            "model.base_model.layers6.ff_sub_layer.wg": 0.9571147986366199
+        },
+        {
+            "model.base_model.layers6.ff_sub_layer.a": 0.26415395545867043
+        },
+        {
+            "model.base_model.layers6.ff_sub_layer.w1": 0.8342855779877698
+        },
+        {
+            "model.base_model.layers6.ff_sub_layer.w2": 0.2796118565723263
+        },
+        {
+            "model.base_model.layers6.ff_sub_layer": 0.2796118565723263
+        },
+        {
+            "model.base_model.layers7.ln": 1.6159548963285146
+        },
+        {
+            "model.base_model.layers7.attn.in_proj.query": 1.5228702271805528
+        },
+        {
+            "model.base_model.layers7.attn.in_proj.key": 0.8960220712505957
+        },
+        {
+            "model.base_model.layers7.attn.in_proj.value": 0.431180957807636
+        },
+        {
+            "model.base_model.layers7.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers7.attn.dense": 0.20139136499675042
+        },
+        {
+            "model.base_model.layers7.ff_ln": 0.6423049997959157
+        },
+        {
+            "model.base_model.layers7.ff_sub_layer.wg": 0.9256279202554698
+        },
+        {
+            "model.base_model.layers7.ff_sub_layer.a": 0.2759643426245992
+        },
+        {
+            "model.base_model.layers7.ff_sub_layer.w1": 0.875136757823107
+        },
+        {
+            "model.base_model.layers7.ff_sub_layer.w2": 0.2839478439280297
+        },
+        {
+            "model.base_model.layers7.ff_sub_layer": 0.2839478439280297
+        },
+        {
+            "model.base_model.layers8.ln": 1.741672105462342
+        },
+        {
+            "model.base_model.layers8.attn.in_proj.query": 1.5144931111825843
+        },
+        {
+            "model.base_model.layers8.attn.in_proj.key": 0.9050611304626728
+        },
+        {
+            "model.base_model.layers8.attn.in_proj.value": 0.45288345746031744
+        },
+        {
+            "model.base_model.layers8.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers8.attn.dense": 0.2193785041754783
+        },
+        {
+            "model.base_model.layers8.ff_ln": 0.6534704470539051
+        },
+        {
+            "model.base_model.layers8.ff_sub_layer.wg": 0.8907470918723855
+        },
+        {
+            "model.base_model.layers8.ff_sub_layer.a": 0.3020812444606932
+        },
+        {
+            "model.base_model.layers8.ff_sub_layer.w1": 0.8787262506358846
+        },
+        {
+            "model.base_model.layers8.ff_sub_layer.w2": 0.29793266450695177
+        },
+        {
+            "model.base_model.layers8.ff_sub_layer": 0.29793266450695177
+        },
+        {
+            "model.base_model.layers9.ln": 1.8567900810038824
+        },
+        {
+            "model.base_model.layers9.attn.in_proj.query": 1.7709552081035318
+        },
+        {
+            "model.base_model.layers9.attn.in_proj.key": 1.1152833545252818
+        },
+        {
+            "model.base_model.layers9.attn.in_proj.value": 0.43904002787117086
+        },
+        {
+            "model.base_model.layers9.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers9.attn.dense": 0.21161597281673783
+        },
+        {
+            "model.base_model.layers9.ff_ln": 0.6781821123457642
+        },
+        {
+            "model.base_model.layers9.ff_sub_layer.wg": 0.8942743139704491
+        },
+        {
+            "model.base_model.layers9.ff_sub_layer.a": 0.32786965786847
+        },
+        {
+            "model.base_model.layers9.ff_sub_layer.w1": 0.9299769907211495
+        },
+        {
+            "model.base_model.layers9.ff_sub_layer.w2": 0.3286158026100792
+        },
+        {
+            "model.base_model.layers9.ff_sub_layer": 0.3286158026100792
+        },
+        {
+            "model.base_model.layers10.ln": 1.8202074364076473
+        },
+        {
+            "model.base_model.layers10.attn.in_proj.query": 1.7732267575152894
+        },
+        {
+            "model.base_model.layers10.attn.in_proj.key": 1.103206300113814
+        },
+        {
+            "model.base_model.layers10.attn.in_proj.value": 0.43746372895795455
+        },
+        {
+            "model.base_model.layers10.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers10.attn.dense": 0.2543700716338981
+        },
+        {
+            "model.base_model.layers10.ff_ln": 0.6453063609710944
+        },
+        {
+            "model.base_model.layers10.ff_sub_layer.wg": 0.868881275396978
+        },
+        {
+            "model.base_model.layers10.ff_sub_layer.a": 0.38873500469467664
+        },
+        {
+            "model.base_model.layers10.ff_sub_layer.w1": 0.9129176944690793
+        },
+        {
+            "model.base_model.layers10.ff_sub_layer.w2": 0.364084027180546
+        },
+        {
+            "model.base_model.layers10.ff_sub_layer": 0.364084027180546
+        },
+        {
+            "model.base_model.layers11.ln": 2.038882746034096
+        },
+        {
+            "model.base_model.layers11.attn.in_proj.query": 1.8738892559126075
+        },
+        {
+            "model.base_model.layers11.attn.in_proj.key": 1.1812775777597084
+        },
+        {
+            "model.base_model.layers11.attn.in_proj.value": 0.5292393958566379
+        },
+        {
+            "model.base_model.layers11.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers11.attn.dense": 0.25136630607654065
+        },
+        {
+            "model.base_model.layers11.ff_ln": 0.6411682302448929
+        },
+        {
+            "model.base_model.layers11.ff_sub_layer.wg": 0.8503220759746339
+        },
+        {
+            "model.base_model.layers11.ff_sub_layer.a": 0.41617093713712366
+        },
+        {
+            "model.base_model.layers11.ff_sub_layer.w1": 0.9179281673445617
+        },
+        {
+            "model.base_model.layers11.ff_sub_layer.w2": 0.37414450486896306
+        },
+        {
+            "model.base_model.layers11.ff_sub_layer": 0.37414450486896306
+        },
+        {
+            "model.base_model.layers12.ln": 2.4163706102336215
+        },
+        {
+            "model.base_model.layers12.attn.in_proj.query": 2.0500510589305545
+        },
+        {
+            "model.base_model.layers12.attn.in_proj.key": 1.30855177359395
+        },
+        {
+            "model.base_model.layers12.attn.in_proj.value": 0.5560739862554699
+        },
+        {
+            "model.base_model.layers12.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers12.attn.dense": 0.23275576971967807
+        },
+        {
+            "model.base_model.layers12.ff_ln": 0.6883567718975563
+        },
+        {
+            "model.base_model.layers12.ff_sub_layer.wg": 0.9019772927528285
+        },
+        {
+            "model.base_model.layers12.ff_sub_layer.a": 0.45307173712771465
+        },
+        {
+            "model.base_model.layers12.ff_sub_layer.w1": 0.9869529936984363
+        },
+        {
+            "model.base_model.layers12.ff_sub_layer.w2": 0.4116728794564218
+        },
+        {
+            "model.base_model.layers12.ff_sub_layer": 0.4116728794564218
+        },
+        {
+            "model.base_model.layers13.ln": 2.2532344689730888
+        },
+        {
+            "model.base_model.layers13.attn.in_proj.query": 1.986386265072094
+        },
+        {
+            "model.base_model.layers13.attn.in_proj.key": 1.2302656755221903
+        },
+        {
+            "model.base_model.layers13.attn.in_proj.value": 0.6760934663246982
+        },
+        {
+            "model.base_model.layers13.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers13.attn.dense": 0.29404449729484533
+        },
+        {
+            "model.base_model.layers13.ff_ln": 0.7130878630526057
+        },
+        {
+            "model.base_model.layers13.ff_sub_layer.wg": 0.937333578785468
+        },
+        {
+            "model.base_model.layers13.ff_sub_layer.a": 0.48989951904086926
+        },
+        {
+            "model.base_model.layers13.ff_sub_layer.w1": 1.037001866367909
+        },
+        {
+            "model.base_model.layers13.ff_sub_layer.w2": 0.45412857056087247
+        },
+        {
+            "model.base_model.layers13.ff_sub_layer": 0.45412857056087247
+        },
+        {
+            "model.base_model.layers14.ln": 2.437243134374781
+        },
+        {
+            "model.base_model.layers14.attn.in_proj.query": 2.0743171823413564
+        },
+        {
+            "model.base_model.layers14.attn.in_proj.key": 1.2871035522680647
+        },
+        {
+            "model.base_model.layers14.attn.in_proj.value": 0.8113716584732076
+        },
+        {
+            "model.base_model.layers14.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers14.attn.dense": 0.3208586103408894
+        },
+        {
+            "model.base_model.layers14.ff_ln": 0.74594178340782
+        },
+        {
+            "model.base_model.layers14.ff_sub_layer.wg": 0.9778100859617569
+        },
+        {
+            "model.base_model.layers14.ff_sub_layer.a": 0.5209799969126123
+        },
+        {
+            "model.base_model.layers14.ff_sub_layer.w1": 1.0920826711945681
+        },
+        {
+            "model.base_model.layers14.ff_sub_layer.w2": 0.4954137823241344
+        },
+        {
+            "model.base_model.layers14.ff_sub_layer": 0.4954137823241344
+        },
+        {
+            "model.base_model.layers15.ln": 2.4062954038161326
+        },
+        {
+            "model.base_model.layers15.attn.in_proj.query": 2.1558424705963386
+        },
+        {
+            "model.base_model.layers15.attn.in_proj.key": 1.330842572889033
+        },
+        {
+            "model.base_model.layers15.attn.in_proj.value": 0.7648466357382719
+        },
+        {
+            "model.base_model.layers15.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers15.attn.dense": 0.3685467097914105
+        },
+        {
+            "model.base_model.layers15.ff_ln": 0.7865979742947545
+        },
+        {
+            "model.base_model.layers15.ff_sub_layer.wg": 1.0241376498806298
+        },
+        {
+            "model.base_model.layers15.ff_sub_layer.a": 0.5586084616481519
+        },
+        {
+            "model.base_model.layers15.ff_sub_layer.w1": 1.1498353263767294
+        },
+        {
+            "model.base_model.layers15.ff_sub_layer.w2": 0.5425247171814839
+        },
+        {
+            "model.base_model.layers15.ff_sub_layer": 0.5425247171814839
+        },
+        {
+            "model.base_model.layers16.ln": 2.4443353059116983
+        },
+        {
+            "model.base_model.layers16.attn.in_proj.query": 2.269587235946433
+        },
+        {
+            "model.base_model.layers16.attn.in_proj.key": 1.4537761152294166
+        },
+        {
+            "model.base_model.layers16.attn.in_proj.value": 0.7468716348790646
+        },
+        {
+            "model.base_model.layers16.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers16.attn.dense": 0.4155567536426726
+        },
+        {
+            "model.base_model.layers16.ff_ln": 0.8308677187547001
+        },
+        {
+            "model.base_model.layers16.ff_sub_layer.wg": 1.0735924517320787
+        },
+        {
+            "model.base_model.layers16.ff_sub_layer.a": 0.5551793673332353
+        },
+        {
+            "model.base_model.layers16.ff_sub_layer.w1": 1.213821160353066
+        },
+        {
+            "model.base_model.layers16.ff_sub_layer.w2": 0.5594797384921322
+        },
+        {
+            "model.base_model.layers16.ff_sub_layer": 0.5594797384921322
+        },
+        {
+            "model.base_model.layers17.ln": 2.6512140391853403
+        },
+        {
+            "model.base_model.layers17.attn.in_proj.query": 2.3487128081705113
+        },
+        {
+            "model.base_model.layers17.attn.in_proj.key": 1.4695542584316446
+        },
+        {
+            "model.base_model.layers17.attn.in_proj.value": 0.7743666293930211
+        },
+        {
+            "model.base_model.layers17.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers17.attn.dense": 0.33041246837038185
+        },
+        {
+            "model.base_model.layers17.ff_ln": 0.895327132194183
+        },
+        {
+            "model.base_model.layers17.ff_sub_layer.wg": 1.1225943284319686
+        },
+        {
+            "model.base_model.layers17.ff_sub_layer.a": 0.5179989262569722
+        },
+        {
+            "model.base_model.layers17.ff_sub_layer.w1": 1.2977184215107684
+        },
+        {
+            "model.base_model.layers17.ff_sub_layer.w2": 0.533179908783865
+        },
+        {
+            "model.base_model.layers17.ff_sub_layer": 0.533179908783865
+        },
+        {
+            "model.base_model.layers18.ln": 2.4459591363505186
+        },
+        {
+            "model.base_model.layers18.attn.in_proj.query": 2.2373733723308997
+        },
+        {
+            "model.base_model.layers18.attn.in_proj.key": 1.400283822390989
+        },
+        {
+            "model.base_model.layers18.attn.in_proj.value": 0.7509184895587986
+        },
+        {
+            "model.base_model.layers18.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers18.attn.dense": 0.32375604539806324
+        },
+        {
+            "model.base_model.layers18.ff_ln": 0.9078149707342478
+        },
+        {
+            "model.base_model.layers18.ff_sub_layer.wg": 1.131303164011437
+        },
+        {
+            "model.base_model.layers18.ff_sub_layer.a": 0.5232468505499002
+        },
+        {
+            "model.base_model.layers18.ff_sub_layer.w1": 1.2913645074679432
+        },
+        {
+            "model.base_model.layers18.ff_sub_layer.w2": 0.5312936297121092
+        },
+        {
+            "model.base_model.layers18.ff_sub_layer": 0.5312936297121092
+        },
+        {
+            "model.base_model.layers19.ln": 2.676787761099476
+        },
+        {
+            "model.base_model.layers19.attn.in_proj.query": 2.3393956932132536
+        },
+        {
+            "model.base_model.layers19.attn.in_proj.key": 1.4064832828052416
+        },
+        {
+            "model.base_model.layers19.attn.in_proj.value": 0.7740809612930063
+        },
+        {
+            "model.base_model.layers19.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers19.attn.dense": 0.3794086774054501
+        },
+        {
+            "model.base_model.layers19.ff_ln": 0.9050935588868597
+        },
+        {
+            "model.base_model.layers19.ff_sub_layer.wg": 1.132639379322763
+        },
+        {
+            "model.base_model.layers19.ff_sub_layer.a": 0.5148442761709476
+        },
+        {
+            "model.base_model.layers19.ff_sub_layer.w1": 1.2685600336469933
+        },
+        {
+            "model.base_model.layers19.ff_sub_layer.w2": 0.5907017421871078
+        },
+        {
+            "model.base_model.layers19.ff_sub_layer": 0.5907017421871078
+        },
+        {
+            "model.base_model.layers20.ln": 0.05869723235891928
+        },
+        {
+            "model.base_model.layers20.attn.in_proj.query": 5.875081363292194e-12
+        },
+        {
+            "model.base_model.layers20.attn.in_proj.key": 3.1874520397371848e-12
+        },
+        {
+            "model.base_model.layers20.attn.in_proj.value": 0.019149133693904922
+        },
+        {
+            "model.base_model.layers20.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers20.attn.dense": 0.01650506472777983
+        },
+        {
+            "model.base_model.layers20.ff_ln": 0.9039704212821755
+        },
+        {
+            "model.base_model.layers20.ff_sub_layer.wg": 1.1358363761297412
+        },
+        {
+            "model.base_model.layers20.ff_sub_layer.a": 0.49959621499860896
+        },
+        {
+            "model.base_model.layers20.ff_sub_layer.w1": 1.2331316666130403
+        },
+        {
+            "model.base_model.layers20.ff_sub_layer.w2": 0.5059322881960626
+        },
+        {
+            "model.base_model.layers20.ff_sub_layer": 0.5059322881960626
+        },
+        {
+            "model.base_model.layers21.ln": 2.683327342257717
+        },
+        {
+            "model.base_model.layers21.attn.in_proj.query": 2.289205190674962
+        },
+        {
+            "model.base_model.layers21.attn.in_proj.key": 1.4363975749387148
+        },
+        {
+            "model.base_model.layers21.attn.in_proj.value": 0.7381585315543487
+        },
+        {
+            "model.base_model.layers21.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers21.attn.dense": 0.35251317378922625
+        },
+        {
+            "model.base_model.layers21.ff_ln": 0.9113812385779858
+        },
+        {
+            "model.base_model.layers21.ff_sub_layer.wg": 1.1491777317149507
+        },
+        {
+            "model.base_model.layers21.ff_sub_layer.a": 0.49914745963202006
+        },
+        {
+            "model.base_model.layers21.ff_sub_layer.w1": 1.237055949078281
+        },
+        {
+            "model.base_model.layers21.ff_sub_layer.w2": 0.5369818215476636
+        },
+        {
+            "model.base_model.layers21.ff_sub_layer": 0.5369818215476636
+        },
+        {
+            "model.base_model.layers22.ln": 2.6452733719167996
+        },
+        {
+            "model.base_model.layers22.attn.in_proj.query": 2.106319142532332
+        },
+        {
+            "model.base_model.layers22.attn.in_proj.key": 1.2702739611235492
+        },
+        {
+            "model.base_model.layers22.attn.in_proj.value": 0.7650688708442046
+        },
+        {
+            "model.base_model.layers22.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers22.attn.dense": 0.22197807736713943
+        },
+        {
+            "model.base_model.layers22.ff_ln": 0.9170507180633947
+        },
+        {
+            "model.base_model.layers22.ff_sub_layer.wg": 1.1649007558621947
+        },
+        {
+            "model.base_model.layers22.ff_sub_layer.a": 0.5025733044419384
+        },
+        {
+            "model.base_model.layers22.ff_sub_layer.w1": 1.2365195453856566
+        },
+        {
+            "model.base_model.layers22.ff_sub_layer.w2": 0.5207189861586834
+        },
+        {
+            "model.base_model.layers22.ff_sub_layer": 0.5207189861586834
+        },
+        {
+            "model.base_model.layers23.ln": 0.04076474676222718
+        },
+        {
+            "model.base_model.layers23.attn.in_proj.query": 4.3584737606226e-12
+        },
+        {
+            "model.base_model.layers23.attn.in_proj.key": 2.2713250241549265e-12
+        },
+        {
+            "model.base_model.layers23.attn.in_proj.value": 0.011164386271087137
+        },
+        {
+            "model.base_model.layers23.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers23.attn.dense": 0.008722732365763724
+        },
+        {
+            "model.base_model.layers23.ff_ln": 0.9530040511329709
+        },
+        {
+            "model.base_model.layers23.ff_sub_layer.wg": 1.2122010602800901
+        },
+        {
+            "model.base_model.layers23.ff_sub_layer.a": 0.5210196550171168
+        },
+        {
+            "model.base_model.layers23.ff_sub_layer.w1": 1.2721844742915902
+        },
+        {
+            "model.base_model.layers23.ff_sub_layer.w2": 0.5207852088064424
+        },
+        {
+            "model.base_model.layers23.ff_sub_layer": 0.5207852088064424
+        },
+        {
+            "model.base_model.layers24.ln": 0.04148058891449975
+        },
+        {
+            "model.base_model.layers24.attn.in_proj.query": 4.350413377985654e-12
+        },
+        {
+            "model.base_model.layers24.attn.in_proj.key": 2.310924744916744e-12
+        },
+        {
+            "model.base_model.layers24.attn.in_proj.value": 0.011669863540726839
+        },
+        {
+            "model.base_model.layers24.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers24.attn.dense": 0.009749030890235091
+        },
+        {
+            "model.base_model.layers24.ff_ln": 0.9209732334431034
+        },
+        {
+            "model.base_model.layers24.ff_sub_layer.wg": 1.1783206389277576
+        },
+        {
+            "model.base_model.layers24.ff_sub_layer.a": 0.4974131186041296
+        },
+        {
+            "model.base_model.layers24.ff_sub_layer.w1": 1.2282531957175757
+        },
+        {
+            "model.base_model.layers24.ff_sub_layer.w2": 0.4877984638344186
+        },
+        {
+            "model.base_model.layers24.ff_sub_layer": 0.4877984638344186
+        },
+        {
+            "model.base_model.layers25.ln": 2.6914940671608956
+        },
+        {
+            "model.base_model.layers25.attn.in_proj.query": 2.079996666484281
+        },
+        {
+            "model.base_model.layers25.attn.in_proj.key": 1.2256532914682756
+        },
+        {
+            "model.base_model.layers25.attn.in_proj.value": 0.8446561344670284
+        },
+        {
+            "model.base_model.layers25.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers25.attn.dense": 0.23142293885894077
+        },
+        {
+            "model.base_model.layers25.ff_ln": 0.9550253005897409
+        },
+        {
+            "model.base_model.layers25.ff_sub_layer.wg": 1.2256491705546648
+        },
+        {
+            "model.base_model.layers25.ff_sub_layer.a": 0.5235781749861929
+        },
+        {
+            "model.base_model.layers25.ff_sub_layer.w1": 1.2707070667436549
+        },
+        {
+            "model.base_model.layers25.ff_sub_layer.w2": 0.5201997339672954
+        },
+        {
+            "model.base_model.layers25.ff_sub_layer": 0.5201997339672954
+        },
+        {
+            "model.base_model.layers26.ln": 0.04852477119171675
+        },
+        {
+            "model.base_model.layers26.attn.in_proj.query": 5.2433691181258795e-12
+        },
+        {
+            "model.base_model.layers26.attn.in_proj.key": 2.6993943331679985e-12
+        },
+        {
+            "model.base_model.layers26.attn.in_proj.value": 0.013973908680838854
+        },
+        {
+            "model.base_model.layers26.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers26.attn.dense": 0.011292771432111815
+        },
+        {
+            "model.base_model.layers26.ff_ln": 0.9791606070877357
+        },
+        {
+            "model.base_model.layers26.ff_sub_layer.wg": 1.2557571186952852
+        },
+        {
+            "model.base_model.layers26.ff_sub_layer.a": 0.5510265953756356
+        },
+        {
+            "model.base_model.layers26.ff_sub_layer.w1": 1.299429319889889
+        },
+        {
+            "model.base_model.layers26.ff_sub_layer.w2": 0.5547229432942743
+        },
+        {
+            "model.base_model.layers26.ff_sub_layer": 0.5547229432942743
+        },
+        {
+            "model.base_model.layers27.ln": 0.05761726481170151
+        },
+        {
+            "model.base_model.layers27.attn.in_proj.query": 6.2990615182407684e-12
+        },
+        {
+            "model.base_model.layers27.attn.in_proj.key": 3.563824771312352e-12
+        },
+        {
+            "model.base_model.layers27.attn.in_proj.value": 0.01689026442218174
+        },
+        {
+            "model.base_model.layers27.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers27.attn.dense": 0.014086568839176132
+        },
+        {
+            "model.base_model.layers27.ff_ln": 1.0254311249358894
+        },
+        {
+            "model.base_model.layers27.ff_sub_layer.wg": 1.3301749696605942
+        },
+        {
+            "model.base_model.layers27.ff_sub_layer.a": 0.57086262231711
+        },
+        {
+            "model.base_model.layers27.ff_sub_layer.w1": 1.3588965368445045
+        },
+        {
+            "model.base_model.layers27.ff_sub_layer.w2": 0.5754856665910341
+        },
+        {
+            "model.base_model.layers27.ff_sub_layer": 0.5754856665910341
+        },
+        {
+            "model.base_model.layers28.ln": 2.815465046774573
+        },
+        {
+            "model.base_model.layers28.attn.in_proj.query": 2.089838276603043
+        },
+        {
+            "model.base_model.layers28.attn.in_proj.key": 1.2063263141816927
+        },
+        {
+            "model.base_model.layers28.attn.in_proj.value": 0.9208380969372306
+        },
+        {
+            "model.base_model.layers28.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers28.attn.dense": 0.3453570196775779
+        },
+        {
+            "model.base_model.layers28.ff_ln": 1.0665693068297435
+        },
+        {
+            "model.base_model.layers28.ff_sub_layer.wg": 1.3650839635469527
+        },
+        {
+            "model.base_model.layers28.ff_sub_layer.a": 0.6022059546246795
+        },
+        {
+            "model.base_model.layers28.ff_sub_layer.w1": 1.4164889273401393
+        },
+        {
+            "model.base_model.layers28.ff_sub_layer.w2": 0.6325165800911244
+        },
+        {
+            "model.base_model.layers28.ff_sub_layer": 0.6325165800911244
+        },
+        {
+            "model.base_model.layers29.ln": 0.10897941348773572
+        },
+        {
+            "model.base_model.layers29.attn.in_proj.query": 1.3703584847019003e-11
+        },
+        {
+            "model.base_model.layers29.attn.in_proj.key": 1.0041752848134295e-11
+        },
+        {
+            "model.base_model.layers29.attn.in_proj.value": 0.03577135277541929
+        },
+        {
+            "model.base_model.layers29.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers29.attn.dense": 0.03097476926018952
+        },
+        {
+            "model.base_model.layers29.ff_ln": 1.1029617448772335
+        },
+        {
+            "model.base_model.layers29.ff_sub_layer.wg": 1.4101410421393201
+        },
+        {
+            "model.base_model.layers29.ff_sub_layer.a": 0.6352038645951448
+        },
+        {
+            "model.base_model.layers29.ff_sub_layer.w1": 1.471897271218638
+        },
+        {
+            "model.base_model.layers29.ff_sub_layer.w2": 0.706091258163473
+        },
+        {
+            "model.base_model.layers29.ff_sub_layer": 0.706091258163473
+        },
+        {
+            "model.base_model.layers30.ln": 3.0577601477991747
+        },
+        {
+            "model.base_model.layers30.attn.in_proj.query": 2.2129892989404607
+        },
+        {
+            "model.base_model.layers30.attn.in_proj.key": 1.2527367462035874
+        },
+        {
+            "model.base_model.layers30.attn.in_proj.value": 1.0227985561921364
+        },
+        {
+            "model.base_model.layers30.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers30.attn.dense": 0.4485761939015526
+        },
+        {
+            "model.base_model.layers30.ff_ln": 1.1625355613262403
+        },
+        {
+            "model.base_model.layers30.ff_sub_layer.wg": 1.477637721431356
+        },
+        {
+            "model.base_model.layers30.ff_sub_layer.a": 0.6841802409270257
+        },
+        {
+            "model.base_model.layers30.ff_sub_layer.w1": 1.5593898954122012
+        },
+        {
+            "model.base_model.layers30.ff_sub_layer.w2": 0.7938874280695967
+        },
+        {
+            "model.base_model.layers30.ff_sub_layer": 0.7938874280695967
+        },
+        {
+            "model.base_model.layers31.ln": 3.130117016136881
+        },
+        {
+            "model.base_model.layers31.attn.in_proj.query": 2.397979490267338
+        },
+        {
+            "model.base_model.layers31.attn.in_proj.key": 1.4083771778423888
+        },
+        {
+            "model.base_model.layers31.attn.in_proj.value": 1.0687232303788325
+        },
+        {
+            "model.base_model.layers31.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers31.attn.dense": 0.5703270227263976
+        },
+        {
+            "model.base_model.layers31.ff_ln": 1.2351666857681705
+        },
+        {
+            "model.base_model.layers31.ff_sub_layer.wg": 1.5622753438177648
+        },
+        {
+            "model.base_model.layers31.ff_sub_layer.a": 0.7138770555459574
+        },
+        {
+            "model.base_model.layers31.ff_sub_layer.w1": 1.6589893255729982
+        },
+        {
+            "model.base_model.layers31.ff_sub_layer.w2": 0.8682725145696991
+        },
+        {
+            "model.base_model.layers31.ff_sub_layer": 0.8682725145696991
+        },
+        {
+            "model.base_model.layers32.ln": 3.510177576653432
+        },
+        {
+            "model.base_model.layers32.attn.in_proj.query": 2.6003867116961072
+        },
+        {
+            "model.base_model.layers32.attn.in_proj.key": 1.4354428524553307
+        },
+        {
+            "model.base_model.layers32.attn.in_proj.value": 1.2530256301596587
+        },
+        {
+            "model.base_model.layers32.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers32.attn.dense": 0.5613037959531225
+        },
+        {
+            "model.base_model.layers32.ff_ln": 1.3309315632753136
+        },
+        {
+            "model.base_model.layers32.ff_sub_layer.wg": 1.684296329380358
+        },
+        {
+            "model.base_model.layers32.ff_sub_layer.a": 0.807838512093823
+        },
+        {
+            "model.base_model.layers32.ff_sub_layer.w1": 1.813825138245955
+        },
+        {
+            "model.base_model.layers32.ff_sub_layer.w2": 1.1140093855705708
+        },
+        {
+            "model.base_model.layers32.ff_sub_layer": 1.1140093855705708
+        },
+        {
+            "model.base_model.layers33.ln": 3.3994719056638307
+        },
+        {
+            "model.base_model.layers33.attn.in_proj.query": 2.459159138834412
+        },
+        {
+            "model.base_model.layers33.attn.in_proj.key": 1.424937517391673
+        },
+        {
+            "model.base_model.layers33.attn.in_proj.value": 1.1784484007100327
+        },
+        {
+            "model.base_model.layers33.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers33.attn.dense": 0.7541024870140104
+        },
+        {
+            "model.base_model.layers33.ff_ln": 1.4271515808182542
+        },
+        {
+            "model.base_model.layers33.ff_sub_layer.wg": 1.7950767244829007
+        },
+        {
+            "model.base_model.layers33.ff_sub_layer.a": 0.9005689213874422
+        },
+        {
+            "model.base_model.layers33.ff_sub_layer.w1": 1.9605562935520227
+        },
+        {
+            "model.base_model.layers33.ff_sub_layer.w2": 1.371932753468498
+        },
+        {
+            "model.base_model.layers33.ff_sub_layer": 1.371932753468498
+        },
+        {
+            "model.base_model.layers34.ln": 3.6159380021416987
+        },
+        {
+            "model.base_model.layers34.attn.in_proj.query": 2.66264911046287
+        },
+        {
+            "model.base_model.layers34.attn.in_proj.key": 1.4587745530262968
+        },
+        {
+            "model.base_model.layers34.attn.in_proj.value": 1.4644100078343885
+        },
+        {
+            "model.base_model.layers34.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers34.attn.dense": 1.0422025219468418
+        },
+        {
+            "model.base_model.layers34.ff_ln": 1.6099415828846035
+        },
+        {
+            "model.base_model.layers34.ff_sub_layer.wg": 1.9851124323663396
+        },
+        {
+            "model.base_model.layers34.ff_sub_layer.a": 0.9364633326762221
+        },
+        {
+            "model.base_model.layers34.ff_sub_layer.w1": 2.225696279107312
+        },
+        {
+            "model.base_model.layers34.ff_sub_layer.w2": 1.6401083323900605
+        },
+        {
+            "model.base_model.layers34.ff_sub_layer": 1.6401083323900605
+        },
+        {
+            "model.base_model.layers35.ln": 3.711278463660952
+        },
+        {
+            "model.base_model.layers35.attn.in_proj.query": 2.561732873746854
+        },
+        {
+            "model.base_model.layers35.attn.in_proj.key": 1.294329713724366
+        },
+        {
+            "model.base_model.layers35.attn.in_proj.value": 1.5323461483923608
+        },
+        {
+            "model.base_model.layers35.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers35.attn.dense": 1.0954627428383212
+        },
+        {
+            "model.base_model.layers35.ff_ln": 1.775861826807536
+        },
+        {
+            "model.base_model.layers35.ff_sub_layer.wg": 2.161838614440668
+        },
+        {
+            "model.base_model.layers35.ff_sub_layer.a": 1.0088421067208395
+        },
+        {
+            "model.base_model.layers35.ff_sub_layer.w1": 2.4813606416689082
+        },
+        {
+            "model.base_model.layers35.ff_sub_layer.w2": 2.010088221844646
+        },
+        {
+            "model.base_model.layers35.ff_sub_layer": 2.010088221844646
+        },
+        {
+            "model.base_model.layers36.ln": 3.8602793303041363
+        },
+        {
+            "model.base_model.layers36.attn.in_proj.query": 2.6063705879063876
+        },
+        {
+            "model.base_model.layers36.attn.in_proj.key": 1.2474004703198267
+        },
+        {
+            "model.base_model.layers36.attn.in_proj.value": 1.9287609402199686
+        },
+        {
+            "model.base_model.layers36.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers36.attn.dense": 1.1947622565945153
+        },
+        {
+            "model.base_model.layers36.ff_ln": 2.079037610574989
+        },
+        {
+            "model.base_model.layers36.ff_sub_layer.wg": 2.525487608494635
+        },
+        {
+            "model.base_model.layers36.ff_sub_layer.a": 1.0332693238413477
+        },
+        {
+            "model.base_model.layers36.ff_sub_layer.w1": 2.8818690519378407
+        },
+        {
+            "model.base_model.layers36.ff_sub_layer.w2": 2.395313843284508
+        },
+        {
+            "model.base_model.layers36.ff_sub_layer": 2.395313843284508
+        },
+        {
+            "model.base_model.layers37.ln": 4.186380825760128
+        },
+        {
+            "model.base_model.layers37.attn.in_proj.query": 2.672298526408581
+        },
+        {
+            "model.base_model.layers37.attn.in_proj.key": 1.2635284782754816
+        },
+        {
+            "model.base_model.layers37.attn.in_proj.value": 2.178426502393175
+        },
+        {
+            "model.base_model.layers37.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers37.attn.dense": 1.4376572090517186
+        },
+        {
+            "model.base_model.layers37.ff_ln": 2.1801742391103995
+        },
+        {
+            "model.base_model.layers37.ff_sub_layer.wg": 2.641452404906007
+        },
+        {
+            "model.base_model.layers37.ff_sub_layer.a": 1.214881662670414
+        },
+        {
+            "model.base_model.layers37.ff_sub_layer.w1": 3.0441249284997247
+        },
+        {
+            "model.base_model.layers37.ff_sub_layer.w2": 3.3503320529626173
+        },
+        {
+            "model.base_model.layers37.ff_sub_layer": 3.3503320529626173
+        },
+        {
+            "model.base_model.layers38.ln": 4.456169508374579
+        },
+        {
+            "model.base_model.layers38.attn.in_proj.query": 2.731806961679497
+        },
+        {
+            "model.base_model.layers38.attn.in_proj.key": 1.1605432361845325
+        },
+        {
+            "model.base_model.layers38.attn.in_proj.value": 2.955616851145189
+        },
+        {
+            "model.base_model.layers38.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers38.attn.dense": 1.8238709428240343
+        },
+        {
+            "model.base_model.layers38.ff_ln": 2.355534708045058
+        },
+        {
+            "model.base_model.layers38.ff_sub_layer.wg": 2.893516055983882
+        },
+        {
+            "model.base_model.layers38.ff_sub_layer.a": 1.4775752726302787
+        },
+        {
+            "model.base_model.layers38.ff_sub_layer.w1": 3.406498283269355
+        },
+        {
+            "model.base_model.layers38.ff_sub_layer.w2": 4.872777683615914
+        },
+        {
+            "model.base_model.layers38.ff_sub_layer": 4.872777683615914
+        },
+        {
+            "model.base_model.layers39.ln": 5.245948807426597
+        },
+        {
+            "model.base_model.layers39.attn.in_proj.query": 3.301107035939244
+        },
+        {
+            "model.base_model.layers39.attn.in_proj.key": 1.3283636663444258
+        },
+        {
+            "model.base_model.layers39.attn.in_proj.value": 3.009072478653194
+        },
+        {
+            "model.base_model.layers39.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers39.attn.dense": 3.0974715116743585
+        },
+        {
+            "model.base_model.layers39.ff_ln": 2.832660363940657
+        },
+        {
+            "model.base_model.layers39.ff_sub_layer.wg": 3.5396036346806463
+        },
+        {
+            "model.base_model.layers39.ff_sub_layer.a": 2.1432838753474726
+        },
+        {
+            "model.base_model.layers39.ff_sub_layer.w1": 4.608670447299947
+        },
+        {
+            "model.base_model.layers39.ff_sub_layer.w2": 38.01352590965104
+        },
+        {
+            "model.base_model.layers39.ff_sub_layer": 38.01352590965104
+        },
+        {
+            "model.base_model.dec_norm": 17.89632157170833
+        },
+        {
+            "model.base_model": 0.0
+        },
+        {
+            "model.head": 138.84959684098462
+        },
+        {
+            "model": 0.0
+        }
+    ],
+    "cos_sim": [
+        {
+            "model.base_model.embedding": 1.0
+        },
+        {
+            "model.base_model.layers0.ln": 1.0
+        },
+        {
+            "model.base_model.layers0.attn.in_proj.query": 0.999908447265625
+        },
+        {
+            "model.base_model.layers0.attn.in_proj.key": 0.9998779296875
+        },
+        {
+            "model.base_model.layers0.attn.in_proj.value": 0.99981689453125
+        },
+        {
+            "model.base_model.layers0.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers0.attn.dense": 0.99969482421875
+        },
+        {
+            "model.base_model.layers0.ff_ln": 0
+        },
+        {
+            "model.base_model.layers0.ff_sub_layer.wg": 0.9997802734375
+        },
+        {
+            "model.base_model.layers0.ff_sub_layer.a": 0.9997802734375
+        },
+        {
+            "model.base_model.layers0.ff_sub_layer.w1": 0.99966064453125
+        },
+        {
+            "model.base_model.layers0.ff_sub_layer.w2": 0.9994277954101562
+        },
+        {
+            "model.base_model.layers0.ff_sub_layer": 0.9994277954101562
+        },
+        {
+            "model.base_model.layers1.ln": 0
+        },
+        {
+            "model.base_model.layers1.attn.in_proj.query": 0.99957275390625
+        },
+        {
+            "model.base_model.layers1.attn.in_proj.key": 0.999664306640625
+        },
+        {
+            "model.base_model.layers1.attn.in_proj.value": 0.999603271484375
+        },
+        {
+            "model.base_model.layers1.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers1.attn.dense": 0.9992446899414062
+        },
+        {
+            "model.base_model.layers1.ff_ln": 0
+        },
+        {
+            "model.base_model.layers1.ff_sub_layer.wg": 0.99984130859375
+        },
+        {
+            "model.base_model.layers1.ff_sub_layer.a": 0.99984130859375
+        },
+        {
+            "model.base_model.layers1.ff_sub_layer.w1": 0.99928466796875
+        },
+        {
+            "model.base_model.layers1.ff_sub_layer.w2": 0.99920654296875
+        },
+        {
+            "model.base_model.layers1.ff_sub_layer": 0.99920654296875
+        },
+        {
+            "model.base_model.layers2.ln": 0
+        },
+        {
+            "model.base_model.layers2.attn.in_proj.query": 0.9996337890625
+        },
+        {
+            "model.base_model.layers2.attn.in_proj.key": 0.99969482421875
+        },
+        {
+            "model.base_model.layers2.attn.in_proj.value": 0.999267578125
+        },
+        {
+            "model.base_model.layers2.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers2.attn.dense": 0.999176025390625
+        },
+        {
+            "model.base_model.layers2.ff_ln": 0
+        },
+        {
+            "model.base_model.layers2.ff_sub_layer.wg": 0.99977783203125
+        },
+        {
+            "model.base_model.layers2.ff_sub_layer.a": 0.99977783203125
+        },
+        {
+            "model.base_model.layers2.ff_sub_layer.w1": 0.9992236328125
+        },
+        {
+            "model.base_model.layers2.ff_sub_layer.w2": 0.9991455078125
+        },
+        {
+            "model.base_model.layers2.ff_sub_layer": 0.9991455078125
+        },
+        {
+            "model.base_model.layers3.ln": 0
+        },
+        {
+            "model.base_model.layers3.attn.in_proj.query": 0.9996871948242188
+        },
+        {
+            "model.base_model.layers3.attn.in_proj.key": 0.999603271484375
+        },
+        {
+            "model.base_model.layers3.attn.in_proj.value": 0.99920654296875
+        },
+        {
+            "model.base_model.layers3.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers3.attn.dense": 0.9988861083984375
+        },
+        {
+            "model.base_model.layers3.ff_ln": 0
+        },
+        {
+            "model.base_model.layers3.ff_sub_layer.wg": 0.99967041015625
+        },
+        {
+            "model.base_model.layers3.ff_sub_layer.a": 0.99967041015625
+        },
+        {
+            "model.base_model.layers3.ff_sub_layer.w1": 0.999248046875
+        },
+        {
+            "model.base_model.layers3.ff_sub_layer.w2": 0.9990692138671875
+        },
+        {
+            "model.base_model.layers3.ff_sub_layer": 0.9990692138671875
+        },
+        {
+            "model.base_model.layers4.ln": 0
+        },
+        {
+            "model.base_model.layers4.attn.in_proj.query": 0.9994735717773438
+        },
+        {
+            "model.base_model.layers4.attn.in_proj.key": 0.99969482421875
+        },
+        {
+            "model.base_model.layers4.attn.in_proj.value": 0.998931884765625
+        },
+        {
+            "model.base_model.layers4.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers4.attn.dense": 0.998931884765625
+        },
+        {
+            "model.base_model.layers4.ff_ln": 0
+        },
+        {
+            "model.base_model.layers4.ff_sub_layer.wg": 0.9996875
+        },
+        {
+            "model.base_model.layers4.ff_sub_layer.a": 0
+        },
+        {
+            "model.base_model.layers4.ff_sub_layer.w1": 0.9991162109375
+        },
+        {
+            "model.base_model.layers4.ff_sub_layer.w2": 0.9990386962890625
+        },
+        {
+            "model.base_model.layers4.ff_sub_layer": 0.9990386962890625
+        },
+        {
+            "model.base_model.layers5.ln": 0
+        },
+        {
+            "model.base_model.layers5.attn.in_proj.query": 0.9995803833007812
+        },
+        {
+            "model.base_model.layers5.attn.in_proj.key": 0.999603271484375
+        },
+        {
+            "model.base_model.layers5.attn.in_proj.value": 0.99908447265625
+        },
+        {
+            "model.base_model.layers5.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers5.attn.dense": 0.9987411499023438
+        },
+        {
+            "model.base_model.layers5.ff_ln": 0
+        },
+        {
+            "model.base_model.layers5.ff_sub_layer.wg": 0.99966064453125
+        },
+        {
+            "model.base_model.layers5.ff_sub_layer.a": 0
+        },
+        {
+            "model.base_model.layers5.ff_sub_layer.w1": 0.999140625
+        },
+        {
+            "model.base_model.layers5.ff_sub_layer.w2": 0.9989242553710938
+        },
+        {
+            "model.base_model.layers5.ff_sub_layer": 0.9989242553710938
+        },
+        {
+            "model.base_model.layers6.ln": 0
+        },
+        {
+            "model.base_model.layers6.attn.in_proj.query": 0.999420166015625
+        },
+        {
+            "model.base_model.layers6.attn.in_proj.key": 0.9993896484375
+        },
+        {
+            "model.base_model.layers6.attn.in_proj.value": 0.99920654296875
+        },
+        {
+            "model.base_model.layers6.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers6.attn.dense": 0.9988861083984375
+        },
+        {
+            "model.base_model.layers6.ff_ln": 0
+        },
+        {
+            "model.base_model.layers6.ff_sub_layer.wg": 0.99968505859375
+        },
+        {
+            "model.base_model.layers6.ff_sub_layer.a": 0.99968505859375
+        },
+        {
+            "model.base_model.layers6.ff_sub_layer.w1": 0.99904296875
+        },
+        {
+            "model.base_model.layers6.ff_sub_layer.w2": 0.9988784790039062
+        },
+        {
+            "model.base_model.layers6.ff_sub_layer": 0.9988784790039062
+        },
+        {
+            "model.base_model.layers7.ln": 0
+        },
+        {
+            "model.base_model.layers7.attn.in_proj.query": 0.99945068359375
+        },
+        {
+            "model.base_model.layers7.attn.in_proj.key": 0.999603271484375
+        },
+        {
+            "model.base_model.layers7.attn.in_proj.value": 0.99908447265625
+        },
+        {
+            "model.base_model.layers7.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers7.attn.dense": 0.9988250732421875
+        },
+        {
+            "model.base_model.layers7.ff_ln": 0
+        },
+        {
+            "model.base_model.layers7.ff_sub_layer.wg": 0.99971923828125
+        },
+        {
+            "model.base_model.layers7.ff_sub_layer.a": 0.99971923828125
+        },
+        {
+            "model.base_model.layers7.ff_sub_layer.w1": 0.99912109375
+        },
+        {
+            "model.base_model.layers7.ff_sub_layer.w2": 0.9989395141601562
+        },
+        {
+            "model.base_model.layers7.ff_sub_layer": 0.9989395141601562
+        },
+        {
+            "model.base_model.layers8.ln": 0
+        },
+        {
+            "model.base_model.layers8.attn.in_proj.query": 0.999359130859375
+        },
+        {
+            "model.base_model.layers8.attn.in_proj.key": 0.9993896484375
+        },
+        {
+            "model.base_model.layers8.attn.in_proj.value": 0.99908447265625
+        },
+        {
+            "model.base_model.layers8.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers8.attn.dense": 0.99847412109375
+        },
+        {
+            "model.base_model.layers8.ff_ln": 0
+        },
+        {
+            "model.base_model.layers8.ff_sub_layer.wg": 0.9996435546875
+        },
+        {
+            "model.base_model.layers8.ff_sub_layer.a": 0.9996435546875
+        },
+        {
+            "model.base_model.layers8.ff_sub_layer.w1": 0.9990673828125
+        },
+        {
+            "model.base_model.layers8.ff_sub_layer.w2": 0.9986724853515625
+        },
+        {
+            "model.base_model.layers8.ff_sub_layer": 0.9986724853515625
+        },
+        {
+            "model.base_model.layers9.ln": 0
+        },
+        {
+            "model.base_model.layers9.attn.in_proj.query": 0.9994430541992188
+        },
+        {
+            "model.base_model.layers9.attn.in_proj.key": 0.9996337890625
+        },
+        {
+            "model.base_model.layers9.attn.in_proj.value": 0.999114990234375
+        },
+        {
+            "model.base_model.layers9.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers9.attn.dense": 0.998748779296875
+        },
+        {
+            "model.base_model.layers9.ff_ln": 0
+        },
+        {
+            "model.base_model.layers9.ff_sub_layer.wg": 0.99962646484375
+        },
+        {
+            "model.base_model.layers9.ff_sub_layer.a": 0.99962646484375
+        },
+        {
+            "model.base_model.layers9.ff_sub_layer.w1": 0.99895263671875
+        },
+        {
+            "model.base_model.layers9.ff_sub_layer.w2": 0.99896240234375
+        },
+        {
+            "model.base_model.layers9.ff_sub_layer": 0.99896240234375
+        },
+        {
+            "model.base_model.layers10.ln": 0
+        },
+        {
+            "model.base_model.layers10.attn.in_proj.query": 0.9994049072265625
+        },
+        {
+            "model.base_model.layers10.attn.in_proj.key": 0.9996337890625
+        },
+        {
+            "model.base_model.layers10.attn.in_proj.value": 0.9989013671875
+        },
+        {
+            "model.base_model.layers10.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers10.attn.dense": 0.9987640380859375
+        },
+        {
+            "model.base_model.layers10.ff_ln": 0
+        },
+        {
+            "model.base_model.layers10.ff_sub_layer.wg": 0.9994677734375
+        },
+        {
+            "model.base_model.layers10.ff_sub_layer.a": 0.9994677734375
+        },
+        {
+            "model.base_model.layers10.ff_sub_layer.w1": 0.9990478515625
+        },
+        {
+            "model.base_model.layers10.ff_sub_layer.w2": 0.9986495971679688
+        },
+        {
+            "model.base_model.layers10.ff_sub_layer": 0.9986495971679688
+        },
+        {
+            "model.base_model.layers11.ln": 0
+        },
+        {
+            "model.base_model.layers11.attn.in_proj.query": 0.9993743896484375
+        },
+        {
+            "model.base_model.layers11.attn.in_proj.key": 0.9993896484375
+        },
+        {
+            "model.base_model.layers11.attn.in_proj.value": 0.9991455078125
+        },
+        {
+            "model.base_model.layers11.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers11.attn.dense": 0.9986190795898438
+        },
+        {
+            "model.base_model.layers11.ff_ln": 0
+        },
+        {
+            "model.base_model.layers11.ff_sub_layer.wg": 0.9993408203125
+        },
+        {
+            "model.base_model.layers11.ff_sub_layer.a": 0.9993408203125
+        },
+        {
+            "model.base_model.layers11.ff_sub_layer.w1": 0.9990966796875
+        },
+        {
+            "model.base_model.layers11.ff_sub_layer.w2": 0.998748779296875
+        },
+        {
+            "model.base_model.layers11.ff_sub_layer": 0.998748779296875
+        },
+        {
+            "model.base_model.layers12.ln": 0
+        },
+        {
+            "model.base_model.layers12.attn.in_proj.query": 0.999420166015625
+        },
+        {
+            "model.base_model.layers12.attn.in_proj.key": 0.999664306640625
+        },
+        {
+            "model.base_model.layers12.attn.in_proj.value": 0.999053955078125
+        },
+        {
+            "model.base_model.layers12.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers12.attn.dense": 0.998748779296875
+        },
+        {
+            "model.base_model.layers12.ff_ln": 0
+        },
+        {
+            "model.base_model.layers12.ff_sub_layer.wg": 0.99936279296875
+        },
+        {
+            "model.base_model.layers12.ff_sub_layer.a": 0.99936279296875
+        },
+        {
+            "model.base_model.layers12.ff_sub_layer.w1": 0.999091796875
+        },
+        {
+            "model.base_model.layers12.ff_sub_layer.w2": 0.9986419677734375
+        },
+        {
+            "model.base_model.layers12.ff_sub_layer": 0.9986419677734375
+        },
+        {
+            "model.base_model.layers13.ln": 0
+        },
+        {
+            "model.base_model.layers13.attn.in_proj.query": 0.9992446899414062
+        },
+        {
+            "model.base_model.layers13.attn.in_proj.key": 0.999359130859375
+        },
+        {
+            "model.base_model.layers13.attn.in_proj.value": 0.999114990234375
+        },
+        {
+            "model.base_model.layers13.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers13.attn.dense": 0.9984130859375
+        },
+        {
+            "model.base_model.layers13.ff_ln": 0
+        },
+        {
+            "model.base_model.layers13.ff_sub_layer.wg": 0.999296875
+        },
+        {
+            "model.base_model.layers13.ff_sub_layer.a": 0.999296875
+        },
+        {
+            "model.base_model.layers13.ff_sub_layer.w1": 0.9990966796875
+        },
+        {
+            "model.base_model.layers13.ff_sub_layer.w2": 0.9987640380859375
+        },
+        {
+            "model.base_model.layers13.ff_sub_layer": 0.9987640380859375
+        },
+        {
+            "model.base_model.layers14.ln": 0
+        },
+        {
+            "model.base_model.layers14.attn.in_proj.query": 0.9991683959960938
+        },
+        {
+            "model.base_model.layers14.attn.in_proj.key": 0.99932861328125
+        },
+        {
+            "model.base_model.layers14.attn.in_proj.value": 0.998626708984375
+        },
+        {
+            "model.base_model.layers14.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers14.attn.dense": 0.9987030029296875
+        },
+        {
+            "model.base_model.layers14.ff_ln": 0
+        },
+        {
+            "model.base_model.layers14.ff_sub_layer.wg": 0.99934326171875
+        },
+        {
+            "model.base_model.layers14.ff_sub_layer.a": 0.99934326171875
+        },
+        {
+            "model.base_model.layers14.ff_sub_layer.w1": 0.99902099609375
+        },
+        {
+            "model.base_model.layers14.ff_sub_layer.w2": 0.9986648559570312
+        },
+        {
+            "model.base_model.layers14.ff_sub_layer": 0.9986648559570312
+        },
+        {
+            "model.base_model.layers15.ln": 0
+        },
+        {
+            "model.base_model.layers15.attn.in_proj.query": 0.9993515014648438
+        },
+        {
+            "model.base_model.layers15.attn.in_proj.key": 0.99932861328125
+        },
+        {
+            "model.base_model.layers15.attn.in_proj.value": 0.998748779296875
+        },
+        {
+            "model.base_model.layers15.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers15.attn.dense": 0.998443603515625
+        },
+        {
+            "model.base_model.layers15.ff_ln": 0
+        },
+        {
+            "model.base_model.layers15.ff_sub_layer.wg": 0.99921142578125
+        },
+        {
+            "model.base_model.layers15.ff_sub_layer.a": 0.99921142578125
+        },
+        {
+            "model.base_model.layers15.ff_sub_layer.w1": 0.99894287109375
+        },
+        {
+            "model.base_model.layers15.ff_sub_layer.w2": 0.998504638671875
+        },
+        {
+            "model.base_model.layers15.ff_sub_layer": 0.998504638671875
+        },
+        {
+            "model.base_model.layers16.ln": 0
+        },
+        {
+            "model.base_model.layers16.attn.in_proj.query": 0.9991302490234375
+        },
+        {
+            "model.base_model.layers16.attn.in_proj.key": 0.9990234375
+        },
+        {
+            "model.base_model.layers16.attn.in_proj.value": 0.99896240234375
+        },
+        {
+            "model.base_model.layers16.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers16.attn.dense": 0.9980697631835938
+        },
+        {
+            "model.base_model.layers16.ff_ln": 0
+        },
+        {
+            "model.base_model.layers16.ff_sub_layer.wg": 0.999296875
+        },
+        {
+            "model.base_model.layers16.ff_sub_layer.a": 0.999296875
+        },
+        {
+            "model.base_model.layers16.ff_sub_layer.w1": 0.99902587890625
+        },
+        {
+            "model.base_model.layers16.ff_sub_layer.w2": 0.9985122680664062
+        },
+        {
+            "model.base_model.layers16.ff_sub_layer": 0.9985122680664062
+        },
+        {
+            "model.base_model.layers17.ln": 0
+        },
+        {
+            "model.base_model.layers17.attn.in_proj.query": 0.9990692138671875
+        },
+        {
+            "model.base_model.layers17.attn.in_proj.key": 0.99896240234375
+        },
+        {
+            "model.base_model.layers17.attn.in_proj.value": 0.998779296875
+        },
+        {
+            "model.base_model.layers17.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers17.attn.dense": 0.998443603515625
+        },
+        {
+            "model.base_model.layers17.ff_ln": 0
+        },
+        {
+            "model.base_model.layers17.ff_sub_layer.wg": 0.99925537109375
+        },
+        {
+            "model.base_model.layers17.ff_sub_layer.a": 0.99925537109375
+        },
+        {
+            "model.base_model.layers17.ff_sub_layer.w1": 0.99896728515625
+        },
+        {
+            "model.base_model.layers17.ff_sub_layer.w2": 0.9985427856445312
+        },
+        {
+            "model.base_model.layers17.ff_sub_layer": 0.9985427856445312
+        },
+        {
+            "model.base_model.layers18.ln": 0
+        },
+        {
+            "model.base_model.layers18.attn.in_proj.query": 0.9990768432617188
+        },
+        {
+            "model.base_model.layers18.attn.in_proj.key": 0.999237060546875
+        },
+        {
+            "model.base_model.layers18.attn.in_proj.value": 0.998687744140625
+        },
+        {
+            "model.base_model.layers18.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers18.attn.dense": 0.998382568359375
+        },
+        {
+            "model.base_model.layers18.ff_ln": 0
+        },
+        {
+            "model.base_model.layers18.ff_sub_layer.wg": 0.99921630859375
+        },
+        {
+            "model.base_model.layers18.ff_sub_layer.a": 0.99921630859375
+        },
+        {
+            "model.base_model.layers18.ff_sub_layer.w1": 0.99885498046875
+        },
+        {
+            "model.base_model.layers18.ff_sub_layer.w2": 0.9987258911132812
+        },
+        {
+            "model.base_model.layers18.ff_sub_layer": 0.9987258911132812
+        },
+        {
+            "model.base_model.layers19.ln": 0
+        },
+        {
+            "model.base_model.layers19.attn.in_proj.query": 0.9992446899414062
+        },
+        {
+            "model.base_model.layers19.attn.in_proj.key": 0.999481201171875
+        },
+        {
+            "model.base_model.layers19.attn.in_proj.value": 0.999176025390625
+        },
+        {
+            "model.base_model.layers19.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers19.attn.dense": 0.9983291625976562
+        },
+        {
+            "model.base_model.layers19.ff_ln": 0
+        },
+        {
+            "model.base_model.layers19.ff_sub_layer.wg": 0.999326171875
+        },
+        {
+            "model.base_model.layers19.ff_sub_layer.a": 0.999326171875
+        },
+        {
+            "model.base_model.layers19.ff_sub_layer.w1": 0
+        },
+        {
+            "model.base_model.layers19.ff_sub_layer.w2": 0.9985885620117188
+        },
+        {
+            "model.base_model.layers19.ff_sub_layer": 0.9985885620117188
+        },
+        {
+            "model.base_model.layers20.ln": 0
+        },
+        {
+            "model.base_model.layers20.attn.in_proj.query": 0
+        },
+        {
+            "model.base_model.layers20.attn.in_proj.key": 0
+        },
+        {
+            "model.base_model.layers20.attn.in_proj.value": 0.998504638671875
+        },
+        {
+            "model.base_model.layers20.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers20.attn.dense": 0.9991302490234375
+        },
+        {
+            "model.base_model.layers20.ff_ln": 0
+        },
+        {
+            "model.base_model.layers20.ff_sub_layer.wg": 0.9992578125
+        },
+        {
+            "model.base_model.layers20.ff_sub_layer.a": 0.9992578125
+        },
+        {
+            "model.base_model.layers20.ff_sub_layer.w1": 0.99893310546875
+        },
+        {
+            "model.base_model.layers20.ff_sub_layer.w2": 0.998504638671875
+        },
+        {
+            "model.base_model.layers20.ff_sub_layer": 0.998504638671875
+        },
+        {
+            "model.base_model.layers21.ln": 0
+        },
+        {
+            "model.base_model.layers21.attn.in_proj.query": 0.9992218017578125
+        },
+        {
+            "model.base_model.layers21.attn.in_proj.key": 0.999114990234375
+        },
+        {
+            "model.base_model.layers21.attn.in_proj.value": 0.998748779296875
+        },
+        {
+            "model.base_model.layers21.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers21.attn.dense": 0.9984893798828125
+        },
+        {
+            "model.base_model.layers21.ff_ln": 0
+        },
+        {
+            "model.base_model.layers21.ff_sub_layer.wg": 0.99933837890625
+        },
+        {
+            "model.base_model.layers21.ff_sub_layer.a": 0.99933837890625
+        },
+        {
+            "model.base_model.layers21.ff_sub_layer.w1": 0.99894287109375
+        },
+        {
+            "model.base_model.layers21.ff_sub_layer.w2": 0.9988021850585938
+        },
+        {
+            "model.base_model.layers21.ff_sub_layer": 0.9988021850585938
+        },
+        {
+            "model.base_model.layers22.ln": 0
+        },
+        {
+            "model.base_model.layers22.attn.in_proj.query": 0.9992294311523438
+        },
+        {
+            "model.base_model.layers22.attn.in_proj.key": 0.99932861328125
+        },
+        {
+            "model.base_model.layers22.attn.in_proj.value": 0.998809814453125
+        },
+        {
+            "model.base_model.layers22.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers22.attn.dense": 0.9986953735351562
+        },
+        {
+            "model.base_model.layers22.ff_ln": 0
+        },
+        {
+            "model.base_model.layers22.ff_sub_layer.wg": 0.99933837890625
+        },
+        {
+            "model.base_model.layers22.ff_sub_layer.a": 0.99933837890625
+        },
+        {
+            "model.base_model.layers22.ff_sub_layer.w1": 0.9990771484375
+        },
+        {
+            "model.base_model.layers22.ff_sub_layer.w2": 0.9987716674804688
+        },
+        {
+            "model.base_model.layers22.ff_sub_layer": 0.9987716674804688
+        },
+        {
+            "model.base_model.layers23.ln": 0
+        },
+        {
+            "model.base_model.layers23.attn.in_proj.query": 0
+        },
+        {
+            "model.base_model.layers23.attn.in_proj.key": 0
+        },
+        {
+            "model.base_model.layers23.attn.in_proj.value": 0.998931884765625
+        },
+        {
+            "model.base_model.layers23.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers23.attn.dense": 0
+        },
+        {
+            "model.base_model.layers23.ff_ln": 0
+        },
+        {
+            "model.base_model.layers23.ff_sub_layer.wg": 0.99932861328125
+        },
+        {
+            "model.base_model.layers23.ff_sub_layer.a": 0.99932861328125
+        },
+        {
+            "model.base_model.layers23.ff_sub_layer.w1": 0.999072265625
+        },
+        {
+            "model.base_model.layers23.ff_sub_layer.w2": 0.9986343383789062
+        },
+        {
+            "model.base_model.layers23.ff_sub_layer": 0.9986343383789062
+        },
+        {
+            "model.base_model.layers24.ln": 0
+        },
+        {
+            "model.base_model.layers24.attn.in_proj.query": 0
+        },
+        {
+            "model.base_model.layers24.attn.in_proj.key": 0
+        },
+        {
+            "model.base_model.layers24.attn.in_proj.value": 0.998748779296875
+        },
+        {
+            "model.base_model.layers24.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers24.attn.dense": 0
+        },
+        {
+            "model.base_model.layers24.ff_ln": 0.9990615844726562
+        },
+        {
+            "model.base_model.layers24.ff_sub_layer.wg": 0.99933837890625
+        },
+        {
+            "model.base_model.layers24.ff_sub_layer.a": 0.99933837890625
+        },
+        {
+            "model.base_model.layers24.ff_sub_layer.w1": 0.9988525390625
+        },
+        {
+            "model.base_model.layers24.ff_sub_layer.w2": 0.99871826171875
+        },
+        {
+            "model.base_model.layers24.ff_sub_layer": 0.99871826171875
+        },
+        {
+            "model.base_model.layers25.ln": 0
+        },
+        {
+            "model.base_model.layers25.attn.in_proj.query": 0.9991226196289062
+        },
+        {
+            "model.base_model.layers25.attn.in_proj.key": 0.999298095703125
+        },
+        {
+            "model.base_model.layers25.attn.in_proj.value": 0.99884033203125
+        },
+        {
+            "model.base_model.layers25.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers25.attn.dense": 0.998687744140625
+        },
+        {
+            "model.base_model.layers25.ff_ln": 0
+        },
+        {
+            "model.base_model.layers25.ff_sub_layer.wg": 0.99930908203125
+        },
+        {
+            "model.base_model.layers25.ff_sub_layer.a": 0.99930908203125
+        },
+        {
+            "model.base_model.layers25.ff_sub_layer.w1": 0.9989306640625
+        },
+        {
+            "model.base_model.layers25.ff_sub_layer.w2": 0.9987869262695312
+        },
+        {
+            "model.base_model.layers25.ff_sub_layer": 0.9987869262695312
+        },
+        {
+            "model.base_model.layers26.ln": 0
+        },
+        {
+            "model.base_model.layers26.attn.in_proj.query": 0
+        },
+        {
+            "model.base_model.layers26.attn.in_proj.key": 0
+        },
+        {
+            "model.base_model.layers26.attn.in_proj.value": 0.9986572265625
+        },
+        {
+            "model.base_model.layers26.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers26.attn.dense": 0.9991912841796875
+        },
+        {
+            "model.base_model.layers26.ff_ln": 0
+        },
+        {
+            "model.base_model.layers26.ff_sub_layer.wg": 0.9992236328125
+        },
+        {
+            "model.base_model.layers26.ff_sub_layer.a": 0
+        },
+        {
+            "model.base_model.layers26.ff_sub_layer.w1": 0.99900634765625
+        },
+        {
+            "model.base_model.layers26.ff_sub_layer.w2": 0.99859619140625
+        },
+        {
+            "model.base_model.layers26.ff_sub_layer": 0.99859619140625
+        },
+        {
+            "model.base_model.layers27.ln": 0
+        },
+        {
+            "model.base_model.layers27.attn.in_proj.query": 0
+        },
+        {
+            "model.base_model.layers27.attn.in_proj.key": 0
+        },
+        {
+            "model.base_model.layers27.attn.in_proj.value": 0.9990234375
+        },
+        {
+            "model.base_model.layers27.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers27.attn.dense": 0.9992752075195312
+        },
+        {
+            "model.base_model.layers27.ff_ln": 0.998992919921875
+        },
+        {
+            "model.base_model.layers27.ff_sub_layer.wg": 0.9992529296875
+        },
+        {
+            "model.base_model.layers27.ff_sub_layer.a": 0
+        },
+        {
+            "model.base_model.layers27.ff_sub_layer.w1": 0.9989306640625
+        },
+        {
+            "model.base_model.layers27.ff_sub_layer.w2": 0.9987411499023438
+        },
+        {
+            "model.base_model.layers27.ff_sub_layer": 0.9987411499023438
+        },
+        {
+            "model.base_model.layers28.ln": 0
+        },
+        {
+            "model.base_model.layers28.attn.in_proj.query": 0.9992446899414062
+        },
+        {
+            "model.base_model.layers28.attn.in_proj.key": 0.999237060546875
+        },
+        {
+            "model.base_model.layers28.attn.in_proj.value": 0.999267578125
+        },
+        {
+            "model.base_model.layers28.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers28.attn.dense": 0.9984588623046875
+        },
+        {
+            "model.base_model.layers28.ff_ln": 0
+        },
+        {
+            "model.base_model.layers28.ff_sub_layer.wg": 0.999228515625
+        },
+        {
+            "model.base_model.layers28.ff_sub_layer.a": 0.999228515625
+        },
+        {
+            "model.base_model.layers28.ff_sub_layer.w1": 0.99891357421875
+        },
+        {
+            "model.base_model.layers28.ff_sub_layer.w2": 0.998321533203125
+        },
+        {
+            "model.base_model.layers28.ff_sub_layer": 0.998321533203125
+        },
+        {
+            "model.base_model.layers29.ln": 0
+        },
+        {
+            "model.base_model.layers29.attn.in_proj.query": 0
+        },
+        {
+            "model.base_model.layers29.attn.in_proj.key": 0
+        },
+        {
+            "model.base_model.layers29.attn.in_proj.value": 0.998870849609375
+        },
+        {
+            "model.base_model.layers29.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers29.attn.dense": 0.9994277954101562
+        },
+        {
+            "model.base_model.layers29.ff_ln": 0
+        },
+        {
+            "model.base_model.layers29.ff_sub_layer.wg": 0.999248046875
+        },
+        {
+            "model.base_model.layers29.ff_sub_layer.a": 0.999248046875
+        },
+        {
+            "model.base_model.layers29.ff_sub_layer.w1": 0.99888671875
+        },
+        {
+            "model.base_model.layers29.ff_sub_layer.w2": 0.9985885620117188
+        },
+        {
+            "model.base_model.layers29.ff_sub_layer": 0.9985885620117188
+        },
+        {
+            "model.base_model.layers30.ln": 0
+        },
+        {
+            "model.base_model.layers30.attn.in_proj.query": 0.9991455078125
+        },
+        {
+            "model.base_model.layers30.attn.in_proj.key": 0.999298095703125
+        },
+        {
+            "model.base_model.layers30.attn.in_proj.value": 0.99859619140625
+        },
+        {
+            "model.base_model.layers30.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers30.attn.dense": 0.9982528686523438
+        },
+        {
+            "model.base_model.layers30.ff_ln": 0
+        },
+        {
+            "model.base_model.layers30.ff_sub_layer.wg": 0.99919189453125
+        },
+        {
+            "model.base_model.layers30.ff_sub_layer.a": 0.99919189453125
+        },
+        {
+            "model.base_model.layers30.ff_sub_layer.w1": 0.99891845703125
+        },
+        {
+            "model.base_model.layers30.ff_sub_layer.w2": 0.9984283447265625
+        },
+        {
+            "model.base_model.layers30.ff_sub_layer": 0.9984283447265625
+        },
+        {
+            "model.base_model.layers31.ln": 0
+        },
+        {
+            "model.base_model.layers31.attn.in_proj.query": 0.999114990234375
+        },
+        {
+            "model.base_model.layers31.attn.in_proj.key": 0.99920654296875
+        },
+        {
+            "model.base_model.layers31.attn.in_proj.value": 0.9984130859375
+        },
+        {
+            "model.base_model.layers31.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers31.attn.dense": 0.9985275268554688
+        },
+        {
+            "model.base_model.layers31.ff_ln": 0
+        },
+        {
+            "model.base_model.layers31.ff_sub_layer.wg": 0.99921875
+        },
+        {
+            "model.base_model.layers31.ff_sub_layer.a": 0.99921875
+        },
+        {
+            "model.base_model.layers31.ff_sub_layer.w1": 0.998896484375
+        },
+        {
+            "model.base_model.layers31.ff_sub_layer.w2": 0.9986038208007812
+        },
+        {
+            "model.base_model.layers31.ff_sub_layer": 0.9986038208007812
+        },
+        {
+            "model.base_model.layers32.ln": 0
+        },
+        {
+            "model.base_model.layers32.attn.in_proj.query": 0.9990386962890625
+        },
+        {
+            "model.base_model.layers32.attn.in_proj.key": 0.9989013671875
+        },
+        {
+            "model.base_model.layers32.attn.in_proj.value": 0.998687744140625
+        },
+        {
+            "model.base_model.layers32.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers32.attn.dense": 0.9982452392578125
+        },
+        {
+            "model.base_model.layers32.ff_ln": 0
+        },
+        {
+            "model.base_model.layers32.ff_sub_layer.wg": 0.9992138671875
+        },
+        {
+            "model.base_model.layers32.ff_sub_layer.a": 0.9992138671875
+        },
+        {
+            "model.base_model.layers32.ff_sub_layer.w1": 0.998837890625
+        },
+        {
+            "model.base_model.layers32.ff_sub_layer.w2": 0.9986190795898438
+        },
+        {
+            "model.base_model.layers32.ff_sub_layer": 0.9986190795898438
+        },
+        {
+            "model.base_model.layers33.ln": 0
+        },
+        {
+            "model.base_model.layers33.attn.in_proj.query": 0.9991912841796875
+        },
+        {
+            "model.base_model.layers33.attn.in_proj.key": 0.999298095703125
+        },
+        {
+            "model.base_model.layers33.attn.in_proj.value": 0.998931884765625
+        },
+        {
+            "model.base_model.layers33.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers33.attn.dense": 0.9984817504882812
+        },
+        {
+            "model.base_model.layers33.ff_ln": 0
+        },
+        {
+            "model.base_model.layers33.ff_sub_layer.wg": 0.99911865234375
+        },
+        {
+            "model.base_model.layers33.ff_sub_layer.a": 0.99911865234375
+        },
+        {
+            "model.base_model.layers33.ff_sub_layer.w1": 0.99889892578125
+        },
+        {
+            "model.base_model.layers33.ff_sub_layer.w2": 0.9986038208007812
+        },
+        {
+            "model.base_model.layers33.ff_sub_layer": 0.9986038208007812
+        },
+        {
+            "model.base_model.layers34.ln": 0
+        },
+        {
+            "model.base_model.layers34.attn.in_proj.query": 0.9991226196289062
+        },
+        {
+            "model.base_model.layers34.attn.in_proj.key": 0.99884033203125
+        },
+        {
+            "model.base_model.layers34.attn.in_proj.value": 0.9990234375
+        },
+        {
+            "model.base_model.layers34.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers34.attn.dense": 0.99884033203125
+        },
+        {
+            "model.base_model.layers34.ff_ln": 0
+        },
+        {
+            "model.base_model.layers34.ff_sub_layer.wg": 0.99923095703125
+        },
+        {
+            "model.base_model.layers34.ff_sub_layer.a": 0.99923095703125
+        },
+        {
+            "model.base_model.layers34.ff_sub_layer.w1": 0.99880126953125
+        },
+        {
+            "model.base_model.layers34.ff_sub_layer.w2": 0.99835205078125
+        },
+        {
+            "model.base_model.layers34.ff_sub_layer": 0.99835205078125
+        },
+        {
+            "model.base_model.layers35.ln": 0
+        },
+        {
+            "model.base_model.layers35.attn.in_proj.query": 0.9990997314453125
+        },
+        {
+            "model.base_model.layers35.attn.in_proj.key": 0.999359130859375
+        },
+        {
+            "model.base_model.layers35.attn.in_proj.value": 0.99896240234375
+        },
+        {
+            "model.base_model.layers35.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers35.attn.dense": 0.9987030029296875
+        },
+        {
+            "model.base_model.layers35.ff_ln": 0
+        },
+        {
+            "model.base_model.layers35.ff_sub_layer.wg": 0.99936767578125
+        },
+        {
+            "model.base_model.layers35.ff_sub_layer.a": 0.99936767578125
+        },
+        {
+            "model.base_model.layers35.ff_sub_layer.w1": 0.99898193359375
+        },
+        {
+            "model.base_model.layers35.ff_sub_layer.w2": 0.9988327026367188
+        },
+        {
+            "model.base_model.layers35.ff_sub_layer": 0.9988327026367188
+        },
+        {
+            "model.base_model.layers36.ln": 0
+        },
+        {
+            "model.base_model.layers36.attn.in_proj.query": 0.99896240234375
+        },
+        {
+            "model.base_model.layers36.attn.in_proj.key": 0.999237060546875
+        },
+        {
+            "model.base_model.layers36.attn.in_proj.value": 0.9989013671875
+        },
+        {
+            "model.base_model.layers36.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers36.attn.dense": 0.9987411499023438
+        },
+        {
+            "model.base_model.layers36.ff_ln": 0
+        },
+        {
+            "model.base_model.layers36.ff_sub_layer.wg": 0.99948974609375
+        },
+        {
+            "model.base_model.layers36.ff_sub_layer.a": 0.99948974609375
+        },
+        {
+            "model.base_model.layers36.ff_sub_layer.w1": 0.9990576171875
+        },
+        {
+            "model.base_model.layers36.ff_sub_layer.w2": 0.9986801147460938
+        },
+        {
+            "model.base_model.layers36.ff_sub_layer": 0.9986801147460938
+        },
+        {
+            "model.base_model.layers37.ln": 0
+        },
+        {
+            "model.base_model.layers37.attn.in_proj.query": 0.9990615844726562
+        },
+        {
+            "model.base_model.layers37.attn.in_proj.key": 0.99908447265625
+        },
+        {
+            "model.base_model.layers37.attn.in_proj.value": 0.998779296875
+        },
+        {
+            "model.base_model.layers37.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers37.attn.dense": 0.9987869262695312
+        },
+        {
+            "model.base_model.layers37.ff_ln": 0
+        },
+        {
+            "model.base_model.layers37.ff_sub_layer.wg": 0.9994677734375
+        },
+        {
+            "model.base_model.layers37.ff_sub_layer.a": 0
+        },
+        {
+            "model.base_model.layers37.ff_sub_layer.w1": 0.99912841796875
+        },
+        {
+            "model.base_model.layers37.ff_sub_layer.w2": 0.9988784790039062
+        },
+        {
+            "model.base_model.layers37.ff_sub_layer": 0.9988784790039062
+        },
+        {
+            "model.base_model.layers38.ln": 0
+        },
+        {
+            "model.base_model.layers38.attn.in_proj.query": 0.9990768432617188
+        },
+        {
+            "model.base_model.layers38.attn.in_proj.key": 0.9993896484375
+        },
+        {
+            "model.base_model.layers38.attn.in_proj.value": 0.9986572265625
+        },
+        {
+            "model.base_model.layers38.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers38.attn.dense": 0.9986648559570312
+        },
+        {
+            "model.base_model.layers38.ff_ln": 0
+        },
+        {
+            "model.base_model.layers38.ff_sub_layer.wg": 0.99937255859375
+        },
+        {
+            "model.base_model.layers38.ff_sub_layer.a": 0
+        },
+        {
+            "model.base_model.layers38.ff_sub_layer.w1": 0.999189453125
+        },
+        {
+            "model.base_model.layers38.ff_sub_layer.w2": 0.9988250732421875
+        },
+        {
+            "model.base_model.layers38.ff_sub_layer": 0.9988250732421875
+        },
+        {
+            "model.base_model.layers39.ln": 0
+        },
+        {
+            "model.base_model.layers39.attn.in_proj.query": 0.999176025390625
+        },
+        {
+            "model.base_model.layers39.attn.in_proj.key": 0.9991455078125
+        },
+        {
+            "model.base_model.layers39.attn.in_proj.value": 0.9986572265625
+        },
+        {
+            "model.base_model.layers39.attn.in_proj": 0.0
+        },
+        {
+            "model.base_model.layers39.attn.dense": 0.9987258911132812
+        },
+        {
+            "model.base_model.layers39.ff_ln": 0
+        },
+        {
+            "model.base_model.layers39.ff_sub_layer.wg": 0.99927490234375
+        },
+        {
+            "model.base_model.layers39.ff_sub_layer.a": 0
+        },
+        {
+            "model.base_model.layers39.ff_sub_layer.w1": 0.9992578125
+        },
+        {
+            "model.base_model.layers39.ff_sub_layer.w2": 0.9986648559570312
+        },
+        {
+            "model.base_model.layers39.ff_sub_layer": 0.9986648559570312
+        },
+        {
+            "model.base_model.dec_norm": 0
+        },
+        {
+            "model.base_model": 0.0
+        },
+        {
+            "model.head": 0.9988289594140982
+        },
+        {
+            "model": 0.0
+        }
+    ]
+}
