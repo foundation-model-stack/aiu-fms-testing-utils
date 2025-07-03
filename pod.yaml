@@ -1,6 +1,7 @@
 kind: Pod
 apiVersion: v1
 metadata:
+  # this is a sample pod name.
   name: <user>-dev-e2e-1x-aiu
 spec:
   restartPolicy: Always
@@ -17,6 +18,7 @@ spec:
         requests:
           ibm.com/aiu_pf: '1'
       terminationMessagePath: /dev/termination-log
+      # Sample container name. Substitute with your own name.
       name: <user>-dev-e2e-1x-aiu
       command:
         - bash
@@ -36,6 +38,7 @@ spec:
           value: /home/senuser
         - name: HF_HUB_OFFLINE
           value: '1'
+        # This can be canned to your local home path environment.
         - name: HF_HOME
           value: /home/senuser/models/huggingface_cache
         - name: HF_HUB_CACHE
@@ -62,6 +65,7 @@ spec:
         - name: dev-shm
           mountPath: /dev/shm
       terminationMessagePolicy: File
+      # AIU software image
       image: &pod_image icr.io/ibmaiu_internal/x86_64/dd2/e2e_stable:latest
       workingDir: /home/senuser
       args:
