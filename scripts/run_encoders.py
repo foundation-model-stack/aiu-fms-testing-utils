@@ -5,6 +5,7 @@ import time
 # Third Party
 from fms.models import get_model
 from fms.models.roberta import RoBERTaForQuestionAnswering, RoBERTa
+from fms.models.hf.roberta.modeling_roberta_hf import HFAdaptedRoBERTaForMaskedLM
 from fms.utils import tokenizers
 from torch import distributed, set_grad_enabled
 
@@ -66,7 +67,6 @@ model = get_model(
     group=distributed.group.WORLD,
     linear_config=linear_config,
     fused_weights=args.fused_weights,
-    attn_name="math_fp8",
 )
 
 if args.force_16b_dtype:
@@ -100,7 +100,8 @@ else:
 
 if isinstance(model, RoBERTaForQuestionAnswering):
     run_encoder_eval_qa(model, tokenizer, args)
-elif isinstance(model, RoBERTa):  # basic MaskedLM downstream task
+elif isinstance(model, RoBERTa) or isinstance(model, HFAdaptedRoBERTaForMaskedLM):
+    # basic MaskedLM downstream task
     run_encoder_eval_mlm(model, tokenizer, args)
 
 if args.distributed:

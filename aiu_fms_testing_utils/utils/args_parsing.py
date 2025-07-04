@@ -12,21 +12,18 @@ def get_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
     args_model_loading.add_argument(
         "--architecture",
         type=str,
-        help="The model architecture to benchmark",
+        help="The model architecture to benchmark.",
     )
     args_model_loading.add_argument(
         "--variant",
         type=str,
         default=None,
-        help="The model variant (configuration) to benchmark. E.g. 7b, 13b, 70b.",
+        help="The model variant (configuration) to benchmark (e.g., 7b, 13b, 70b).",
     )
     args_model_loading.add_argument(
         "--model_path",
         type=str,
-        help=(
-            "Path to the directory containing LLaMa weights "
-            "(.pth files sharded by tensor parallel rank, not HF weights)"
-        ),
+        help="Path to the directory containing the model checkpoint(s).",
     )
     args_model_loading.add_argument(
         "--model_source",
@@ -36,9 +33,7 @@ def get_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
     args_model_loading.add_argument(
         "--unfuse_weights",
         action="store_true",
-        help=(
-            "If set to True, this will unfuse any fused weight modules"
-        ),
+        help="If True, this will unfuse any fused weight modules.",
     )
     args_model_loading.add_argument(
         "--default_dtype",
@@ -47,7 +42,7 @@ def get_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
         choices=["bf16", "fp16", "fp32"],
         help=(
             "If set to one of the choices, overrides the model checkpoint "
-            "weight format by setting the default pytorch format"
+            "weight format by setting the default pytorch format."
         ),
     )
     parser.add_argument(
@@ -55,7 +50,7 @@ def get_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
         action="store_true",
         help=(
             "If set, cast any bf16 weights in the model to fp16 for AIU compiler. "
-            "Doesn't touch fp32 or quantized"
+            "Doesn't touch fp32 or quantized."
         )
     )
     parser.add_argument(
@@ -63,7 +58,7 @@ def get_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
         action="store_true",
         help=(
             "If set, cast any fp16 weights in the model to bf16 for GPU. "
-            "Doesn't touch fp32 or quantized"
+            "Doesn't touch fp32 or quantized."
         )
     )
 

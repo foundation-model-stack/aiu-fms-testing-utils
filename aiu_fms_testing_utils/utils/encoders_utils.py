@@ -160,9 +160,13 @@ class EncoderQAInfer():
         self,
         batch: dict[str, torch.Tensor],
     ) -> dict[str, torch.Tensor]:
-        """FMS uses a different standard than HF for encoder inputs."""
+        """FMS uses a different standard than HF for encoder inputs.
 
-        return {'x': batch['input_ids'], 'mask': batch['attention_mask']}
+        The mask is also handled differently in FMS: it is correctly processed by SDPA
+        only if provided as boolean. A floating binary mask would not be converted.
+        """
+
+        return {'x': batch['input_ids'], 'mask': batch['attention_mask'].to(torch.bool)}
 
     def process_eval_set(self) -> None:
         """Pre-process evaluation dataset for QuestionAnswering task."""
@@ -210,7 +214,7 @@ class EncoderQAInfer():
                 f"Using max_prompt_length={model_max_length} instead."
             )
             self.max_prompt_length = min(
-                args.max_seq_length,
+                args.max_prompt_length,
                 model_max_length,
             )
 
@@ -593,7 +597,8 @@ class EncoderQAInfer():
         all_end_logits = []
         for step, batch in enumerate(eval_dataloader):
             with torch.no_grad():
-                dprint(f"Step {step + 1} / {len(eval_dataloader)}")
+                if args.verbose:
+                    dprint(f"Step {step + 1} / {len(eval_dataloader)}")
                 batch = self.convert_batch_to_fms_style(batch)
                 batch = move_to_device(batch, args.device)
                 start_logits, end_logits = self.model(**batch)
