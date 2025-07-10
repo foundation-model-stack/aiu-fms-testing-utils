@@ -9,10 +9,9 @@ import torch
 from torch import distributed as dist
 from aiu_fms_testing_utils.testing.validation import capture_level_1_metrics, extract_validation_information, LogitsExtractorHook, get_default_validation_prefix, load_validation_information, print_failed_cases, \
     validate_level_0, GoldenTokenHook, top_k_loss_calculator
-from aiu_fms_testing_utils.utils import ids_for_prompt, sample_sharegpt_requests
+from aiu_fms_testing_utils.utils import prepare_inputs
 from fms.models import get_model
 from fms.utils import tokenizers
-from fms.utils.generation import pad_input_ids
 
 parser = argparse.ArgumentParser(
     description="Script to determine a reasonable logits loss threshold when testing with aiu"
@@ -166,14 +165,6 @@ def filter_before_eos(l, filter_indexes):
     filtered_results = [list(g)[:filter_indexes[k]] for k, g in groupby(l, key=lambda x: x[0])]
     return [item for sublist in filtered_results for item in sublist]
 
-def __prepare_inputs(batch_size, seq_length, tokenizer, seed=0):
-    prompts_and_sizes = sample_sharegpt_requests(args.sharegpt_path, batch_size, tokenizer, seq_length // 2, seq_length, seed)
-    prompt_list = []
-    for prompt, _ in prompts_and_sizes:
-        prompt_list.append(ids_for_prompt(prompt, tokenizer))
-
-    input_ids, padding_kwargs = pad_input_ids(prompt_list, min_pad_length=seq_length)
-    return input_ids, padding_kwargs
 
 def write_csv(l, path, metric):
     with open(path, 'w') as f:
@@ -212,7 +203,7 @@ if not args.skip_computation:
     cpu_model.eval()
     print("loaded cpu model")
 
-    ids, padding_kwargs = __prepare_inputs(args.batch_size, args.min_pad_length, tokenizer)
+    ids, padding_kwargs = prepare_inputs(args.batch_size, args.min_pad_length, tokenizer)
 
     # first test validation level 0
     cpu_validation_info = extract_validation_information(
@@ -268,7 +259,7 @@ for i in range(num_test_tokens_per_sequence // args.max_new_tokens):
         cpu_validation_info = load_validation_information(cpu_path, "logits", args.batch_size, tokenizer)
         cuda_validation_info = load_validation_information(cuda_path, "logits", args.batch_size, tokenizer)
     elif not args.skip_computation:
-        ids, padding_kwargs = __prepare_inputs(args.batch_size, args.min_pad_length, tokenizer, i)
+        ids, padding_kwargs = prepare_inputs(args.batch_size, args.min_pad_length, tokenizer, i)
 
         # only need to compute this once if we aren't generating more test data
         if num_test_tokens_per_sequence > args.max_new_tokens:

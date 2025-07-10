@@ -9,6 +9,7 @@ import time
 # Third Party
 from aiu_fms_testing_utils.utils.aiu_setup import dprint
 from fms.utils.tokenizers import BaseTokenizer
+from fms.utils.generation import pad_input_ids
 import torch
 import torch.nn as nn
 
@@ -166,3 +167,12 @@ def sample_squad_v2_qa_requests(
         prompt_length_max,
         seed,
     )
+
+def prepare_encoders_inputs(batch_size, seq_length, tokenizer, encoders_ds, seed=0):
+    prompts_and_sizes = sample_squad_v2_qa_requests(encoders_ds, batch_size, tokenizer, int(seq_length / 2), seq_length, seed)
+    prompt_list = []
+    for prompt, _ in prompts_and_sizes:
+        prompt_list.append(ids_for_prompt(prompt, tokenizer))
+
+    input_ids, padding_kwargs = pad_input_ids(prompt_list, min_pad_length=seq_length, is_causal_mask=False)
+    return input_ids, padding_kwargs

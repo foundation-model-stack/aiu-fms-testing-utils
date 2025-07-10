@@ -21,6 +21,7 @@ from aiu_fms_testing_utils.utils import (
     warmup_model,
     sample_sharegpt_requests,
     ids_for_prompt,
+    prepare_inputs
 )
 import json
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, aiu_dist_setup
@@ -261,23 +262,6 @@ def __maybe_get_gptq_kwargs(model_path):
     return gptq_kwargs_aiu, gptq_kwargs_cpu
 
 
-def __prepare_inputs(batch_size, seq_length, tokenizer, seed=0):
-    prompts_and_sizes = sample_sharegpt_requests(
-        SHARE_GPT_DATASET_PATH,
-        batch_size,
-        tokenizer,
-        int(seq_length / 2),
-        seq_length,
-        seed,
-    )
-    prompt_list = []
-    for prompt, _ in prompts_and_sizes:
-        prompt_list.append(ids_for_prompt(prompt, tokenizer))
-
-    input_ids, extra_kwargs = pad_input_ids(prompt_list, min_pad_length=seq_length)
-    return input_ids, extra_kwargs
-
-
 def __find_eos_index(reference_tokens, eos_token_id, seq_length, max_new_tokens):
     result = []
     for sentence in reference_tokens:
@@ -441,7 +425,7 @@ def test_common_shapes(model_path, batch_size, seq_length, max_new_tokens, persi
         )
 
     # prepare input_ids
-    input_ids, extra_kwargs = __prepare_inputs(batch_size, seq_length, tokenizer)
+    input_ids, extra_kwargs = prepare_inputs(batch_size, seq_length, tokenizer)
     extra_kwargs["attn_name"] = ATTN_NAME
 
     # warmup aiu model
@@ -516,7 +500,7 @@ def test_common_shapes(model_path, batch_size, seq_length, max_new_tokens, persi
         for i in range(iters):
             # for iteration 0, we have computed the cpu validation info in the prior step for seed=0, so skip
             if i != 0:
-                input_ids, extra_kwargs = __prepare_inputs(
+                input_ids, extra_kwargs = prepare_inputs(
                     batch_size, seq_length, tokenizer, seed=i
                 )
                 extra_kwargs["attn_name"] = ATTN_NAME

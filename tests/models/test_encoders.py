@@ -2,10 +2,9 @@ from fms.testing.comparison import ModelSignatureParams, compare_model_signature
 from fms.utils import tokenizers
 import pytest
 from fms.models import get_model
-from fms.utils.generation import pad_input_ids
 import itertools
 import torch
-from aiu_fms_testing_utils.utils import ids_for_prompt, sample_squad_v2_qa_requests
+from aiu_fms_testing_utils.utils import prepare_encoders_inputs
 from aiu_fms_testing_utils.utils.aiu_setup import dprint
 import os
 import numpy as np
@@ -38,15 +37,6 @@ if isinstance(validation_diff_threshold, str):
 
 common_shapes = list(itertools.product(common_model_paths, common_batch_sizes, common_seq_lengths))
 
-
-def __prepare_inputs(batch_size, seq_length, tokenizer, seed=0):
-    prompts_and_sizes = sample_squad_v2_qa_requests(SQUAD_V2_DATASET_PATH, batch_size, tokenizer, int(seq_length / 2), seq_length, seed)
-    prompt_list = []
-    for prompt, _ in prompts_and_sizes:
-        prompt_list.append(ids_for_prompt(prompt, tokenizer))
-
-    input_ids, padding_kwargs = pad_input_ids(prompt_list, min_pad_length=seq_length, is_causal_mask=False)
-    return input_ids, padding_kwargs
 
 def __generate_diffs(model_params_1, model_params_2):
     model_params_1.model.eval()
@@ -115,7 +105,7 @@ def test_common_shapes(model_path, batch_size, seq_length):
     )
 
     # prepare input_ids
-    input_ids, padding_kwargs = __prepare_inputs(batch_size, seq_length, tokenizer)
+    input_ids, padding_kwargs = prepare_encoders_inputs(batch_size, seq_length, tokenizer, SQUAD_V2_DATASET_PATH)
 
     # warmup model
     logits_getter_fn = lambda x: x if isinstance(x, torch.Tensor) else torch.cat(list(x), dim=-1)
@@ -126,7 +116,7 @@ def test_common_shapes(model_path, batch_size, seq_length):
     diffs = []
     for i in range(20):
         # prepare input_ids
-        input_ids, padding_kwargs = __prepare_inputs(batch_size, seq_length, tokenizer, seed=i)
+        input_ids, padding_kwargs = prepare_encoders_inputs(batch_size, seq_length, tokenizer, SQUAD_V2_DATASET_PATH, seed=i)
 
         aiu_msp = ModelSignatureParams(
             model, 
