@@ -30,6 +30,7 @@ def warmup_model(
         # TODO: Add a unified generation dependent on attn_type
         from fms.utils.generation import generate
         attention_specific_kwargs["contiguous_cache"] = True
+        attention_specific_kwargs["max_seq_len"] = input_ids.shape[1] + max_new_tokens
 
     dprint("AIU warmup")
     pt_compile_model_time = time.time()

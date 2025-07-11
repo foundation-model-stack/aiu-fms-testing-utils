@@ -54,7 +54,6 @@ def generate(
         model: A function or nn.Module that takes a batch of input_ids and
             returns logits
         input_ids: a rectangular tensor of input_ids (batch x seq)
-        max_seq_len: the sequence length of the model
         max_new_tokens: max tokens to generate
         temperature: temperature of softmax when sampling
         top_k: only search among top k tokens
