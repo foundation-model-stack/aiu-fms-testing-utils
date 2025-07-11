@@ -203,7 +203,10 @@ if not args.skip_computation:
     cpu_model.eval()
     print("loaded cpu model")
 
-    ids, padding_kwargs = prepare_inputs(args.batch_size, args.min_pad_length, tokenizer)
+    ids, padding_kwargs = prepare_inputs(batch_size=args.batch_size, 
+                                         seq_length=args.min_pad_length, 
+                                         tokenizer=tokenizer,
+                                         ds_path=args.sharegpt_path)
 
     # first test validation level 0
     cpu_validation_info = extract_validation_information(
@@ -259,7 +262,11 @@ for i in range(num_test_tokens_per_sequence // args.max_new_tokens):
         cpu_validation_info = load_validation_information(cpu_path, "logits", args.batch_size, tokenizer)
         cuda_validation_info = load_validation_information(cuda_path, "logits", args.batch_size, tokenizer)
     elif not args.skip_computation:
-        ids, padding_kwargs = prepare_inputs(args.batch_size, args.min_pad_length, tokenizer, i)
+        ids, padding_kwargs = prepare_inputs(batch_size=args.batch_size, 
+                                             seq_length=args.min_pad_length,
+                                             tokenizer=tokenizer,
+                                             ds_path=args.sharegpt_path,
+                                             seed=i)
 
         # only need to compute this once if we aren't generating more test data
         if num_test_tokens_per_sequence > args.max_new_tokens:

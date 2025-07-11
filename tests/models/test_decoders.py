@@ -425,7 +425,10 @@ def test_common_shapes(model_path, batch_size, seq_length, max_new_tokens, persi
         )
 
     # prepare input_ids
-    input_ids, extra_kwargs = prepare_inputs(batch_size, seq_length, tokenizer)
+    input_ids, extra_kwargs = prepare_inputs(batch_size=batch_size, 
+                                             seq_length=seq_length, 
+                                             tokenizer=tokenizer, 
+                                             ds_path=SHARE_GPT_DATASET_PATH)
     extra_kwargs["attn_name"] = ATTN_NAME
 
     # warmup aiu model
@@ -501,7 +504,11 @@ def test_common_shapes(model_path, batch_size, seq_length, max_new_tokens, persi
             # for iteration 0, we have computed the cpu validation info in the prior step for seed=0, so skip
             if i != 0:
                 input_ids, extra_kwargs = prepare_inputs(
-                    batch_size, seq_length, tokenizer, seed=i
+                    batch_size=batch_size, 
+                    seq_length=seq_length, 
+                    tokenizer=tokenizer, 
+                    ds_path=SHARE_GPT_DATASET_PATH, 
+                    seed=i
                 )
                 extra_kwargs["attn_name"] = ATTN_NAME
                 cpu_validation_info = __load_validation_info(

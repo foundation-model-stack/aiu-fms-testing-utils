@@ -4,7 +4,7 @@ import pytest
 from fms.models import get_model
 import itertools
 import torch
-from aiu_fms_testing_utils.utils import prepare_encoders_inputs
+from aiu_fms_testing_utils.utils import prepare_inputs
 from aiu_fms_testing_utils.utils.aiu_setup import dprint
 import os
 import numpy as np
@@ -105,7 +105,11 @@ def test_common_shapes(model_path, batch_size, seq_length):
     )
 
     # prepare input_ids
-    input_ids, padding_kwargs = prepare_encoders_inputs(batch_size, seq_length, tokenizer, SQUAD_V2_DATASET_PATH)
+    input_ids, padding_kwargs = prepare_inputs(batch_size=batch_size, 
+                                               seq_length=seq_length, 
+                                               tokenizer=tokenizer, 
+                                               ds_path=SQUAD_V2_DATASET_PATH, 
+                                               ds_type="squad_v2")
 
     # warmup model
     logits_getter_fn = lambda x: x if isinstance(x, torch.Tensor) else torch.cat(list(x), dim=-1)
@@ -116,7 +120,12 @@ def test_common_shapes(model_path, batch_size, seq_length):
     diffs = []
     for i in range(20):
         # prepare input_ids
-        input_ids, padding_kwargs = prepare_encoders_inputs(batch_size, seq_length, tokenizer, SQUAD_V2_DATASET_PATH, seed=i)
+        input_ids, padding_kwargs = prepare_inputs(batch_size=batch_size, 
+                                                   seq_length=seq_length, 
+                                                   tokenizer=tokenizer, 
+                                                   ds_path=SQUAD_V2_DATASET_PATH, 
+                                                   seed=i,
+                                                   ds_type="squad_v2")
 
         aiu_msp = ModelSignatureParams(
             model, 

@@ -168,11 +168,42 @@ def sample_squad_v2_qa_requests(
         seed,
     )
 
-def prepare_encoders_inputs(batch_size, seq_length, tokenizer, encoders_ds, seed=0):
-    prompts_and_sizes = sample_squad_v2_qa_requests(encoders_ds, batch_size, tokenizer, int(seq_length / 2), seq_length, seed)
+def prepare_inputs(batch_size, seq_length, tokenizer, ds_path, seed=0, ds_type="sharegpt"):
+    """
+    Prepare input IDs and padding kwargs for a batch of questions.
+
+    Args:
+        batch_size (int): The number of questions in the batch.
+        seq_length (int): The maximum length of the input sequence.
+        tokenizer (Tokenizer): A tokenizer object to tokenize the questions.
+        ds_path (str): The path to the dataset file.
+        seed (int, optional): The random seed for reproducibility. Defaults to 0.
+        ds_type (str, optional): The type of dataset to use. Can be "sharegpt" or any other supported dataset type. Defaults to "sharegpt".
+
+    Returns:
+        tuple: A tuple containing the input IDs and padding kwargs.
+    """
+    if not "sharegpt" in ds_type:
+        prompts_and_sizes = sample_squad_v2_qa_requests(
+            ds_path, 
+            batch_size, 
+            tokenizer, 
+            int(seq_length / 2), 
+            seq_length, 
+            seed,
+        )
+    else:
+        prompts_and_sizes = sample_sharegpt_requests(
+            ds_path,
+            batch_size,
+            tokenizer,
+            int(seq_length / 2),
+            seq_length,
+            seed,
+        )
     prompt_list = []
     for prompt, _ in prompts_and_sizes:
         prompt_list.append(ids_for_prompt(prompt, tokenizer))
 
-    input_ids, padding_kwargs = pad_input_ids(prompt_list, min_pad_length=seq_length, is_causal_mask=False)
+    input_ids, padding_kwargs = pad_input_ids(prompt_list, min_pad_length=seq_length)
     return input_ids, padding_kwargs
