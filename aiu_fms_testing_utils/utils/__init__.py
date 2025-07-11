@@ -53,6 +53,7 @@ def warmup_model(
         generate(
             model,
             _warmup_input_ids,
+            max_seq_len=_warmup_input_ids.shape[1] + max_new_tokens,
             max_new_tokens=_max_new_tokens,
             do_sample=False,
             use_cache=use_cache,
