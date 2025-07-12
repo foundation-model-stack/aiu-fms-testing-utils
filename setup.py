@@ -5,5 +5,5 @@ setup(
     version="0.0.1",
     description="Testing Utilities for use with foundation-model-stack models running on AIU",
     packages=find_packages(),
-    install_requires=["torch == 2.5.1"],
+    install_requires=["torch == 2.7.1"],
 )
