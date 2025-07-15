@@ -19,7 +19,7 @@ The idea is to run, the prompts through the model with the pre- and post-hooks a
 The script [generate_layers_metrics.py](../scripts/generate_layers_metrics.py) requires the following arguments to be run:
 
 ```bash
-usage: generate_layers_metrics.py [-h] [--architecture ARCHITECTURE] [--variant VARIANT] [--model_path MODEL_PATH] --mode {generate,model-forward} --batch_sizes BATCH_SIZES --seq_lengths SEQ_LENGTHS --max_new_tokens MAX_NEW_TOKENS [--output_path OUTPUT_PATH] [--sharegpt_path SHAREGPT_PATH]
+usage: generate_layers_metrics.py [-h] [--architecture ARCHITECTURE] [--variant VARIANT] [--model_path MODEL_PATH] --mode {generate,model-forward} --model_loader {fms,hf} --batch_sizes  BATCH_SIZES --seq_lengths SEQ_LENGTHS --max_new_tokens MAX_NEW_TOKENS [--output_path OUTPUT_PATH] [--sharegpt_path SHAREGPT_PATH]
 
 Script to generate the model's metrics by layer
 
@@ -32,6 +32,8 @@ options:
                         Paths to the directory containing model's weights (.pth files sharded by tensor parallel rank, not HF weights)
   --mode {generate,model-forward}
                         Sets the output generation mode.
+  --model_loader {fms,hf}
+                        Which model loader/runner to be used; fms - IBM's Foundation Model Stack or hf - HuggingFace Transformers.
   --batch_sizes BATCH_SIZES
                         Batch sizes separated by comma. Eg.: 1,2
   --seq_lengths SEQ_LENGTHS
@@ -79,7 +81,7 @@ cd aiu-fms-testing-utils/tests/resources
 
 mkdir /tmp/output
 
-python3 generate_layers_metrics.py --mode model-forward --variant ibm-granite/granite-3.2-8b-instruct --architecture hf_pretrained --batch_sizes 1 --seq_lengths 64 --max_new_tokens 128
+python3 generate_layers_metrics.py --mode model-forward --variant ibm-granite/granite-3.2-8b-instruct --architecture hf_pretrained --batch_sizes 1 --seq_lengths 64 --max_new_tokens 128 --model_loader fms
 ```
 The files should get created at `/tmp/output` dir:
 ```bash
@@ -95,7 +97,7 @@ To get the second step of the flow and get the thresholds by layer, run:
 ```bash
 cd /aiu-fms-testing-utils/tests/resources
 
-python3 get_thresholds.py --models ibm-granite/granite-3.2-8b-instruct --metrics abs_diff cos_sim_avg cos_sim_men --file_base /tmp/output --layer_io
+python3 get_thresholds.py --models ibm-granite/granite-3.2-8b-instruct --metrics abs_diff cos_sim_avg cos_sim_mean --file_base /tmp/output --layer_io
 ```
 It should print the metric of each layer:
 ```bash
