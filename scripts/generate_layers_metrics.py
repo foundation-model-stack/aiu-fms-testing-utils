@@ -174,13 +174,13 @@ def __infer_layer(model, max_len, device, max_new_tokens, batch_size, tokenizer)
                     contiguous_cache=True,
                     extra_kwargs={},
                 )
+                result, timings = result
             if args.model_loader == "hf":
                 result = model.generate(ids,
                                 max_length=max_seq_len,
                                 max_new_tokens=max_new_token,
                                 do_sample=do_sample,
                                 use_cache=use_cache)
-            result, timings = result
             logger.info(f"Generation completed: Result len is {len(result)}")
             if len(result.shape) == 1:
                 result = result.unsqueeze(0)
