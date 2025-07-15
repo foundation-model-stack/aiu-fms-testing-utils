@@ -50,6 +50,13 @@ parser.add_argument(
     help="Sets the output generation mode."
 )
 parser.add_argument(
+    "--model_loader",
+    choices=["fms", "hf"],
+    default="fms",
+    required=True,
+    help="Which model loader/runner to be used; fms - IBM's Foundation Model Stack or hf - HuggingFace Transformers."
+)
+parser.add_argument(
     "--batch_sizes",
     type=str,
     default="1",
@@ -136,6 +143,7 @@ def __infer_layer(model, max_len, device, max_new_tokens, batch_size, tokenizer)
     
     do_sample = False
     use_cache = True
+    result = None
 
     prompts = prepare_inputs(batch_size, max_len, tokenizer, sharegpt_path)
     ids, pad_input_ids = prompts
@@ -151,27 +159,29 @@ def __infer_layer(model, max_len, device, max_new_tokens, batch_size, tokenizer)
 
     if "generate" in mode:
         with torch.no_grad():
-        #     result = generate(
-        #         model,
-        #         ids,
-        #         max_new_tokens=max_new_tokens,
-        #         use_cache=use_cache,
-        #         do_sample=do_sample,
-        #         max_seq_len=max_seq_len,
-        #         timing="e2e",
-        #         eos_token_id=None,
-        #         contiguous_cache=True,
-        #         extra_kwargs={},
-        #     )
-        #     result, timings = result
-        #     logger.info(f"Generation completed: Result len is {len(result)}")
-        #     if len(result.shape) == 1:
-        #         result = result.unsqueeze(0)
-            model.generate(**ids,
-                        max_length=max_seq_len,
-                        max_new_tokens=max_new_token,
-                        do_sample=do_sample,
-                        use_cache=use_cache)
+            if args.model_loader == "fms":
+                result = generate(
+                    model,
+                    ids,
+                    max_new_tokens=max_new_tokens,
+                    use_cache=use_cache,
+                    do_sample=do_sample,
+                    max_seq_len=max_seq_len,
+                    timing="e2e",
+                    eos_token_id=None,
+                    contiguous_cache=True,
+                    extra_kwargs={},
+                )
+            if args.model_loader == "hf":
+                result = model.generate(ids,
+                                max_length=max_len,
+                                max_new_tokens=max_new_token,
+                                do_sample=do_sample,
+                                use_cache=use_cache)
+            result, timings = result
+            logger.info(f"Generation completed: Result len is {len(result)}")
+            if len(result.shape) == 1:
+                result = result.unsqueeze(0)
     else:
         result = model.forward(
             ids,
@@ -339,38 +349,37 @@ def generate_layers_metrics(model_path, batch_size, seq_length, max_new_tokens):
         **micro_model_kwargs,
     }
 
-    tokenizer = tokenizers.get_tokenizer(model_path)
+    if args.model_loader == "hf":
+        tokenizer = AutoTokenizer.from_pretrained(model_path)
 
-    device = "auto"
-    model_path = "ibm-granite/granite-3.3-8b-base"
-    tokenizer = AutoTokenizer.from_pretrained(model_path)
+        # prepare the cpu model
+        validation_model = AutoModelForCausalLM.from_pretrained(model_path, 
+                                                                device_map="cpu",
+                                                                torch_dtype=torch.float32
+                                                                )
+         # prepare the cuda model
+        validation_model_cuda = AutoModelForCausalLM.from_pretrained(model_path, 
+                                                                    device_map="cuda",
+                                                                    torch_dtype=torch.float16
+                                                                    )
+    if args.model_loader == "fms":
+        tokenizer = tokenizers.get_tokenizer(model_path)
 
-    # drop device_map if running on CPU
-    validation_model = AutoModelForCausalLM.from_pretrained(model_path, 
-                                                            device_map="cpu",
-                                                            torch_dtype=torch.float32
-                                                            )
+        # prepare the cpu model
+        validation_model = get_model(
+            device_type="cpu",
+            data_type=torch.float32,
+            fused_weights=False,
+            **get_model_kwargs,
+        )
 
-    validation_model_cuda = AutoModelForCausalLM.from_pretrained(model_path, 
-                                                                 device_map="cuda",
-                                                                 torch_dtype=torch.float16
-                                                                 )
-
-    # prepare the cpu model
-    # validation_model = get_model(
-    #     device_type="cpu",
-    #     data_type=torch.float32,
-    #     fused_weights=False,
-    #     **get_model_kwargs,
-    # )
-
-    # # prepare the cuda model
-    # validation_model_cuda = get_model(
-    #     device_type="cuda",
-    #     data_type=torch.float16,
-    #     fused_weights=False,
-    #     **get_model_kwargs,
-    # )
+        # prepare the cuda model
+        validation_model_cuda = get_model(
+            device_type="cuda",
+            data_type=torch.float16,
+            fused_weights=False,
+            **get_model_kwargs,
+        )
 
     layer_stack_cpu = __register_call_layers(model=validation_model,
                                             batch_size=batch_size, 
