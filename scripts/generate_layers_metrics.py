@@ -151,7 +151,9 @@ def __infer_layer(model, max_len, device, max_new_tokens, batch_size, tokenizer)
     if "cuda" in device:
         ids = ids.to("cuda")
     
-    if hasattr(model.config, "ntk_scaling") and model.config.ntk_scaling:
+    if args.model_loader == "hf":
+        max_seq_len = max_len
+    elif hasattr(model.config, "ntk_scaling") and model.config.ntk_scaling:
         max_seq_len = max(max_len, model.config.max_expected_seq_len)
     else:
         # without ntk scaling, extending the seq length too far gives bogus results.
@@ -174,7 +176,7 @@ def __infer_layer(model, max_len, device, max_new_tokens, batch_size, tokenizer)
                 )
             if args.model_loader == "hf":
                 result = model.generate(ids,
-                                max_length=max_len,
+                                max_length=max_seq_len,
                                 max_new_tokens=max_new_token,
                                 do_sample=do_sample,
                                 use_cache=use_cache)
