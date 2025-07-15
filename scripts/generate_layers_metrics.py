@@ -11,6 +11,8 @@ from fms.utils import tokenizers
 from fms.models import get_model
 from fms.utils.generation import generate
 
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
 from aiu_fms_testing_utils.testing.validation import get_default_validation_prefix
 
 from aiu_fms_testing_utils.utils import prepare_inputs
@@ -149,22 +151,27 @@ def __infer_layer(model, max_len, device, max_new_tokens, batch_size, tokenizer)
 
     if "generate" in mode:
         with torch.no_grad():
-            result = generate(
-                model,
-                ids,
-                max_new_tokens=max_new_tokens,
-                use_cache=use_cache,
-                do_sample=do_sample,
-                max_seq_len=max_seq_len,
-                timing="e2e",
-                eos_token_id=None,
-                contiguous_cache=True,
-                extra_kwargs={},
-            )
-            result, timings = result
-            logger.info(f"Generation completed: Result len is {len(result)}")
-            if len(result.shape) == 1:
-                result = result.unsqueeze(0)
+        #     result = generate(
+        #         model,
+        #         ids,
+        #         max_new_tokens=max_new_tokens,
+        #         use_cache=use_cache,
+        #         do_sample=do_sample,
+        #         max_seq_len=max_seq_len,
+        #         timing="e2e",
+        #         eos_token_id=None,
+        #         contiguous_cache=True,
+        #         extra_kwargs={},
+        #     )
+        #     result, timings = result
+        #     logger.info(f"Generation completed: Result len is {len(result)}")
+        #     if len(result.shape) == 1:
+        #         result = result.unsqueeze(0)
+            model.generate(**ids,
+                        max_length=max_seq_len,
+                        max_new_tokens=max_new_token,
+                        do_sample=do_sample,
+                        use_cache=use_cache)
     else:
         result = model.forward(
             ids,
@@ -334,21 +341,36 @@ def generate_layers_metrics(model_path, batch_size, seq_length, max_new_tokens):
 
     tokenizer = tokenizers.get_tokenizer(model_path)
 
-    # prepare the cpu model
-    validation_model = get_model(
-        device_type="cpu",
-        data_type=torch.float32,
-        fused_weights=False,
-        **get_model_kwargs,
-    )
+    device = "auto"
+    model_path = "ibm-granite/granite-3.3-8b-base"
+    tokenizer = AutoTokenizer.from_pretrained(model_path)
 
-    # prepare the cuda model
-    validation_model_cuda = get_model(
-        device_type="cuda",
-        data_type=torch.float16,
-        fused_weights=False,
-        **get_model_kwargs,
-    )
+    # drop device_map if running on CPU
+    validation_model = AutoModelForCausalLM.from_pretrained(model_path, 
+                                                            device_map="cpu",
+                                                            torch_dtype=torch.float32
+                                                            )
+
+    validation_model_cuda = AutoModelForCausalLM.from_pretrained(model_path, 
+                                                                 device_map="cuda",
+                                                                 torch_dtype=torch.float16
+                                                                 )
+
+    # prepare the cpu model
+    # validation_model = get_model(
+    #     device_type="cpu",
+    #     data_type=torch.float32,
+    #     fused_weights=False,
+    #     **get_model_kwargs,
+    # )
+
+    # # prepare the cuda model
+    # validation_model_cuda = get_model(
+    #     device_type="cuda",
+    #     data_type=torch.float16,
+    #     fused_weights=False,
+    #     **get_model_kwargs,
+    # )
 
     layer_stack_cpu = __register_call_layers(model=validation_model,
                                             batch_size=batch_size, 
