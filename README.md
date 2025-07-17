@@ -2,7 +2,7 @@
 
 ## Setup your environment
 
-In this directory, checkout the Foundation Model Stack (FMS) and the FMS Model Optimizer:
+in this directory, checkout the Foundation Model Stack (FMS) and the FMS Model Optimizer:
 ```shell
 git clone https://github.com/foundation-model-stack/foundation-model-stack.git
 git clone https://github.com/foundation-model-stack/fms-model-optimizer.git
