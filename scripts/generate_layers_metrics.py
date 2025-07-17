@@ -92,10 +92,24 @@ mode = args.mode
 output_path = args.output_path
 sharegpt_path = args.sharegpt_path
 
-logger = logging.getLogger(__name__).addHandler(logging.StreamHandler(sys.stdout))
-LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO').upper()
-logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s %(message)s", 
-                    filename=os.path.join(output_path, "layers-output", f"layers_input.log"))
+if not os.path.exists(output_path):
+    os.makedirs(output_path)
+
+if not os.path.exists(os.path.join(output_path,"layers-input-output")):
+    os.makedirs(os.path.join(output_path,"layers-input-output"))
+
+logging.basicConfig(level=logging.DEBUG,
+                    format='%(asctime)s %(name)-12s %(message)s',
+                    datefmt='%m-%d %H:%M',
+                    filename=os.path.join(output_path, "layers-input-output", f"layers_input.log"),
+                    filemode='w')
+console = logging.StreamHandler()
+console.setLevel(os.getenv("LOG_LEVEL", "INFO"))
+formatter = logging.Formatter('%(name)-12s: %(levelname)-8s %(message)s')
+console.setFormatter(formatter)
+logging.getLogger('').addHandler(console)
+
+logger = logging.getLogger('generate_layers_metrics')
 
 common_model_paths = args.model_path if args.model_path else args.variant
 if isinstance(common_model_paths, str):
@@ -391,7 +405,7 @@ def generate_layers_metrics(model_path, batch_size, seq_length, max_new_tokens):
                                             seq_length=seq_length, max_new_tokens=max_new_tokens, 
                                             tokenizer=tokenizer)
     
-    torch.save(layer_stack_cpu, os.path.join(output_path, "layers-output", "layer_stack_cpu.pt"))
+    torch.save(layer_stack_cpu, os.path.join(output_path, "layers-input-output", "layer_stack_cpu.pt"))
     
     global generate_iters
     generate_iters = 0
@@ -403,7 +417,7 @@ def generate_layers_metrics(model_path, batch_size, seq_length, max_new_tokens):
                                              seq_length=seq_length, max_new_tokens=max_new_tokens, 
                                              tokenizer=tokenizer)
     
-    torch.save(layer_stack_cuda, os.path.join(output_path, "layers-output", "layer_stack_cuda.pt"))
+    torch.save(layer_stack_cuda, os.path.join(output_path, "layers-input-output", "layer_stack_cuda.pt"))
 
     assert len(layer_stack_cuda.keys()) == len(layer_stack_cpu.keys())
 
