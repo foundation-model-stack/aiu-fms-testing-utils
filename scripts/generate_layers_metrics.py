@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 import logging
 import argparse
@@ -18,10 +19,6 @@ from aiu_fms_testing_utils.testing.validation import get_default_validation_pref
 from aiu_fms_testing_utils.utils import prepare_inputs
 from aiu_fms_testing_utils.utils.metrics_utils import tensor_abs_diff, tensor_cos_sim
 
-
-logger = logging.getLogger(__name__)
-LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO').upper()
-logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s %(message)s")
 
 parser = argparse.ArgumentParser(
     description="Script to generate the model's metrics by layer"
@@ -94,6 +91,11 @@ args = parser.parse_args()
 mode = args.mode
 output_path = args.output_path
 sharegpt_path = args.sharegpt_path
+
+logger = logging.getLogger(__name__).addHandler(logging.StreamHandler(sys.stdout))
+LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO').upper()
+logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s %(message)s", 
+                    filename=os.path.join(output_path, "layers-output", f"layers_input.log"))
 
 common_model_paths = args.model_path if args.model_path else args.variant
 if isinstance(common_model_paths, str):
@@ -426,9 +428,7 @@ def generate_layers_metrics(model_path, batch_size, seq_length, max_new_tokens):
                     tensor_cuda_out = cuda_output[-1]
                     tensor_cpu_out = cpu_output[-1]
                     for i in range(len(cpu_output)):
-                        logger.debug(f"inputs: {cuda_output[i].shape} {cpu_output[i].to('cuda').shape}")
                         cos_sim.append(tensor_cos_sim(cuda_output[i], cpu_output[i].to('cuda')))
-                        logger.debug(f"cos_sim output:{tensor_cos_sim(cuda_output[i], cpu_output[i].to('cuda')).shape}")
                         abs_diff.append(tensor_abs_diff(cuda_output[i], cpu_output[i].to('cuda')))
                 else:
                     head_tensor_cpu = cpu_output[-1]
@@ -438,16 +438,12 @@ def generate_layers_metrics(model_path, batch_size, seq_length, max_new_tokens):
                             for j in range(len(head_tensor_gpu[i])):
                                 tensor_cuda_out = head_tensor_gpu[i][j]
                                 tensor_cpu_out = head_tensor_cpu[i][j]
-                                logger.debug(f"inputs: {head_tensor_gpu[i][j].shape} {head_tensor_cpu[i][j].to('cuda').shape}")
                                 cos_sim.append(tensor_cos_sim(head_tensor_cpu[i][j].to('cuda'), head_tensor_gpu[i][j]))
-                                logger.debug(f"cos_sim output:{tensor_cos_sim(head_tensor_cpu[i][j].to('cuda'), head_tensor_gpu[i][j]).shape}")
                                 abs_diff.append(tensor_abs_diff(head_tensor_cpu[i][j].to('cuda'), head_tensor_gpu[i][j]))
                         else:
                             tensor_cuda_out = head_tensor_gpu[i]
                             tensor_cpu_out = head_tensor_cpu[i]
-                            logger.debug(f"inputs: {head_tensor_gpu[i].shape} {head_tensor_cpu[i].to('cuda').shape}")
                             cos_sim.append(tensor_cos_sim(head_tensor_cpu[i].to('cuda'), head_tensor_gpu[i]))
-                            logger.debug(f"cos_sim output:{tensor_cos_sim(head_tensor_cpu[i].to('cuda'), head_tensor_gpu[i]).shape}")
                             abs_diff.append(tensor_abs_diff(head_tensor_cpu[i].to('cuda'), head_tensor_gpu[i]))
             else:
                 tensor_cpu_out = cpu_output.to('cuda')
