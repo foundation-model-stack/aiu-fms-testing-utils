@@ -389,6 +389,8 @@ def generate_layers_metrics(model_path, batch_size, seq_length, max_new_tokens):
                                             seq_length=seq_length, max_new_tokens=max_new_tokens, 
                                             tokenizer=tokenizer)
     
+    torch.save(layer_stack_cpu, os.path.join(output_path, "layers-output", "layer_stack_cpu.pt"))
+    
     global generate_iters
     generate_iters = 0
     logger.info(f"Finished registering CPU layers")
@@ -398,6 +400,8 @@ def generate_layers_metrics(model_path, batch_size, seq_length, max_new_tokens):
                                              device="cuda", 
                                              seq_length=seq_length, max_new_tokens=max_new_tokens, 
                                              tokenizer=tokenizer)
+    
+    torch.save(layer_stack_cuda, os.path.join(output_path, "layers-output", "layer_stack_cuda.pt"))
 
     assert len(layer_stack_cuda.keys()) == len(layer_stack_cpu.keys())
 
