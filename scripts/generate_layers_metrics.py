@@ -355,7 +355,13 @@ def generate_layers_metrics(model_path, batch_size, seq_length, max_new_tokens, 
     if "HF_HOME" not in os.environ:
         os.environ["HF_HOME"] = "/tmp/models/hf_cache"
 
-    model_prefix = get_model_prefix(model_path=model_path, shapes_size=0, include_shapes=False)
+    model_prefix = get_model_prefix(model_path=model_path, 
+                                    shapes_size=0, 
+                                    max_new_tokens=max_new_tokens,
+                                    batch_size=batch_size,
+                                    seq_length=seq_length,
+                                    dtype="",
+                                    include_shapes=False)
 
     model_path_kwargs = {"variant": model_path} if args.variant else {"model_path": model_path}
     micro_model_kwargs = {"architecture": args.architecture}
@@ -491,8 +497,12 @@ def generate_layers_metrics(model_path, batch_size, seq_length, max_new_tokens, 
 
 for model_id, batch_size, sequence_length, max_new_token in common_shapes:
 
-    model_prefix = get_model_prefix(model_path=model_id, 
+    model_prefix = get_model_prefix(model_id, 
                                     shapes_size=len(common_shapes),
+                                    max_new_tokens=max_new_token,
+                                    batch_size=batch_size,
+                                    seq_length=sequence_length,
+                                    dtype="",
                                     include_shapes=False
                                     )
 
