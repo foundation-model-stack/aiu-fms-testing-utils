@@ -757,7 +757,7 @@ use_cache = [
 if args.compile:
     dprint(f"compilation warmup")
     pt_compile_model_time = time.time()
-    if args.device_type == "aiu":  # only run warmup for AIU, no need for senulator
+    if "aiu" in args.device_type:
         for cache in use_cache:
             warmup_model(model, ids, args.max_new_tokens, args.compile_dynamic_sendnn, **extra_generation_kwargs)
         aiu_warmup_time = time.time()
