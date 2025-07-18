@@ -11,26 +11,24 @@ import json
 from aiu_fms_testing_utils.utils.metrics_utils import abs_diff_linalg_norm, list_mean
 
 logger = logging.getLogger(__name__)
-LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO').upper()
+LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s %(message)s")
 
-parser = argparse.ArgumentParser(
-    description="Script to get thresholds metrics"
-)
+parser = argparse.ArgumentParser(description="Script to get thresholds metrics")
 
 parser.add_argument(
     "--models",
     type=str,
     default=[],
-    nargs='+',
+    nargs="+",
     required=True,
-    help="List of models id separated by space. Eg.: ibm-granite/granite-20b-code-instruct-8k /tmp/models/granite-20b-code-cobol-v1"
+    help="List of models id separated by space. Eg.: ibm-granite/granite-20b-code-instruct-8k /tmp/models/granite-20b-code-cobol-v1",
 )
 parser.add_argument(
     "--metrics",
     type=str,
     default=[],
-    nargs='+',
+    nargs="+",
     required=True,
     help="List of metrics separated by space. Eg. for full model mode: diff_mean ce | Eg. for layers mode: abs_diff cos_sim_avg cos_sim_mean",
 )
@@ -44,7 +42,7 @@ parser.add_argument(
 parser.add_argument(
     "--layer_io",
     action="store_true",
-    help="Sets the metric generation mode to layers IO"
+    help="Sets the metric generation mode to layers IO",
 )
 parser.add_argument(
     "--output_path",
@@ -87,6 +85,7 @@ def load_metric_file(file_path, layer_header, values):
         pass
     return values
 
+
 for model in models:
     result_dict = {"model_id": model}
     for metric in metrics:
@@ -105,12 +104,16 @@ for model in models:
             for metric_file in metric_files:
                 layer_dict = {}
                 metric_layer_list = []
-                layer_name = metric_file.split("--")[-1].replace(".{}".format(metric_name), "")
-                layer_name = layer_name.replace(".csv","")
-                metric_layer_list = load_metric_file(metric_file, layer_mode, metric_layer_list)
+                layer_name = metric_file.split("--")[-1].replace(
+                    ".{}".format(metric_name), ""
+                )
+                layer_name = layer_name.replace(".csv", "")
+                metric_layer_list = load_metric_file(
+                    metric_file, layer_mode, metric_layer_list
+                )
                 if re.search(generate_mode_pattern, layer_name):
                     layer_name = re.sub(generate_mode_pattern, "", layer_name)
-                    if not layer_name in layers.keys():
+                    if layer_name not in layers.keys():
                         layers[layer_name] = metric_layer_list
                     else:
                         layers[layer_name].extend(metric_layer_list)
@@ -121,22 +124,22 @@ for model in models:
                 layers.update(layer_dict)
             logger.info(f"found {len(metric_files)} layers metric files")
 
-            for key, l in layers.items():
-                l = np.nan_to_num(l, nan=0.0)
+            for key, layer in layers.items():
+                layer = np.nan_to_num(layer, nan=0.0)
                 if "abs_diff" in metric:
-                    metric_val = abs_diff_linalg_norm(l)
+                    metric_val = abs_diff_linalg_norm(layer)
                     logger.info(f"Layer {key} abs_diff_linalg_norm = {metric_val}")
                     result_dict[metric][key] = metric_val
                 elif "avg" in metric:
-                    metric_avg = np.average(l)
+                    metric_avg = np.average(layer)
                     logger.info(f"Layer {key} {metric} = {metric_avg}")
                     result_dict[metric][key] = metric_avg
                 elif "mean" in metric:
-                    metric_mean = list_mean(l)
+                    metric_mean = list_mean(layer)
                     logger.info(f"Layer {key} {metric} = {metric_mean}")
                     result_dict[metric][key] = metric_mean
 
     json_output_path = args.output_path if args.output_path else file_base
     f_result_path = os.path.join(json_output_path, f"{model}-thresholds.json")
-    with open(f_result_path, 'w') as fp:
+    with open(f_result_path, "w") as fp:
         json.dump(result_dict, fp)
