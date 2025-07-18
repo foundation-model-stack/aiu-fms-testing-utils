@@ -148,6 +148,8 @@ if compile_dynamic_sendnn:
     os.environ["VLLM_DT_MAX_CONTEXT_LEN"] = str((((max(common_seq_lengths) + max(common_max_new_tokens)) // 64) + 1) * 64)
     os.environ["VLLM_DT_MAX_BATCH_SIZE"] = str(max(common_batch_sizes))
 
+cache_params = list(itertools.product([common_model_paths[0]], [common_batch_sizes[0]], [common_seq_lengths[0]], [common_max_new_tokens[0]], ["miss", "hit"]))
+
 # thresholds are chosen based on 1024 tokens per sequence
 # 1% error threshold rate between cpu fp32 and cuda fp16
 # if a models failure thresholds do not exist in this dict, default to the default_metrics_threshold defined above
@@ -214,7 +216,7 @@ def reset_compiler():
         torch.compiler.reset()
         torch._dynamo.reset()
         os.environ.pop("COMPILATION_MODE", None)
-
+        os.environ.pop('TORCH_SENDNN_CACHE_ENABLE', None)
 
 # TODO: Currently, gptq does not have the same level of support as non-gptq models for get_model. This method provides the extra requirements for gptq for get_model,
 #  however ideally, these fixes should be done in foundation-model-stack.
@@ -259,7 +261,6 @@ def __maybe_get_gptq_kwargs(model_path):
     except KeyError:
         pass
     return gptq_kwargs_aiu, gptq_kwargs_cpu
-
 
 def __prepare_inputs(batch_size, seq_length, tokenizer, seed=0):
     prompts_and_sizes = sample_sharegpt_requests(
@@ -620,3 +621,57 @@ def test_common_shapes(model_path, batch_size, seq_length, max_new_tokens, persi
         print("passed validation level 1")
     else:
         print("passed validation level 0")
+
+@pytest.mark.parametrize("model_path,batch_size,seq_length,max_new_tokens,cache_status", cache_params)
+def test_cache(model_path, batch_size, seq_length, max_new_tokens, cache_status):
+    torch.manual_seed(42)
+    os.environ["TORCH_SENDNN_CACHE_ENABLE"] = "1"
+    os.environ["COMPILATION_MODE"] = "offline_decoder"
+    
+    dprint(f"testing with cache: model={model_path}, batch_size={batch_size}, seq_length={seq_length}, max_new_tokens={max_new_tokens}, micro_model={USE_MICRO_MODELS}, cache={cache_status}")
+
+    if USE_MICRO_MODELS:
+        micro_model_kwargs = {"architecture": "hf_configured", "nlayers": 3}
+    else:
+        micro_model_kwargs  = {"architecture": "hf_pretrained"}
+    
+    if not USE_MICRO_MODELS and os.path.exists(model_path):
+        model_path_kwargs = {"model_path": model_path}
+    else:
+        model_path_kwargs = {"variant": model_path}
+   
+    distributed_kwargs = {}
+    if USE_DISTRIBUTED:
+        distributed_kwargs["distr_param"] = "tp"
+        distributed_kwargs["group"] = dist.group.WORLD
+    get_model_kwargs = {**model_path_kwargs, **micro_model_kwargs, **distributed_kwargs}
+
+    tokenizer = tokenizers.get_tokenizer(model_path)
+
+    # prepare the AIU model
+    model = get_model(
+        device_type="cpu",
+        fused_weights=False,
+        **get_model_kwargs
+    )
+
+    model.eval()
+    torch.set_grad_enabled(False)
+    model.compile(backend="sendnn_decoder")
+
+
+    # prepare input_ids
+    input_ids, padding_kwargs = __prepare_inputs(batch_size, seq_length, tokenizer)
+
+    # warmup aiu model
+    warmup_model(model, input_ids, max_new_tokens, **padding_kwargs)
+
+    # aiu validatation 
+    aiu_validation_info = extract_validation_information(
+        model,
+        input_ids,
+        max_new_tokens,
+        None,
+        only_last_token=True,
+        **padding_kwargs
+)
