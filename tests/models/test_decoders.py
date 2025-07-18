@@ -56,6 +56,7 @@ SHARE_GPT_DATASET_PATH = os.environ.get(
 )
 USE_MICRO_MODELS = os.environ.get("FMS_TEST_SHAPES_USE_MICRO_MODELS", "1") == "1"
 USE_DISTRIBUTED = os.environ.get("FMS_TEST_SHAPES_DISTRIBUTED", "0") == "1"
+TIMING = os.environ.get("TIMING", "")
 
 ATTN_TYPE = os.environ.get("FMS_TEST_SHAPES_ATTN_TYPE", "sdpa")
 attention_map = {
@@ -342,11 +343,11 @@ class PersistentModel:
 
             if compile_dynamic_sendnn:
                 self.model = model
-            
+
             return model
         else:
             return self.model
-    
+
     # TODO: This was added as we require a special reset for gptq models. Ideally, we would be able to do something like this reset when calling reset_parameters() on the model
     #  however the gptq modules are yet to support this
     @staticmethod
@@ -458,6 +459,7 @@ def test_common_shapes(model_path, batch_size, seq_length, max_new_tokens, persi
             max_new_tokens,
             LogitsExtractorHook(),
             attn_algorithm="math",
+            timing=TIMING,
             **extra_kwargs,
         )
 
@@ -477,7 +479,7 @@ def test_common_shapes(model_path, batch_size, seq_length, max_new_tokens, persi
 
     # first test validation level 0
     aiu_validation_info = extract_validation_information(
-        model, input_ids, max_new_tokens, None, only_last_token="paged" not in ATTN_NAME, **extra_kwargs
+        model, input_ids, max_new_tokens, None, only_last_token="paged" not in ATTN_NAME, timing=TIMING, **extra_kwargs
     )
     dprint("aiu validation info extracted for validation level 0")
 
@@ -530,6 +532,7 @@ def test_common_shapes(model_path, batch_size, seq_length, max_new_tokens, persi
                         max_new_tokens,
                         LogitsExtractorHook(),
                         attn_algorithm="math",
+                        timing=TIMING,
                         **extra_kwargs,
                     )
                     dprint(
@@ -556,6 +559,7 @@ def test_common_shapes(model_path, batch_size, seq_length, max_new_tokens, persi
                 max_new_tokens,
                 GoldenTokenHook(cpu_static_tokens),
                 only_last_token=ATTN_TYPE != "paged",
+                timing=TIMING,
                 **extra_kwargs,
             )
             dprint(f"aiu validation info extracted for validation level 1 - iter={i}")
