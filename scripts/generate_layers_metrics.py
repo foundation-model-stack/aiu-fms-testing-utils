@@ -1,5 +1,4 @@
 import os
-import sys
 import time
 import logging
 import argparse
@@ -92,7 +91,7 @@ if not os.path.exists(os.path.join(output_path,"layers-input-output-logs")):
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(name)-12s %(message)s',
                     datefmt='%m-%d %H:%M',
-                    filename=os.path.join(output_path, "layers-input-output-logs", f"layers_input.log"),
+                    filename=os.path.join(output_path, "layers-input-output-logs", "layers_input.log"),
                     filemode='w')
 console = logging.StreamHandler()
 console.setLevel(os.getenv("LOG_LEVEL", "INFO"))
