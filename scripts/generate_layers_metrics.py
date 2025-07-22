@@ -508,8 +508,10 @@ for model_id, batch_size, sequence_length, max_new_token in common_shapes:
 
     model_thresholds_folder = os.path.join(output_path, model_prefix)
 
-    if not os.path.exists(model_thresholds_folder):
+    if not os.path.exists(output_path):
         os.makedirs(model_thresholds_folder)
+    else:
+        model_thresholds_folder = output_path
 
     logger.info(f"testing model_id-{model_id}, max_new_tokens-{max_new_token}, batch_size-{batch_size}, seq_length-{sequence_length}")
     generate_layers_metrics(model_path=model_id, 
