@@ -3,13 +3,15 @@ import torch
 import torch.nn as nn
 
 
-def get_model_prefix(model_path, 
-                     shapes_size, 
-                     max_new_tokens: None, 
-                     batch_size: None, 
-                     seq_length: None, 
-                     dtype: None, 
-                     include_shapes: False):
+def get_model_prefix(
+    model_path,
+    shapes_size,
+    max_new_tokens: None,
+    batch_size: None,
+    seq_length: None,
+    dtype: None,
+    include_shapes: False,
+):
     """
     Generate a prefix for a model based on its path and other parameters.
 
@@ -25,18 +27,19 @@ def get_model_prefix(model_path,
         str: A prefix for the model based on its path and other parameters.
     """
     if model_path.count("/") > 1:
-        # this means that the model_path does NOT match to the hf pattern 
+        # this means that the model_path does NOT match to the hf pattern
         # Eg.: /home/another-dir/another/ibm-granite/granite-3.3-8b-base
         model_prefix = model_path.split("/")[-2] + "--" + model_path.split("/")[-1]
     else:
-        # this means that the model_path does match to the hf pattern 
+        # this means that the model_path does match to the hf pattern
         # Eg.: ibm-granite/granite-3.3-8b-base
         model_prefix = model_path.replace("/", "--")
 
     if shapes_size > 1 or include_shapes:
         model_prefix = f"{model_prefix}_max-new-tokens-{max_new_tokens}_batch-size-{batch_size}_seq-length-{seq_length}_dtype-{dtype}"
-        
+
     return model_prefix
+
 
 def abs_diff_linalg_norm(res_vector):
     """

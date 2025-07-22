@@ -13,7 +13,11 @@ from fms.utils.generation import generate
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from aiu_fms_testing_utils.utils import prepare_inputs
-from aiu_fms_testing_utils.utils.metrics_utils import tensor_abs_diff, tensor_cos_sim, get_model_prefix
+from aiu_fms_testing_utils.utils.metrics_utils import (
+    tensor_abs_diff,
+    tensor_cos_sim,
+    get_model_prefix,
+)
 
 
 parser = argparse.ArgumentParser(
@@ -47,7 +51,7 @@ parser.add_argument(
     choices=["fms", "hf"],
     default="fms",
     required=True,
-    help="Which model loader/runner to be used; fms - IBM's Foundation Model Stack or hf - HuggingFace Transformers."
+    help="Which model loader/runner to be used; fms - IBM's Foundation Model Stack or hf - HuggingFace Transformers.",
 )
 parser.add_argument(
     "--batch_sizes",
@@ -85,21 +89,23 @@ mode = args.mode
 output_path = args.output_path
 sharegpt_path = args.sharegpt_path
 
-if not os.path.exists(os.path.join(output_path,"layers-input-output-logs")):
-    os.makedirs(os.path.join(output_path,"layers-input-output-logs"))
+if not os.path.exists(os.path.join(output_path, "layers-input-output-logs")):
+    os.makedirs(os.path.join(output_path, "layers-input-output-logs"))
 
-logging.basicConfig(level=logging.DEBUG,
-                    format='%(asctime)s %(name)-12s %(message)s',
-                    datefmt='%m-%d %H:%M',
-                    filename=os.path.join(output_path, "layers-input-output-logs", "layers_input.log"),
-                    filemode='w')
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s %(name)-12s %(message)s",
+    datefmt="%m-%d %H:%M",
+    filename=os.path.join(output_path, "layers-input-output-logs", "layers_input.log"),
+    filemode="w",
+)
 console = logging.StreamHandler()
 console.setLevel(os.getenv("LOG_LEVEL", "INFO"))
-formatter = logging.Formatter('%(name)-12s: %(levelname)-8s %(message)s')
+formatter = logging.Formatter("%(name)-12s: %(levelname)-8s %(message)s")
 console.setFormatter(formatter)
-logging.getLogger('').addHandler(console)
+logging.getLogger("").addHandler(console)
 
-logger = logging.getLogger('generate_layers_metrics')
+logger = logging.getLogger("generate_layers_metrics")
 
 common_model_paths = args.model_path if args.model_path else args.variant
 if isinstance(common_model_paths, str):
@@ -157,7 +163,7 @@ def __infer_layer(model, max_len, device, max_new_tokens, batch_size, tokenizer)
 
     if "cuda" in device:
         ids = ids.to("cuda")
-    
+
     if args.model_loader == "hf":
         max_seq_len = max_len
     elif hasattr(model.config, "ntk_scaling") and model.config.ntk_scaling:
@@ -183,11 +189,13 @@ def __infer_layer(model, max_len, device, max_new_tokens, batch_size, tokenizer)
                 )
                 result, timings = result
             if args.model_loader == "hf":
-                result = model.generate(ids,
-                                max_length=max_seq_len,
-                                max_new_tokens=max_new_token,
-                                do_sample=do_sample,
-                                use_cache=use_cache)
+                result = model.generate(
+                    ids,
+                    max_length=max_seq_len,
+                    max_new_tokens=max_new_token,
+                    do_sample=do_sample,
+                    use_cache=use_cache,
+                )
             logger.info(f"Generation completed: Result len is {len(result)}")
             if len(result.shape) == 1:
                 result = result.unsqueeze(0)
@@ -345,7 +353,10 @@ def write_csv(values, path, metric, gpu_layer_shape, cpu_layer_shape, output_sha
             f.write(f"{values}\n")
         f.close()
 
-def generate_layers_metrics(model_path, batch_size, seq_length, max_new_tokens, model_thresholds_folder):
+
+def generate_layers_metrics(
+    model_path, batch_size, seq_length, max_new_tokens, model_thresholds_folder
+):
     """
     Generate metrics for layers in a given model.
 
@@ -366,15 +377,19 @@ def generate_layers_metrics(model_path, batch_size, seq_length, max_new_tokens, 
     if "HF_HOME" not in os.environ:
         os.environ["HF_HOME"] = "/tmp/models/hf_cache"
 
-    model_prefix = get_model_prefix(model_path=model_path, 
-                                    shapes_size=0, 
-                                    max_new_tokens=max_new_tokens,
-                                    batch_size=batch_size,
-                                    seq_length=seq_length,
-                                    dtype="",
-                                    include_shapes=False)
+    model_prefix = get_model_prefix(
+        model_path=model_path,
+        shapes_size=0,
+        max_new_tokens=max_new_tokens,
+        batch_size=batch_size,
+        seq_length=seq_length,
+        dtype="",
+        include_shapes=False,
+    )
 
-    model_path_kwargs = {"variant": model_path} if args.variant else {"model_path": model_path}
+    model_path_kwargs = (
+        {"variant": model_path} if args.variant else {"model_path": model_path}
+    )
     micro_model_kwargs = {"architecture": args.architecture}
 
     get_model_kwargs = {
@@ -386,15 +401,13 @@ def generate_layers_metrics(model_path, batch_size, seq_length, max_new_tokens, 
         tokenizer = AutoTokenizer.from_pretrained(model_path)
 
         # prepare the cpu model
-        validation_model = AutoModelForCausalLM.from_pretrained(model_path, 
-                                                                device_map="cpu",
-                                                                torch_dtype=torch.float32
-                                                                )
-         # prepare the cuda model
-        validation_model_cuda = AutoModelForCausalLM.from_pretrained(model_path, 
-                                                                    device_map="cuda",
-                                                                    torch_dtype=torch.float16
-                                                                    )
+        validation_model = AutoModelForCausalLM.from_pretrained(
+            model_path, device_map="cpu", torch_dtype=torch.float32
+        )
+        # prepare the cuda model
+        validation_model_cuda = AutoModelForCausalLM.from_pretrained(
+            model_path, device_map="cuda", torch_dtype=torch.float16
+        )
     if args.model_loader == "fms":
         tokenizer = tokenizers.get_tokenizer(model_path)
 
@@ -414,25 +427,45 @@ def generate_layers_metrics(model_path, batch_size, seq_length, max_new_tokens, 
             **get_model_kwargs,
         )
 
-    layer_stack_cpu = __register_call_layers(model=validation_model,
-                                            batch_size=batch_size, 
-                                            device="cpu", 
-                                            seq_length=seq_length, max_new_tokens=max_new_tokens, 
-                                            tokenizer=tokenizer)
-    
-    torch.save(layer_stack_cpu, os.path.join(output_path, "layers-input-output-logs", f"{model_prefix}-{mode}-layer_stack_cpu.pt"))
-    
+    layer_stack_cpu = __register_call_layers(
+        model=validation_model,
+        batch_size=batch_size,
+        device="cpu",
+        seq_length=seq_length,
+        max_new_tokens=max_new_tokens,
+        tokenizer=tokenizer,
+    )
+
+    torch.save(
+        layer_stack_cpu,
+        os.path.join(
+            output_path,
+            "layers-input-output-logs",
+            f"{model_prefix}-{mode}-layer_stack_cpu.pt",
+        ),
+    )
+
     global generate_iters
     generate_iters = 0
     logger.info("Finished registering CPU layers")
 
-    layer_stack_cuda = __register_call_layers(model=validation_model_cuda,
-                                             batch_size=batch_size, 
-                                             device="cuda", 
-                                             seq_length=seq_length, max_new_tokens=max_new_tokens, 
-                                             tokenizer=tokenizer)
-    
-    torch.save(layer_stack_cuda, os.path.join(output_path, "layers-input-output-logs", f"{model_prefix}-{mode}-layer_stack_cuda.pt"))
+    layer_stack_cuda = __register_call_layers(
+        model=validation_model_cuda,
+        batch_size=batch_size,
+        device="cuda",
+        seq_length=seq_length,
+        max_new_tokens=max_new_tokens,
+        tokenizer=tokenizer,
+    )
+
+    torch.save(
+        layer_stack_cuda,
+        os.path.join(
+            output_path,
+            "layers-input-output-logs",
+            f"{model_prefix}-{mode}-layer_stack_cuda.pt",
+        ),
+    )
 
     assert len(layer_stack_cuda.keys()) == len(layer_stack_cpu.keys())
 
@@ -456,8 +489,12 @@ def generate_layers_metrics(model_path, batch_size, seq_length, max_new_tokens, 
                     tensor_cuda_out = cuda_output[-1]
                     tensor_cpu_out = cpu_output[-1]
                     for i in range(len(cpu_output)):
-                        cos_sim.append(tensor_cos_sim(cuda_output[i], cpu_output[i].to('cuda')))
-                        abs_diff.append(tensor_abs_diff(cuda_output[i], cpu_output[i].to('cuda')))
+                        cos_sim.append(
+                            tensor_cos_sim(cuda_output[i], cpu_output[i].to("cuda"))
+                        )
+                        abs_diff.append(
+                            tensor_abs_diff(cuda_output[i], cpu_output[i].to("cuda"))
+                        )
                 else:
                     head_tensor_cpu = cpu_output[-1]
                     head_tensor_gpu = cuda_output[-1]
@@ -466,32 +503,55 @@ def generate_layers_metrics(model_path, batch_size, seq_length, max_new_tokens, 
                             for j in range(len(head_tensor_gpu[i])):
                                 tensor_cuda_out = head_tensor_gpu[i][j]
                                 tensor_cpu_out = head_tensor_cpu[i][j]
-                                cos_sim.append(tensor_cos_sim(head_tensor_cpu[i][j].to('cuda'), head_tensor_gpu[i][j]))
-                                abs_diff.append(tensor_abs_diff(head_tensor_cpu[i][j].to('cuda'), head_tensor_gpu[i][j]))
+                                cos_sim.append(
+                                    tensor_cos_sim(
+                                        head_tensor_cpu[i][j].to("cuda"),
+                                        head_tensor_gpu[i][j],
+                                    )
+                                )
+                                abs_diff.append(
+                                    tensor_abs_diff(
+                                        head_tensor_cpu[i][j].to("cuda"),
+                                        head_tensor_gpu[i][j],
+                                    )
+                                )
                         else:
                             tensor_cuda_out = head_tensor_gpu[i]
                             tensor_cpu_out = head_tensor_cpu[i]
-                            cos_sim.append(tensor_cos_sim(head_tensor_cpu[i].to('cuda'), head_tensor_gpu[i]))
-                            abs_diff.append(tensor_abs_diff(head_tensor_cpu[i].to('cuda'), head_tensor_gpu[i]))
+                            cos_sim.append(
+                                tensor_cos_sim(
+                                    head_tensor_cpu[i].to("cuda"), head_tensor_gpu[i]
+                                )
+                            )
+                            abs_diff.append(
+                                tensor_abs_diff(
+                                    head_tensor_cpu[i].to("cuda"), head_tensor_gpu[i]
+                                )
+                            )
             else:
                 tensor_cpu_out = cpu_output.to("cuda")
                 tensor_cuda_out = cuda_output
                 abs_diff = tensor_abs_diff(tensor_cpu_out, cuda_output)
                 cos_sim = tensor_cos_sim(tensor_cpu_out, cuda_output)
 
-            layer_name = str(layer_key).replace('[','').replace(']', '')
+            layer_name = str(layer_key).replace("[", "").replace("]", "")
 
-            prefix = get_model_prefix(model_path=model_path, 
-                                        shapes_size=len(common_shapes), 
-                                        max_new_tokens=max_new_token, 
-                                        batch_size=batch_size, 
-                                        seq_length=seq_length, 
-                                        dtype='float16',
-                                        include_shapes=True
-                                        )
+            prefix = get_model_prefix(
+                model_path=model_path,
+                shapes_size=len(common_shapes),
+                max_new_tokens=max_new_token,
+                batch_size=batch_size,
+                seq_length=seq_length,
+                dtype="float16",
+                include_shapes=True,
+            )
 
-            abs_diff_path = os.path.join(model_thresholds_folder, f"{prefix}--{layer_name}.abs_diff.csv")
-            cos_sim_path = os.path.join(model_thresholds_folder, f"{prefix}--{layer_name}.cos_sim.csv")
+            abs_diff_path = os.path.join(
+                model_thresholds_folder, f"{prefix}--{layer_name}.abs_diff.csv"
+            )
+            cos_sim_path = os.path.join(
+                model_thresholds_folder, f"{prefix}--{layer_name}.cos_sim.csv"
+            )
 
             cos_sim_res, cos_shape = get_metric_values(cos_sim)
             abs_diff_res, abs_diff_shape = get_metric_values(abs_diff)
@@ -521,15 +581,15 @@ def generate_layers_metrics(model_path, batch_size, seq_length, max_new_tokens, 
 
 
 for model_id, batch_size, sequence_length, max_new_token in common_shapes:
-
-    model_prefix = get_model_prefix(model_id, 
-                                    shapes_size=len(common_shapes),
-                                    max_new_tokens=max_new_token,
-                                    batch_size=batch_size,
-                                    seq_length=sequence_length,
-                                    dtype="",
-                                    include_shapes=False
-                                    )
+    model_prefix = get_model_prefix(
+        model_id,
+        shapes_size=len(common_shapes),
+        max_new_tokens=max_new_token,
+        batch_size=batch_size,
+        seq_length=sequence_length,
+        dtype="",
+        include_shapes=False,
+    )
 
     model_thresholds_folder = os.path.join(output_path, model_prefix)
 
@@ -538,10 +598,13 @@ for model_id, batch_size, sequence_length, max_new_token in common_shapes:
     else:
         model_thresholds_folder = output_path
 
-    logger.info(f"testing model_id-{model_id}, max_new_tokens-{max_new_token}, batch_size-{batch_size}, seq_length-{sequence_length}")
-    generate_layers_metrics(model_path=model_id, 
-                            batch_size=batch_size, 
-                            seq_length=sequence_length, 
-                            max_new_tokens=max_new_token,
-                            model_thresholds_folder=model_thresholds_folder
-                            )
+    logger.info(
+        f"testing model_id-{model_id}, max_new_tokens-{max_new_token}, batch_size-{batch_size}, seq_length-{sequence_length}"
+    )
+    generate_layers_metrics(
+        model_path=model_id,
+        batch_size=batch_size,
+        seq_length=sequence_length,
+        max_new_tokens=max_new_token,
+        model_thresholds_folder=model_thresholds_folder,
+    )
