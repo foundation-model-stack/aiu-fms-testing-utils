@@ -1,8 +1,6 @@
 from fms.models import get_model
 from fms.utils.generation import pad_input_ids
-from fms.utils.tokenizers import get_tokenizer
 import pytest
-from aiu_fms_testing_utils.utils import sample_squad_v2_qa_requests
 import torch
 
 from fms.testing._internal.model_test_suite import (
@@ -20,7 +18,12 @@ GRANITE_GUARDIAN_3p1_8B = "ibm-granite/granite-guardian-3.1-8b"
 MISTRAL_7B_INSTRUCT = "mistralai/Mistral-7B-Instruct-v0.3"
 ROBERTA_SQUAD_v2 = "deepset/roberta-base-squad2"
 
-micro_models = {LLAMA_3p1_8B_INSTRUCT, GRANITE_3p2_8B_INSTRUCT, GRANITE_GUARDIAN_3p1_8B, MISTRAL_7B_INSTRUCT}
+micro_models = {
+    LLAMA_3p1_8B_INSTRUCT,
+    GRANITE_3p2_8B_INSTRUCT,
+    GRANITE_GUARDIAN_3p1_8B,
+    MISTRAL_7B_INSTRUCT,
+}
 
 
 class AIUModelFixtureMixin(ModelFixtureMixin):
@@ -51,7 +54,12 @@ class AIUModelFixtureMixin(ModelFixtureMixin):
         return uninitialized_model
 
 
-decoder_models = [LLAMA_3p1_8B_INSTRUCT, GRANITE_3p2_8B_INSTRUCT, GRANITE_GUARDIAN_3p1_8B, MISTRAL_7B_INSTRUCT]
+decoder_models = [
+    LLAMA_3p1_8B_INSTRUCT,
+    GRANITE_3p2_8B_INSTRUCT,
+    GRANITE_GUARDIAN_3p1_8B,
+    MISTRAL_7B_INSTRUCT,
+]
 
 
 class TestAIUDecoderModels(

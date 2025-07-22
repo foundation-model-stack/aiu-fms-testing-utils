@@ -41,7 +41,7 @@ def get_model_prefix(model_path,
 def abs_diff_linalg_norm(res_vector):
     """
     Calculates the Euclidean norm (also known as the L2 norm) of a given array res_vector. This is equivalent to finding the square
-    root of the sum of the squares of all the elements in the array. It's a fundamental operation in linear algebra and is often used 
+    root of the sum of the squares of all the elements in the array. It's a fundamental operation in linear algebra and is often used
     to measure the "length" or "magnitude" of a vector. More at https://numpy.org/devdocs/reference/generated/numpy.linalg.norm.html
     Args:
         res_vector (list): The list of abs diff
@@ -50,6 +50,7 @@ def abs_diff_linalg_norm(res_vector):
         float: "magnitude" of the diff vector.
     """
     return np.linalg.norm(res_vector)
+
 
 def list_mean(val_list):
     """
@@ -61,6 +62,7 @@ def list_mean(val_list):
         float: mean value calculated.
     """
     return np.mean(val_list)
+
 
 def tensor_abs_diff(tensor1, tensor2):
     """
@@ -81,7 +83,8 @@ def tensor_abs_diff(tensor1, tensor2):
     """
     abs_diff = torch.abs(tensor1 - tensor2)
     return abs_diff
-                    
+
+
 def tensor_cos_sim(tensor1, tensor2):
     """
     Computes the cosine similarity between two tensors.

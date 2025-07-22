@@ -47,7 +47,7 @@ def get_device(args: argparse.Namespace) -> torch.device:
         device = torch.device(args.device_type, local_rank)
         torch.cuda.set_device(device)
     elif args.is_aiu_backend:
-        from torch_sendnn import torch_sendnn
+        from torch_sendnn import torch_sendnn  # noqa: F401
 
         if args.distributed:
             aiu_setup.aiu_dist_setup(
@@ -67,7 +67,7 @@ def print_system_setup(args: argparse.Namespace) -> None:
     """Display system info (rank 0 only)."""
 
     if args.verbose:
-        dprint("-"*60)
+        dprint("-" * 60)
         dprint(
             f"Python Version  : {sys.version_info.major}."
             f"{sys.version_info.minor}.{sys.version_info.micro}"
@@ -75,11 +75,11 @@ def print_system_setup(args: argparse.Namespace) -> None:
         dprint(f"PyTorch Version : {torch.__version__}")
         dprint(f"Dynamo Backend  : {args.device_type} -> {args.dynamo_backend}")
         dprint(f"Distributed     : {args.distributed}")
-        if args.device_type == 'aiu':
+        if args.device_type == "aiu":
             for peer_rank in range(aiu_setup.world_size):
-                pcie_env_str="AIU_WORLD_RANK_"+str(peer_rank)
+                pcie_env_str = "AIU_WORLD_RANK_" + str(peer_rank)
                 dprint(f"PCI Addr. for Rank {peer_rank} : {os.environ[pcie_env_str]}")
-        dprint("-"*60)
+        dprint("-" * 60)
 
 
 def set_determinism(args: argparse.Namespace) -> None:
@@ -144,20 +144,23 @@ def recast_16b(model: nn.Module, args: argparse.Namespace) -> None:
         )
         for param in model.parameters():
             if param.dtype == torch.float16:
-               param.data = param.data.to(dtype=torch.bfloat16)
+                param.data = param.data.to(dtype=torch.bfloat16)
 
 
 def print_model_params(model: nn.Module, args: argparse.Namespace) -> None:
     """Printout model and list of model parameters with related statistics."""
 
     if args.verbose:
-        dprint("="*60 + "\n")
-        dprint("\n" + "\n".join(
-            f"{k:70} {str(list(v.size())):15} {str(v.dtype):20} {str(v.device):10} "
-            f"{v.float().min().item():12.4f} {v.float().max().item():12.4f}"
-            for k,v in model.state_dict().items()
-        ))
-        dprint("="*60 + "\n")
+        dprint("=" * 60 + "\n")
+        dprint(
+            "\n"
+            + "\n".join(
+                f"{k:70} {str(list(v.size())):15} {str(v.dtype):20} {str(v.device):10} "
+                f"{v.float().min().item():12.4f} {v.float().max().item():12.4f}"
+                for k, v in model.state_dict().items()
+            )
+        )
+        dprint("=" * 60 + "\n")
     if args.architecture == "llama":
         dprint(
             "[NOTE] In Llama models, it's OK for bias and rotary embeddings to be "
@@ -165,4 +168,4 @@ def print_model_params(model: nn.Module, args: argparse.Namespace) -> None:
             "FMS and HF models (but model output is preserved)."
         )
     dprint(model)
-    dprint("="*60 + "\n")
+    dprint("=" * 60 + "\n")

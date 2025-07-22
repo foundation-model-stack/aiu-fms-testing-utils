@@ -6,7 +6,6 @@ from aiu_fms_testing_utils.utils.aiu_setup import dprint
 
 
 def get_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
-
     # Arguments for FMS model loading
     args_model_loading = parser.add_argument_group("FMS model loading")
     args_model_loading.add_argument(
@@ -51,7 +50,7 @@ def get_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
         help=(
             "If set, cast any bf16 weights in the model to fp16 for AIU compiler. "
             "Doesn't touch fp32 or quantized."
-        )
+        ),
     )
     parser.add_argument(
         "--cast_fp16_to_bf16",
@@ -59,7 +58,7 @@ def get_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
         help=(
             "If set, cast any fp16 weights in the model to bf16 for GPU. "
             "Doesn't touch fp32 or quantized."
-        )
+        ),
     )
 
     # Quantization arguments
@@ -79,7 +78,7 @@ def get_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
         type=str,
         choices=["cuda", "cpu", "aiu", "aiu-senulator"],
         default="cuda",
-        help="The device to run the model on"
+        help="The device to run the model on",
     )
     args_run_settings.add_argument(
         "--seed",
@@ -118,10 +117,7 @@ def get_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
         help="This is a distributed job (multiple instances run with RANK+WORLD_SIZE)",
     )
     args_run_settings.add_argument(
-        '-v', '--verbose',
-        action='store_true',
-        default=0,
-        help="Enable verbose output"
+        "-v", "--verbose", action="store_true", default=0, help="Enable verbose output"
     )
 
     # Arguments for compilation

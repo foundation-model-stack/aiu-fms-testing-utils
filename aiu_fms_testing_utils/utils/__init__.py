@@ -20,9 +20,10 @@ def warmup_model(
     max_new_tokens: int,
     compile_dynamic_sendnn: bool = False,
     use_cache: bool = True,
-    **extra_kwargs
+    **extra_kwargs,
 ):
     import torch_sendnn
+
     attention_specific_kwargs = {}
     attn_name = extra_kwargs["attn_name"]
     if "paged" in attn_name:
@@ -30,7 +31,9 @@ def warmup_model(
     else:
         # TODO: Add a unified generation dependent on attn_type
         from fms.utils.generation import generate
+
         attention_specific_kwargs["contiguous_cache"] = True
+        attention_specific_kwargs["max_seq_len"] = input_ids.shape[1] + max_new_tokens
 
     dprint("AIU warmup")
     pt_compile_model_time = time.time()
@@ -63,6 +66,7 @@ def warmup_model(
     pt_compile_model_time = time.time() - pt_compile_model_time
     dprint(f"PT compile complete, took {pt_compile_model_time:.3f}s")
 
+
 def ids_for_prompt(prompt, tokenizer):
     tokens = tokenizer.tokenize(prompt)
     ids = tokenizer.convert_tokens_to_ids(tokens)
@@ -71,12 +75,13 @@ def ids_for_prompt(prompt, tokenizer):
     ids = torch.tensor(ids, dtype=torch.long, device="cpu")
     return ids
 
+
 def __download_file(url, filename):
     try:
         response = requests.get(url, stream=True)
         response.raise_for_status()
 
-        with open(filename, 'wb') as file:
+        with open(filename, "wb") as file:
             for chunk in response.iter_content(chunk_size=8192):
                 file.write(chunk)
         print(f"Successfully downloaded {filename}")
@@ -84,13 +89,14 @@ def __download_file(url, filename):
     except requests.exceptions.RequestException as e:
         print(f"An error occurred: {e}")
 
+
 def __sample_requests(
     prompt_list: List[str],
     num_requests: int,
     tokenizer: BaseTokenizer,
     prompt_length_min: int = 32,
     prompt_length_max: int = 64,
-    seed: Optional[int] = None
+    seed: Optional[int] = None,
 ):
     # Shuffle the dataset.
     if seed is not None:
@@ -114,20 +120,24 @@ def __sample_requests(
 
     return filtered_dataset
 
+
 def sample_sharegpt_requests(
     dataset_path: str,
     num_requests: int,
     tokenizer: BaseTokenizer,
     prompt_length_min: int = 32,
     prompt_length_max: int = 64,
-    seed: Optional[int] = None
+    seed: Optional[int] = None,
 ) -> List[Tuple[str, int]]:
     if not os.path.exists(dataset_path):
         print("downloading share-gpt dataset as it does not exist")
-        __download_file("https://huggingface.co/datasets/anon8231489123/ShareGPT_Vicuna_unfiltered/resolve/main/ShareGPT_V3_unfiltered_cleaned_split.json", dataset_path)
+        __download_file(
+            "https://huggingface.co/datasets/anon8231489123/ShareGPT_Vicuna_unfiltered/resolve/main/ShareGPT_V3_unfiltered_cleaned_split.json",
+            dataset_path,
+        )
 
     # Load the dataset.
-    with open(dataset_path, encoding='utf-8') as f:
+    with open(dataset_path, encoding="utf-8") as f:
         dataset = json.load(f)
     # Filter out the conversations with less than 2 turns.
     dataset = [data for data in dataset if len(data["conversations"]) >= 2]
@@ -142,20 +152,21 @@ def sample_sharegpt_requests(
         seed,
     )
 
+
 def sample_squad_v2_qa_requests(
     dataset_path: str,
     num_requests: int,
     tokenizer: BaseTokenizer,
     prompt_length_min: int = 32,
     prompt_length_max: int = 64,
-    seed: Optional[int] = None
+    seed: Optional[int] = None,
 ) -> List[Tuple[str, int]]:
     from datasets import load_dataset
 
     if os.path.exists(dataset_path):
-        ds = load_dataset(dataset_path)['train']
+        ds = load_dataset(dataset_path)["train"]
     else:
-        ds = load_dataset("rajpurkar/squad_v2", cache_dir=dataset_path)['train']
+        ds = load_dataset("rajpurkar/squad_v2", cache_dir=dataset_path)["train"]
 
     ds = [f"{data['context']}\n{data['question']}" for data in ds]
 
@@ -168,7 +179,10 @@ def sample_squad_v2_qa_requests(
         seed,
     )
 
-def prepare_inputs(batch_size, seq_length, tokenizer, ds_path, seed=0, ds_type="sharegpt"):
+
+def prepare_inputs(
+    batch_size, seq_length, tokenizer, ds_path, seed=0, ds_type="sharegpt"
+):
     """
     Prepare input IDs and padding kwargs for a batch of questions.
 
@@ -183,13 +197,13 @@ def prepare_inputs(batch_size, seq_length, tokenizer, ds_path, seed=0, ds_type="
     Returns:
         tuple: A tuple containing the input IDs and padding kwargs.
     """
-    if not "sharegpt" in ds_type:
+    if "sharegpt" not in ds_type:
         prompts_and_sizes = sample_squad_v2_qa_requests(
-            ds_path, 
-            batch_size, 
-            tokenizer, 
-            int(seq_length / 2), 
-            seq_length, 
+            ds_path,
+            batch_size,
+            tokenizer,
+            int(seq_length / 2),
+            seq_length,
             seed,
         )
     else:

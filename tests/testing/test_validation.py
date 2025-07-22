@@ -1,11 +1,19 @@
 import tempfile
 import pytest
-from aiu_fms_testing_utils.testing.validation import LogitsExtractorHook, extract_validation_information, load_validation_information
+from aiu_fms_testing_utils.testing.validation import (
+    LogitsExtractorHook,
+    extract_validation_information,
+    load_validation_information,
+)
 from fms.models import get_model
 from fms.utils.generation import pad_input_ids
 import torch
 
-@pytest.mark.parametrize("validation_type,post_iteration_hook", [("logits", LogitsExtractorHook()), ("tokens", None)])
+
+@pytest.mark.parametrize(
+    "validation_type,post_iteration_hook",
+    [("logits", LogitsExtractorHook()), ("tokens", None)],
+)
 def test_validation_info_round_trip(validation_type, post_iteration_hook):
     # prepare a small cpu model
     model = get_model(
@@ -22,7 +30,11 @@ def test_validation_info_round_trip(validation_type, post_iteration_hook):
     # prepare input_ids
     prompt_list = []
     for i in range(batch_size):
-        prompt_list.append(torch.randint(0, model.config.src_vocab_size, (seq_length - 2 * i,), dtype=torch.long))
+        prompt_list.append(
+            torch.randint(
+                0, model.config.src_vocab_size, (seq_length - 2 * i,), dtype=torch.long
+            )
+        )
 
     input_ids, padding_kwargs = pad_input_ids(prompt_list, min_pad_length=seq_length)
 
@@ -33,14 +45,16 @@ def test_validation_info_round_trip(validation_type, post_iteration_hook):
         max_new_tokens,
         post_iteration_hook,
         attn_algorithm="math",
-        **padding_kwargs
+        **padding_kwargs,
     )
 
     with tempfile.TemporaryDirectory() as workdir:
         output_path = f"{workdir}/validation_info"
         generated_validation_info.save(output_path)
 
-        loaded_validation_info = load_validation_information(output_path, validation_type, batch_size)
+        loaded_validation_info = load_validation_information(
+            output_path, validation_type, batch_size
+        )
 
         assert len(generated_validation_info) == len(loaded_validation_info)
 

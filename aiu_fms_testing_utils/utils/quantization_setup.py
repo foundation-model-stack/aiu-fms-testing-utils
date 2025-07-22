@@ -10,7 +10,7 @@ import torch
 from torch import nn
 
 # Local Packages
-from aiu_fms_testing_utils.utils.aiu_setup import dprint, rank
+from aiu_fms_testing_utils.utils.aiu_setup import dprint
 
 
 def import_addons(args: argparse.Namespace) -> None:
@@ -20,13 +20,13 @@ def import_addons(args: argparse.Namespace) -> None:
 
     try:
         if args.quantization == "gptq" and "aiu" in args.device_type:
-            from fms_mo.aiu_addons.gptq import gptq_aiu_adapter, gptq_aiu_linear
+            from fms_mo.aiu_addons.gptq import gptq_aiu_adapter, gptq_aiu_linear  # noqa: F401
         elif args.quantization == "fp8":
-            from fms_mo.aiu_addons.fp8 import fp8_adapter, fp8_attn, fp8_linear
+            from fms_mo.aiu_addons.fp8 import fp8_adapter, fp8_attn, fp8_linear  # noqa: F401
         elif args.quantization == "int8":
-            from fms_mo.aiu_addons.i8i8 import i8i8_aiu_adapter, i8i8_aiu_linear
+            from fms_mo.aiu_addons.i8i8 import i8i8_aiu_adapter, i8i8_aiu_linear  # noqa: F401
         dprint("Loaded `aiu_addons` functionalities")
-    except:
+    except ImportError:
         raise ImportError(f"Failed to import {args.quantization} addons from FMS-MO.")
 
 
@@ -57,7 +57,7 @@ def get_linear_config(args: argparse.Namespace) -> dict[str, Any]:
 
         qconfig_path = args.model_path + "/quantize_config.json"
         if os.path.exists(qconfig_path):
-            with open(qconfig_path, 'r') as f:
+            with open(qconfig_path, "r") as f:
                 dprint(f"loading quantization config from {qconfig_path}")
                 qconfig = json.load(f)
                 group_size = qconfig["group_size"]
@@ -111,9 +111,13 @@ def get_linear_config(args: argparse.Namespace) -> dict[str, Any]:
 
         if args.int8_smoothquant:
             # TODO: load info from config saved during quantization
-            if any("granite" in p.lower() for p in [args.model_path, args.architecture]):
+            if any(
+                "granite" in p.lower() for p in [args.model_path, args.architecture]
+            ):
                 smoothquant_layers = ["key", "value", "w1", "wg"]
-            elif any("roberta" in p.lower() for p in [args.model_path, args.architecture]):
+            elif any(
+                "roberta" in p.lower() for p in [args.model_path, args.architecture]
+            ):
                 smoothquant_layers = ["query", "key", "value", "w1"]
             else:
                 raise NotImplementedError(
@@ -125,8 +129,8 @@ def get_linear_config(args: argparse.Namespace) -> dict[str, Any]:
         linear_config = {
             "linear_type": partial(
                 select_int8_module,
-                smoothquant = args.int8_smoothquant,
-                smoothquant_layers = smoothquant_layers,
+                smoothquant=args.int8_smoothquant,
+                smoothquant_layers=smoothquant_layers,
             ),
             "weight_per_channel": args.int8_weight_per_channel,
             "activ_quant_type": args.int8_activ_quant_type,
@@ -165,4 +169,3 @@ def validate_quantization(model: nn.Module, args: argparse.Namespace) -> None:
                 "FP8 checkpoints on GPU with fp16 weights require casting to bf16 "
                 "using --cast_fp16_to_bf16. Do not use --default_dtype!"
             )
-

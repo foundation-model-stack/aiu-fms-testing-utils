@@ -5,20 +5,23 @@ import torch
 # ==============================================================
 # Common utilities
 # ==============================================================
-#-------------
+# -------------
 # Discover the world size and my rank (envars set by torchrun)
 # https://pytorch.org/docs/stable/elastic/run.html#environment-variables
-#-------------
+# -------------
 local_rank = int(os.getenv("LOCAL_RANK", 0))
 rank = int(os.getenv("RANK", 0))
 world_rank = rank
 world_size = int(os.getenv("WORLD_SIZE", 1))
 
+
 def dprint_str(text):
     return f"[{rank:2d}/{world_size:2d}]: {text}"
 
+
 def dprint(text):
     print(dprint_str(text))
+
 
 # ==============================================================
 # Common setup
@@ -48,9 +51,9 @@ def aiu_setup(rank=0, world_size=1, local_rank=0, local_size=1, verbose=False):
     #     )  # directory needs to exist
 
     if os.getenv("FLEX_COMPUTE") == "SENTIENT":
-        dprint(f"Sentient AIU: Enabled")
+        dprint("Sentient AIU: Enabled")
     else:
-        dprint(f"Sentient AIU: Disabled (Senulator)")
+        dprint("Sentient AIU: Disabled (Senulator)")
 
 
 # ==============================================================
@@ -66,7 +69,7 @@ def aiu_dist_setup(rank, world_size, local_rank=-0, local_size=-1, verbose=False
         os.environ["MASTER_ADDR"] = "localhost"
         os.environ["MASTER_PORT"] = "12355"
     elif rank == 0 or verbose:
-        dprint(f"Detected running via torchrun")
+        dprint("Detected running via torchrun")
 
     aiu_setup(rank, world_size)
 
@@ -75,41 +78,45 @@ def aiu_dist_setup(rank, world_size, local_rank=-0, local_size=-1, verbose=False
 # Environment variables utilities
 # ==============================================================
 def set_aiu_env_vars(args: argparse.Namespace) -> None:
-    """Set necessary environment variables for AIU"""
+    """Set necessary environment variables for AIU
 
-    if not args.compile_dynamic:
-        _target_cache_size = max(
-            int(args.max_new_tokens * 2),
-            int(args.min_pad_length * 2.5),
-            int(args.fixed_prompt_length * 2.5),
-        )
-        _prompt_size = max(int(args.min_pad_length), int(args.fixed_prompt_length))
-        if hasattr(torch._dynamo.config, "accumulated_cache_size_limit"):
-            if _target_cache_size > torch._dynamo.config.accumulated_cache_size_limit:
-                _prev = torch._dynamo.config.accumulated_cache_size_limit
-                torch._dynamo.config.accumulated_cache_size_limit = _target_cache_size
-                dprint(
-                    "NOTICE: Adjusting torch._dynamo.config.accumulated_cache_size_limit "
-                    f"from {_prev} to {torch._dynamo.config.accumulated_cache_size_limit} "
-                    f"to accomodate prompt size of {_prompt_size} and decode tokens of "
-                    f"{args.max_new_tokens}"
-                )
-
-        if _target_cache_size > torch._dynamo.config.cache_size_limit:
-            _prev = torch._dynamo.config.cache_size_limit
-            torch._dynamo.config.cache_size_limit = _target_cache_size
-            dprint(
-                f"NOTICE: Adjusting torch._dynamo.config.cache_size_limit from {_prev} to "
-                f"{torch._dynamo.config.cache_size_limit} to accomodate prompt size of "
-                f"{_prompt_size} and decode tokens of {args.max_new_tokens}"
-            )
-
-        torch._dynamo.config.assume_static_by_default = True
-        torch._dynamo.config.automatic_dynamic_shapes = False
-
-    # os.environ.setdefault("DTCOMPILER_KEEP_EXPORT", "true")  # CONFIRM IF THIS IS NEEDE
+    NOTE: to enable graph export, set DTCOMPILER_KEEP_EXPORT=true in your env
+    """
 
     if not args.is_encoder:
+        if not args.compile_dynamic:
+            _target_cache_size = max(
+                int(args.max_new_tokens * 2),
+                int(args.min_pad_length * 2.5),
+                int(args.fixed_prompt_length * 2.5),
+            )
+            _prompt_size = max(int(args.min_pad_length), int(args.fixed_prompt_length))
+            if hasattr(torch._dynamo.config, "accumulated_cache_size_limit"):
+                if (
+                    _target_cache_size
+                    > torch._dynamo.config.accumulated_cache_size_limit
+                ):
+                    _prev = torch._dynamo.config.accumulated_cache_size_limit
+                    torch._dynamo.config.accumulated_cache_size_limit = (
+                        _target_cache_size
+                    )
+                    dprint(
+                        "NOTICE: Adjusting torch._dynamo.config.accumulated_cache_size_limit "
+                        f"from {_prev} to {torch._dynamo.config.accumulated_cache_size_limit} "
+                        f"to accomodate prompt size of {_prompt_size} and decode tokens of "
+                        f"{args.max_new_tokens}"
+                    )
+            if _target_cache_size > torch._dynamo.config.cache_size_limit:
+                _prev = torch._dynamo.config.cache_size_limit
+                torch._dynamo.config.cache_size_limit = _target_cache_size
+                dprint(
+                    f"NOTICE: Adjusting torch._dynamo.config.cache_size_limit from {_prev} to "
+                    f"{torch._dynamo.config.cache_size_limit} to accomodate prompt size of "
+                    f"{_prompt_size} and decode tokens of {args.max_new_tokens}"
+                )
+            torch._dynamo.config.assume_static_by_default = True
+            torch._dynamo.config.automatic_dynamic_shapes = False
+
         os.environ.setdefault("COMPILATION_MODE", "offline_decoder")
 
     if args.device_type == "aiu-senulator":

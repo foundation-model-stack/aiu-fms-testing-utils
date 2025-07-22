@@ -2,7 +2,7 @@
 
 from aiu_fms_testing_utils.utils.aiu_setup import aiu_setup, rank, world_size
 import os
-import pytest
+
 
 def pytest_sessionstart(session):
     """
@@ -22,6 +22,7 @@ def pytest_sessionstart(session):
 
     os.environ.setdefault("DTLOG_LEVEL", "error")
     os.environ.setdefault("DT_DEEPRT_VERBOSE", "-1")
+
 
 def pytest_addoption(parser):
     parser.addoption(
@@ -43,4 +44,3 @@ def pytest_generate_tests(metafunc):
     option_value = metafunc.config.option.capture_expectation
     if "capture_expectation" in metafunc.fixturenames and option_value is not None:
         metafunc.parametrize("capture_expectation", [option_value])
-

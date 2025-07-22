@@ -6,7 +6,6 @@ import argparse
 
 import itertools
 import torch
-import torch.nn as nn
 
 from fms.utils import tokenizers
 from fms.models import get_model
@@ -42,7 +41,7 @@ parser.add_argument(
     choices=["generate", "model-forward"],
     default="generate",
     required=True,
-    help="Sets the output generation mode."
+    help="Sets the output generation mode.",
 )
 parser.add_argument(
     "--model_loader",
@@ -56,33 +55,30 @@ parser.add_argument(
     type=str,
     default="1",
     required=True,
-    help="Batch sizes separated by comma. Eg.: 1,2"
+    help="Batch sizes separated by comma. Eg.: 1,2",
 )
 parser.add_argument(
     "--seq_lengths",
     type=str,
     default="64",
     required=True,
-    help="Sequence lengths separated by comma. Eg.: 64,2048"
+    help="Sequence lengths separated by comma. Eg.: 64,2048",
 )
 parser.add_argument(
     "--max_new_tokens",
     type=str,
     default="128",
     required=True,
-    help="Max number of generated tokens separated by comma. Eg.: 64,128"
+    help="Max number of generated tokens separated by comma. Eg.: 64,128",
 )
 parser.add_argument(
-    "--output_path",
-    type=str,
-    default="/tmp/output",
-    help="Path to save output files"
+    "--output_path", type=str, default="/tmp/output", help="Path to save output files"
 )
 parser.add_argument(
     "--sharegpt_path",
     type=str,
     default=os.path.expanduser("~/share_gpt.json"),
-    help="Path to sharegpt data json"
+    help="Path to sharegpt data json",
 )
 
 args = parser.parse_args()
@@ -136,6 +132,7 @@ common_shapes = list(
 
 generate_iters = 0
 
+
 def __infer_layer(model, max_len, device, max_new_tokens, batch_size, tokenizer):
     """
     Infer a model with registered layer hooks using generated inputs.
@@ -151,7 +148,7 @@ def __infer_layer(model, max_len, device, max_new_tokens, batch_size, tokenizer)
     Returns:
         torch.Tensor: The inferred model's layers output.
     """
-    
+
     do_sample = False
     use_cache = True
     result = None
@@ -196,13 +193,13 @@ def __infer_layer(model, max_len, device, max_new_tokens, batch_size, tokenizer)
             if len(result.shape) == 1:
                 result = result.unsqueeze(0)
     else:
-        result = model.forward(
-            ids,
-            use_cache=use_cache
-            )
+        result = model.forward(ids, use_cache=use_cache)
         logger.info(f"Model forward completed: Result len is {len(result)}")
 
-def __register_call_layers(model, batch_size, device, seq_length, max_new_tokens, tokenizer):
+
+def __register_call_layers(
+    model, batch_size, device, seq_length, max_new_tokens, tokenizer
+):
     """
     This function registers hooks on the model to track the forward pass of each layer.
     It returns a list of tuples containing the name and output of each layer in the model.
@@ -224,17 +221,17 @@ def __register_call_layers(model, batch_size, device, seq_length, max_new_tokens
     module_depth = {}
     module_name = {}
 
-    def register_depths(module, current_depth=0, name='model'):
+    def register_depths(module, current_depth=0, name="model"):
         module_depth[module] = current_depth
         module_name[module] = name
-        parent=name
+        parent = name
         # if we are dealing with array of layers
         array_layers = all(key.isdigit() for key in module._modules.keys())
         for name, child in module._modules.items():
-            if array_layers: 
-                register_depths(child, current_depth + 1, parent+'['+name+']')
+            if array_layers:
+                register_depths(child, current_depth + 1, parent + "[" + name + "]")
             else:
-                register_depths(child, current_depth + 1, parent+'.'+name)
+                register_depths(child, current_depth + 1, parent + "." + name)
 
     register_depths(model)
 
@@ -244,49 +241,62 @@ def __register_call_layers(model, batch_size, device, seq_length, max_new_tokens
         def safe_forward(*args, **kwargs):
             try:
                 return original_forward(*args, **kwargs)
-            except (RuntimeError,TypeError) as e:
+            except (RuntimeError, TypeError) as e:
                 logger.error(f"Error in {layer.__class__.__name__}: {e}")
                 return torch.zeros_like(args[0]) if args else None
+
         layer.forward = safe_forward
-        
 
     hooks = []
+
     def pre_hook_fn(module, input):
         depth = module_depth.get(module, 0)
         layer_name = module_name.get(module, 0)
-        prefix = '│    ' * depth
-        if len(input) == 0: return
+        prefix = "│    " * depth
+        if len(input) == 0:
+            return
         input_shape_str = f"[{', '.join(map(str, input[0].shape))}]"
         input_type = str(input[0].dtype)
-        if module.parameters() == None: return
+        if module.parameters() is None:
+            return
         param_size = sum(p.numel() for p in module.parameters() if p.requires_grad)
         param_size_str = f"{param_size:,}" if param_size > 0 else "--"
-        logger.info(f"{prefix}├─{layer_name}() -> {module.__class__.__name__} : | Input(arg): {input_shape_str} | {input_type} | Params: {param_size_str}")
+        logger.info(
+            f"{prefix}├─{layer_name}() -> {module.__class__.__name__} : | Input(arg): {input_shape_str} | {input_type} | Params: {param_size_str}"
+        )
         wrap_forward(module)
         # save input for later use with outputs
-        module._debug_input = input 
+        module._debug_input = input
 
     def post_hook_fn(module, input, output):
         layer_name = module_name.get(module, 0)
         # Save inputs and outputs
         tmp = {}
-        if hasattr(module, '_debug_input'):
+        if hasattr(module, "_debug_input"):
             global generate_iters
             generate_iters += 1
-            layer_name = f"{layer_name}.iter-{generate_iters}" if layer_name in layer_stack.keys() else layer_name
+            layer_name = (
+                f"{layer_name}.iter-{generate_iters}"
+                if layer_name in layer_stack.keys()
+                else layer_name
+            )
             tmp[layer_name] = output
             layer_stack.update(tmp)
             # Clean up
-            delattr(module, '_debug_input')
-    
+            delattr(module, "_debug_input")
+
     for name, layer in model.named_modules():
         hooks.append(layer.register_forward_pre_hook(pre_hook_fn))
         hooks.append(layer.register_forward_hook(post_hook_fn))
 
-    
-    __infer_layer(model= model, max_len=seq_length, 
-                  device=device, max_new_tokens=max_new_tokens, 
-                  batch_size=batch_size, tokenizer=tokenizer)
+    __infer_layer(
+        model=model,
+        max_len=seq_length,
+        device=device,
+        max_new_tokens=max_new_tokens,
+        batch_size=batch_size,
+        tokenizer=tokenizer,
+    )
 
     for hook in hooks:
         hook.remove()
@@ -296,10 +306,11 @@ def __register_call_layers(model, batch_size, device, seq_length, max_new_tokens
 
     return layer_stack
 
+
 def get_metric_values(metric_list):
     if isinstance(metric_list, list):
         # shape of the first tensor to be printed in file
-        metric_shape = metric_list[0].shape 
+        metric_shape = metric_list[0].shape
         metric_list_res = torch.stack(metric_list).flatten().tolist()
     else:
         metric_shape = metric_list.shape
@@ -307,12 +318,13 @@ def get_metric_values(metric_list):
 
     return metric_list_res, metric_shape
 
+
 def write_csv(values, path, metric, gpu_layer_shape, cpu_layer_shape, output_shape):
     """
     Write values to a CSV file at the given path.
 
     Args:
-        values (list or float): A list of values to be written to the CSV file. 
+        values (list or float): A list of values to be written to the CSV file.
         If `values` is a single float, it will be written as a scalar value in the first column of the CSV file.
         path (str): The path to the CSV file to write to.
         metric (str): The name of the metric being evaluated.
@@ -323,10 +335,10 @@ def write_csv(values, path, metric, gpu_layer_shape, cpu_layer_shape, output_sha
     Returns:
         None
     """
-    with open(path, 'w') as f:
-        f.write(f'{metric}\n')
-        f.write(f'GPU shape {gpu_layer_shape} CPU shape {cpu_layer_shape}\n')
-        f.write(f'Metric shape {output_shape}\n')
+    with open(path, "w") as f:
+        f.write(f"{metric}\n")
+        f.write(f"GPU shape {gpu_layer_shape} CPU shape {cpu_layer_shape}\n")
+        f.write(f"Metric shape {output_shape}\n")
         if not isinstance(values, float):
             for t in values:
                 f.write(f"{t}\n")
@@ -348,7 +360,7 @@ def generate_layers_metrics(model_path, batch_size, seq_length, max_new_tokens, 
     Returns:
         None
     """
-    
+
     torch.manual_seed(42)
     os.environ["COMPILATION_MODE"] = "offline_decoder"
 
@@ -413,7 +425,7 @@ def generate_layers_metrics(model_path, batch_size, seq_length, max_new_tokens, 
     
     global generate_iters
     generate_iters = 0
-    logger.info(f"Finished registering CPU layers")
+    logger.info("Finished registering CPU layers")
 
     layer_stack_cuda = __register_call_layers(model=validation_model_cuda,
                                              batch_size=batch_size, 
@@ -426,7 +438,6 @@ def generate_layers_metrics(model_path, batch_size, seq_length, max_new_tokens, 
     assert len(layer_stack_cuda.keys()) == len(layer_stack_cpu.keys())
 
     for layer_key, output_val in layer_stack_cuda.items():
-        
         tensor_cpu_out = None
         tensor_cuda_out = None
 
@@ -439,9 +450,9 @@ def generate_layers_metrics(model_path, batch_size, seq_length, max_new_tokens, 
                 cos_sim = []
                 abs_diff = []
                 if len(cpu_output) < 2 and len(cpu_output[-1]) == 1:
-                    # Projection layers (often called "query," "key," and "value" projections) are used to transform the input embeddings 
+                    # Projection layers (often called "query," "key," and "value" projections) are used to transform the input embeddings
                     # into separate query, key, and value vectors. They have tuple outputs, with more than 2 tensors - this path compares this type of output;
-                    # In case of head layers, the last item of the tuple is a list of tensors with the same lenght as the 
+                    # In case of head layers, the last item of the tuple is a list of tensors with the same lenght as the
                     # number of layers in the model. The else path compares this other case.
                     tensor_cuda_out = cuda_output[-1]
                     tensor_cpu_out = cpu_output[-1]
@@ -464,7 +475,7 @@ def generate_layers_metrics(model_path, batch_size, seq_length, max_new_tokens, 
                             cos_sim.append(tensor_cos_sim(head_tensor_cpu[i].to('cuda'), head_tensor_gpu[i]))
                             abs_diff.append(tensor_abs_diff(head_tensor_cpu[i].to('cuda'), head_tensor_gpu[i]))
             else:
-                tensor_cpu_out = cpu_output.to('cuda')
+                tensor_cpu_out = cpu_output.to("cuda")
                 tensor_cuda_out = cuda_output
                 abs_diff = tensor_abs_diff(tensor_cpu_out, cuda_output)
                 cos_sim = tensor_cos_sim(tensor_cpu_out, cuda_output)
@@ -488,12 +499,27 @@ def generate_layers_metrics(model_path, batch_size, seq_length, max_new_tokens, 
 
             if not os.path.exists(abs_diff_path):
                 logger.debug("saving abs_diff files")
-                write_csv(abs_diff_res, abs_diff_path, "abs_diff", tensor_cuda_out.shape, tensor_cpu_out.shape, abs_diff_shape)
+                write_csv(
+                    abs_diff_res,
+                    abs_diff_path,
+                    "abs_diff",
+                    tensor_cuda_out.shape,
+                    tensor_cpu_out.shape,
+                    abs_diff_shape,
+                )
             if not os.path.exists(cos_sim_path):
                 logger.debug("saving cos_sim files")
-                write_csv(cos_sim_res, cos_sim_path, "cos_sim", tensor_cuda_out.shape, tensor_cpu_out.shape, cos_shape)
+                write_csv(
+                    cos_sim_res,
+                    cos_sim_path,
+                    "cos_sim",
+                    tensor_cuda_out.shape,
+                    tensor_cpu_out.shape,
+                    cos_shape,
+                )
 
     logger.info(f"Completed {model_path} layers' metrics generation with {mode} mode")
+
 
 for model_id, batch_size, sequence_length, max_new_token in common_shapes:
 
