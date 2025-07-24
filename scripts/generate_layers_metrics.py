@@ -75,7 +75,7 @@ parser.add_argument(
     help="Max number of generated tokens separated by comma. Eg.: 64,128",
 )
 parser.add_argument(
-    "--output_path", type=str, default=None, help="Path to save output files"
+    "--output_path", type=str, default="/tmp/output", help="Path to save output files"
 )
 parser.add_argument(
     "--sharegpt_path",
@@ -602,6 +602,8 @@ for model_id, batch_size, sequence_length, max_new_token in common_shapes:
         os.makedirs(model_thresholds_folder)
     else:
         model_thresholds_folder = output_path
+
+    logging.basicConfig(filename=model_thresholds_folder)
 
     logger.info(
         f"testing model_id-{model_id}, max_new_tokens-{max_new_token}, batch_size-{batch_size}, seq_length-{sequence_length}"
