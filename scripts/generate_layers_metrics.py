@@ -88,7 +88,10 @@ args = parser.parse_args()
 mode = args.mode
 output_path = args.output_path
 sharegpt_path = args.sharegpt_path
-default_path = os.getenv("DEEPVIEW_THRESHOLDS_FOLDERPATH", "/home/senuser/models/deepview/layerwise-thresholds")
+default_path = os.getenv(
+    "DEEPVIEW_THRESHOLDS_FOLDERPATH",
+    "/home/senuser/models/deepview/layerwise-thresholds",
+)
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -606,9 +609,7 @@ for model_id, batch_size, sequence_length, max_new_token in common_shapes:
 
     logging.basicConfig(filename=layer_io)
 
-    logger.info(
-        f"model output path is {model_thresholds_folder}"
-    )
+    logger.info(f"model output path is {model_thresholds_folder}")
 
     logger.info(
         f"testing model_id-{model_id}, max_new_tokens-{max_new_token}, batch_size-{batch_size}, seq_length-{sequence_length}"
