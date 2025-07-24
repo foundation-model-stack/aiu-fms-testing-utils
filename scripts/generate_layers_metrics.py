@@ -75,7 +75,7 @@ parser.add_argument(
     help="Max number of generated tokens separated by comma. Eg.: 64,128",
 )
 parser.add_argument(
-    "--output_path", type=str, default="/tmp/output", help="Path to save output files"
+    "--output_path", type=str, default=None, help="Path to save output files"
 )
 parser.add_argument(
     "--sharegpt_path",
@@ -88,6 +88,7 @@ args = parser.parse_args()
 mode = args.mode
 output_path = args.output_path
 sharegpt_path = args.sharegpt_path
+default_path = "/home/senuser/models/deepview/layerwise-thresholds"
 
 if not os.path.exists(os.path.join(output_path, "layers-input-output-logs")):
     os.makedirs(os.path.join(output_path, "layers-input-output-logs"))
@@ -591,9 +592,13 @@ for model_id, batch_size, sequence_length, max_new_token in common_shapes:
         include_shapes=False,
     )
 
-    model_thresholds_folder = os.path.join(output_path, model_prefix)
+    model_root_folder = os.path.join(default_path, model_prefix)
+    model_thresholds_folder = os.path.join(default_path, model_prefix, mode)
 
-    if not os.path.exists(output_path):
+    if not output_path or not os.path.exists(output_path):
+        os.makedirs(model_thresholds_folder)
+    elif not os.path.exists(model_root_folder):
+        os.makedirs(model_root_folder)
         os.makedirs(model_thresholds_folder)
     else:
         model_thresholds_folder = output_path
