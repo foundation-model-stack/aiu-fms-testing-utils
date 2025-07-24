@@ -591,7 +591,7 @@ for model_id, batch_size, sequence_length, max_new_token in common_shapes:
 
     model_root_folder = os.path.join(default_path, model_prefix)
     model_thresholds_folder = os.path.join(default_path, model_prefix, mode)
-    layer_io = os.join(model_thresholds_folder, "layers-input-output-logs")
+    layer_io = os.path.join(model_thresholds_folder, "layers-input-output-logs")
 
     if not output_path or not os.path.exists(output_path):
         os.makedirs(model_thresholds_folder)
