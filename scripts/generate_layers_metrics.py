@@ -75,7 +75,7 @@ parser.add_argument(
     help="Max number of generated tokens separated by comma. Eg.: 64,128",
 )
 parser.add_argument(
-    "--output_path", type=str, default="/tmp/output", help="Path to save output files"
+    "--output_path", type=str, default=None, help="Path to save output files"
 )
 parser.add_argument(
     "--sharegpt_path",
@@ -88,16 +88,13 @@ args = parser.parse_args()
 mode = args.mode
 output_path = args.output_path
 sharegpt_path = args.sharegpt_path
-default_path = "/home/senuser/models/deepview/layerwise-thresholds"
-
-if not os.path.exists(os.path.join(output_path, "layers-input-output-logs")):
-    os.makedirs(os.path.join(output_path, "layers-input-output-logs"))
+default_path = os.getenv("DEEPVIEW_THRESHOLDS_FOLDERPATH", "/home/senuser/models/deepview/layerwise-thresholds")
 
 logging.basicConfig(
     level=logging.DEBUG,
     format="%(asctime)s %(name)-12s %(message)s",
     datefmt="%m-%d %H:%M",
-    filename=os.path.join(output_path, "layers-input-output-logs", "layers_input.log"),
+    filename=os.path.join("/tmp", "layers-input-output-logs", "layers_input.log"),
     filemode="w",
 )
 console = logging.StreamHandler()
@@ -604,6 +601,10 @@ for model_id, batch_size, sequence_length, max_new_token in common_shapes:
         model_thresholds_folder = output_path
 
     logging.basicConfig(filename=model_thresholds_folder)
+
+    logger.info(
+        f"model output path is {model_thresholds_folder}"
+    )
 
     logger.info(
         f"testing model_id-{model_id}, max_new_tokens-{max_new_token}, batch_size-{batch_size}, seq_length-{sequence_length}"
