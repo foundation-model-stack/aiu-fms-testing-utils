@@ -94,7 +94,7 @@ logging.basicConfig(
     level=logging.DEBUG,
     format="%(asctime)s %(name)-12s %(message)s",
     datefmt="%m-%d %H:%M",
-    filename=os.path.join("/tmp", "layers-input-output-logs", "layers_input.log"),
+    filename=os.path.join("/tmp", "layers_input.log"),
     filemode="w",
 )
 console = logging.StreamHandler()
@@ -437,7 +437,7 @@ def generate_layers_metrics(
     torch.save(
         layer_stack_cpu,
         os.path.join(
-            output_path,
+            model_thresholds_folder,
             "layers-input-output-logs",
             f"{model_prefix}-{mode}-layer_stack_cpu.pt",
         ),
@@ -459,7 +459,7 @@ def generate_layers_metrics(
     torch.save(
         layer_stack_cuda,
         os.path.join(
-            output_path,
+            model_thresholds_folder,
             "layers-input-output-logs",
             f"{model_prefix}-{mode}-layer_stack_cuda.pt",
         ),
@@ -591,6 +591,7 @@ for model_id, batch_size, sequence_length, max_new_token in common_shapes:
 
     model_root_folder = os.path.join(default_path, model_prefix)
     model_thresholds_folder = os.path.join(default_path, model_prefix, mode)
+    layer_io = os.join(model_thresholds_folder, "layers-input-output-logs")
 
     if not output_path or not os.path.exists(output_path):
         os.makedirs(model_thresholds_folder)
@@ -600,7 +601,10 @@ for model_id, batch_size, sequence_length, max_new_token in common_shapes:
     else:
         model_thresholds_folder = output_path
 
-    logging.basicConfig(filename=model_thresholds_folder)
+    if not os.path.exists(layer_io):
+        os.makedirs(layer_io)
+
+    logging.basicConfig(filename=layer_io)
 
     logger.info(
         f"model output path is {model_thresholds_folder}"
