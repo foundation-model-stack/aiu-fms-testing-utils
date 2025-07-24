@@ -607,7 +607,13 @@ for model_id, batch_size, sequence_length, max_new_token in common_shapes:
     if not os.path.exists(layer_io):
         os.makedirs(layer_io)
 
-    logging.basicConfig(filename=layer_io)
+    for handler in list(logger.handlers):
+        if isinstance(handler, logging.FileHandler):
+            logger.removeHandler(handler)
+            handler.close() # Close the file handle
+
+    file_handler = logging.FileHandler(os.path.join(layer_io, "layers-io.log"))
+    logger.addHandler(file_handler)
 
     logger.info(f"model output path is {model_thresholds_folder}")
 
