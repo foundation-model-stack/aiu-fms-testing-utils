@@ -51,7 +51,7 @@ def warmup_model(
                 **extra_kwargs,
             )
 
-    extra_kwargs = {**_extra_kwargs, "only_last_token": "paged" not in attn_name}
+    extra_kwargs = {**_extra_kwargs, "only_last_token": os.environ.get("PAGED_OPTIMIZATION_ONLY_LAST_TOKEN", "1") == "1"}
 
     with torch_sendnn.warmup_mode():
         generate(
