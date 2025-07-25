@@ -2,7 +2,6 @@ from pathlib import Path
 from typing import List, Tuple, Callable, MutableMapping, Any, Optional
 
 import torch
-from aiu_fms_testing_utils.utils import ids_for_prompt
 from aiu_fms_testing_utils.utils.aiu_setup import dprint
 import os
 
@@ -206,8 +205,9 @@ def load_validation_information(
             # Text format will get tokenized
             validation_info.append(
                 {
-                    "tokens": ids_for_prompt(
-                        validation_file_path.read_text(encoding="utf-8"), tokenizer
+                    "tokens": tokenizer.encode(
+                        validation_file_path.read_text(encoding="utf-8"),
+                        return_tensors="pt",
                     ),
                     "logits": None,
                 }
@@ -378,12 +378,8 @@ def print_failed_cases(failed_cases, aiu_tokens, validation_tokens, tokenizer):
         aiu_token = aiu_tokens[sentence_index][token_index]
         validation_token = validation_tokens[sentence_index][token_index]
 
-        aiu_str = tokenizer.convert_tokens_to_string(
-            tokenizer.convert_ids_to_tokens(aiu_token)
-        )
-        validation_str = tokenizer.convert_tokens_to_string(
-            tokenizer.convert_ids_to_tokens(validation_token)
-        )
+        aiu_str = tokenizer.decode(aiu_token)
+        validation_str = tokenizer.decode(validation_token)
         print(
             f"In sentence {sentence_index + 1}/{len(aiu_tokens)}, token {token_index}, AIU outputs {aiu_token} instead of {validation_token} -- AIU val={aiu_str} -- CPU val={validation_str}"
         )

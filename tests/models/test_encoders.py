@@ -2,16 +2,16 @@ from fms.testing.comparison import (
     ModelSignatureParams,
     get_signature,
 )
-from fms.utils import tokenizers
 import pytest
 from fms.models import get_model
 from fms.utils.generation import pad_input_ids
 import itertools
 import torch
-from aiu_fms_testing_utils.utils import ids_for_prompt, sample_squad_v2_qa_requests
+from aiu_fms_testing_utils.utils import sample_squad_v2_qa_requests
 from aiu_fms_testing_utils.utils.aiu_setup import dprint
 import os
 import numpy as np
+from transformers import AutoTokenizer
 
 # Add models to test here
 ROBERTA_SQUAD_V2 = "deepset/roberta-base-squad2"
@@ -61,7 +61,7 @@ def __prepare_inputs(batch_size, seq_length, tokenizer, seed=0):
     )
     prompt_list = []
     for prompt, _ in prompts_and_sizes:
-        prompt_list.append(ids_for_prompt(prompt, tokenizer))
+        prompt_list.append(tokenizer.encode(prompt, return_tensors="pt").squeeze(0))
 
     input_ids, padding_kwargs = pad_input_ids(
         prompt_list, min_pad_length=seq_length, is_causal_mask=False
@@ -111,7 +111,7 @@ def test_common_shapes(model_path, batch_size, seq_length):
         f"testing model={model_path}, batch_size={batch_size}, seq_length={seq_length}"
     )
 
-    tokenizer = tokenizers.get_tokenizer(model_path)
+    tokenizer = AutoTokenizer.from_pretrained(model_path)
 
     if os.path.exists(model_path):
         model_path_kwargs = {"model_path": model_path}

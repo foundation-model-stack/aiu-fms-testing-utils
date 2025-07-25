@@ -11,7 +11,7 @@ import torch
 import torch._inductor.config
 from fms.models import get_model, register_model
 from fms.models.llama import LLaMAConfig, _llama_factory_factory
-from fms.utils import generation, tokenizers
+from fms.utils import generation
 from fms.utils.generation import pad_input_ids
 from torch import distributed as dist
 from aiu_fms_testing_utils.utils import warmup_model
@@ -27,6 +27,7 @@ from aiu_fms_testing_utils.testing.validation import (
 )
 from aiu_fms_testing_utils.utils import aiu_setup
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, rank, local_rank, world_size
+from transformers import AutoTokenizer
 
 # This example script validates models on AIU through comparisons to other devices.
 parser = argparse.ArgumentParser(
@@ -469,7 +470,7 @@ if needs_validation_run:
         dprint(validation_model)
         dprint("=" * 60 + "\n")
 
-tokenizer = tokenizers.get_tokenizer(args.tokenizer)
+tokenizer = AutoTokenizer.from_pretrained(args.tokenizer)
 model.eval()
 torch.set_grad_enabled(False)
 loading_model_time = time.time() - loading_model_time
@@ -488,15 +489,6 @@ if needs_validation_run and args.validation_compile:
     validation_model.compile(mode=args.compile_mode, backend=args.compile_backend)
 
 add_special_tokens = tokenizer.bos_token_id != tokenizer.eos_token_id
-
-
-def ids_for_prompt(prompt):
-    tokens = tokenizer.tokenize(prompt)
-    ids = tokenizer.convert_tokens_to_ids(tokens)
-    if add_special_tokens:
-        ids = [tokenizer.bos_token_id] + ids
-    ids = torch.tensor(ids, dtype=torch.long, device="cpu")
-    return ids
 
 
 def truncate_prompts_to_max_length(prompts, max_len, max_allowed_length):
@@ -547,7 +539,11 @@ if args.prompt_path != "":
     for i, prompt_file_path in enumerate(prompt_file_paths):
         if i == args.batch_size:
             break
-        prompts.append(ids_for_prompt(prompt_file_path.read_text(encoding="utf-8")))
+        prompts.append(
+            tokenizer.encode(
+                prompt_file_path.read_text(encoding="utf-8"), return_tensors="pt"
+            )
+        )
 
 else:
     if args.prompt_type == "chat":
@@ -577,10 +573,10 @@ else:
         dprint("prompt_type must be one of chat or code")
         exit()
 
-    prompt1 = ids_for_prompt(prompt1)
-    prompt2 = ids_for_prompt(prompt2)
-    prompt3 = ids_for_prompt(prompt3)
-    prompt4 = ids_for_prompt(prompt4)
+    prompt1 = tokenizer.encode(prompt1, return_tensors="pt").squeeze(0)
+    prompt2 = tokenizer.encode(prompt2, return_tensors="pt").squeeze(0)
+    prompt3 = tokenizer.encode(prompt3, return_tensors="pt").squeeze(0)
+    prompt4 = tokenizer.encode(prompt4, return_tensors="pt").squeeze(0)
     prompts = [prompt1, prompt2, prompt3, prompt4]
     prompts = prompts * ((args.batch_size // 4) + 1)
     prompts = prompts[: args.batch_size]
@@ -622,9 +618,7 @@ def print_result(result, result_idx: int = 0, file_prefix: str = ""):
     if not args.no_early_termination:
         result = generation.truncate_after_eos(result, tokenizer.eos_token_id)
 
-    output_str = tokenizer.convert_tokens_to_string(
-        tokenizer.convert_ids_to_tokens(result)
-    )
+    output_str = tokenizer.decode(result)
 
     if args.output_path != "":
         output_path = Path(args.output_path)

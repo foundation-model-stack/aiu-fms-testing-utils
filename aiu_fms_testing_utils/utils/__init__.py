@@ -67,15 +67,6 @@ def warmup_model(
     dprint(f"PT compile complete, took {pt_compile_model_time:.3f}s")
 
 
-def ids_for_prompt(prompt, tokenizer):
-    tokens = tokenizer.tokenize(prompt)
-    ids = tokenizer.convert_tokens_to_ids(tokens)
-    if tokenizer.bos_token_id != tokenizer.eos_token_id:
-        ids = [tokenizer.bos_token_id] + ids
-    ids = torch.tensor(ids, dtype=torch.long, device="cpu")
-    return ids
-
-
 def __download_file(url, filename):
     try:
         response = requests.get(url, stream=True)
@@ -110,7 +101,7 @@ def __sample_requests(
 
         # Tokenize the prompts and completions.
         prompt = prompt_list[i]
-        prompt_token_ids = ids_for_prompt(prompt, tokenizer)
+        prompt_token_ids = tokenizer.encode(prompt, return_tensors="pt").squeeze(0)
 
         prompt_len = len(prompt_token_ids)
         if prompt_len < prompt_length_min or prompt_len > prompt_length_max:
@@ -217,7 +208,7 @@ def prepare_inputs(
         )
     prompt_list = []
     for prompt, _ in prompts_and_sizes:
-        prompt_list.append(ids_for_prompt(prompt, tokenizer))
+        prompt_list.append(tokenizer.encode(prompt, return_tensors="pt").squeeze(0))
 
     input_ids, padding_kwargs = pad_input_ids(prompt_list, min_pad_length=seq_length)
     return input_ids, padding_kwargs
