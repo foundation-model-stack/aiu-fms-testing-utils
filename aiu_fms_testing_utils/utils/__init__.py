@@ -25,7 +25,7 @@ def warmup_model(
     import torch_sendnn
 
     attention_specific_kwargs = {}
-    attn_name = extra_kwargs["attn_name"]
+    attn_name = extra_kwargs.get("attn_name", "")
     if "paged" in attn_name:
         from aiu_fms_testing_utils.utils.paged import generate, adjust_inputs_to_batch
     else:
