@@ -1,5 +1,6 @@
 # Standard
 import argparse
+import datetime
 from functools import partial
 import itertools
 import json
@@ -7,9 +8,10 @@ import os
 from pathlib import Path
 import random
 import time
+import contextlib
 
 # Third Party
-from aiu_fms_testing_utils.utils import aiu_setup, warmup_model
+from aiu_fms_testing_utils.utils import aiu_setup, warmup_model, stagger_region
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, rank, local_rank, world_size
 import numpy as np
 import torch
@@ -235,6 +237,24 @@ parser.add_argument(
     default="sdpa",
     help="which backend attention to use in mha",
 )
+parser.add_argument(
+    "--stagger_load",
+    type=int,
+    default=0,
+    help="Limit the number of concurrent processes executing the model loading phase. Set to 0 to allow all processes"
+)
+parser.add_argument(
+    "--stagger_update_lazyhandle",
+    type=int,
+    default=0,
+    help="Limit the number of concurrent processes executing the AIU update_lazyhandle phase. Set to 0 to allow all processes"
+)
+parser.add_argument(
+    "--dist_timeout",
+    type=int,
+    default=0,
+    help="Timeout to use for messaging in minutes. Default set by PyTorch dist.init_process_group"
+)
 args = parser.parse_args()
 
 attention_map = {
@@ -296,7 +316,13 @@ dprint(f"{args}")
 is_aiu_backend = "aiu" in args.device_type
 
 if args.distributed:
-    dist.init_process_group()
+    if args.dist_timeout > 0:
+        # Default timeout:
+        # https://docs.pytorch.org/docs/stable/distributed.html#torch.distributed.init_process_group
+        dist.init_process_group(timeout=datetime.timedelta(minutes=args.dist_timeout))
+        dprint(f"NOTICE: init_process_group timeout set to {args.dist_timeout} minutes")
+    else:
+        dist.init_process_group()
     # Fix until PT 2.3
     torch._C._distributed_c10d._register_process_group("default", dist.group.WORLD)
     aiu_setup.aiu_dist_setup(dist.get_rank(), dist.get_world_size())
@@ -476,18 +502,19 @@ dprint(f"{fused_weights=}")
 dprint(f"data_type={default_dtype}")
 dprint("=" * 60 + "\n")
 
-model = get_model(
-    args.architecture,
-    args.variant,
-    model_path=args.model_path,
-    device_type="cpu" if is_aiu_backend else args.device_type,
-    data_type=default_dtype,
-    source=args.model_source,
-    distributed_strategy=distr_param,
-    group=dist.group.WORLD,
-    linear_config=linear_config,
-    fused_weights=fused_weights,
-)
+with stagger_region(args.stagger_load) as _s:
+    model = get_model(
+        args.architecture,
+        args.variant,
+        model_path=args.model_path,
+        device_type="cpu" if is_aiu_backend else args.device_type,
+        data_type=default_dtype,
+        source=args.model_source,
+        distributed_strategy=distr_param,
+        group=dist.group.WORLD,
+        linear_config=linear_config,
+        fused_weights=fused_weights,
+    )
 
 ### Quantization
 
@@ -819,6 +846,7 @@ if args.compile:
                 ids,
                 args.max_new_tokens,
                 args.compile_dynamic_sendnn,
+                args.stagger_update_lazyhandle,
                 **extra_generation_kwargs,
             )
         if (
