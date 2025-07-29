@@ -24,6 +24,7 @@ from aiu_fms_testing_utils.utils import (
 )
 import json
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, aiu_dist_setup
+import shutil
 import os
 
 try:
@@ -795,6 +796,7 @@ def _run_cpu_aiu_validation_test(
     cpu_model,
     aiu_model,
     micro_model_path,
+    verify_cache_state=None,
 ):
     # Get the tokenizer and AIU / CPU models to compare
     tokenizer = tokenizers.get_tokenizer(model_path)
@@ -820,6 +822,12 @@ def _run_cpu_aiu_validation_test(
         aiu_model,
     )
 
+    # Used only for cache tests; this is a nonparametric closure that
+    # should assert the cache for torch sendnn is in the correct state
+    # for this test
+    if verify_cache_state is not None:
+        verify_cache_state()
+
     # if level 0 fails validation, validate level 1
     if FORCE_VALIDATION_LEVEL_1 or failed_validation_level_0:
         if failed_validation_level_0:
@@ -839,6 +847,87 @@ def _run_cpu_aiu_validation_test(
             micro_model_path,
             validation_zero_info,
         )
+
+
+def _reset_cache_settings(purge_cache_dir):
+    os.environ["TORCH_SENDNN_CACHE_ENABLE"] = "1"
+    os.environ["COMPILATION_MODE"] = "offline_decoder"
+    cache_dir = os.environ["TORCH_SENDNN_CACHE_DIR"]
+
+    # Ensure we start in clean state
+    if purge_cache_dir and os.path.isdir(cache_dir):
+        shutil.rmtree(cache_dir)
+        os.mkdir(cache_dir)
+
+        from torch_sendnn.backends import cache
+
+        # Explicitly clear cache paths from the global torch sendnn graph;
+        # TODO would be better to add a helper to explicitly do this in
+        # torch sendnn
+        cache.cache = {}
+
+
+@pytest.fixture
+def use_cached_model():
+    """Configures the tochsendnn cache and runs the AIU model prior to test execution;
+    this is computationally expensive and should only be used in situations like testing
+    cache hit correctness;
+    """
+    torch.manual_seed(42)
+    torch.set_grad_enabled(False)
+    _reset_cache_settings(purge_cache_dir=True)
+
+    model_path, batch_size, seq_length, max_new_tokens = _get_cache_test_params()
+    micro_model_path = MICRO_MODEL_MAPPING.get(model_path, None)
+
+    def verify_cache_miss():
+        cache_dir = os.environ.get("TORCH_SENDNN_CACHE_DIR")
+        updated_cache_len = (
+            len(os.listdir(cache_dir)) if os.path.isdir(cache_dir) else 0
+        )
+        assert updated_cache_len == max_new_tokens, (
+            "cache directory not populated on cache miss"
+        )
+
+    dprint(
+        f"Setting up cache [i.e., cache miss check] for model={model_path}, batch_size={batch_size}, seq_length={seq_length}, max_new_tokens={max_new_tokens}, micro_model={USE_MICRO_MODELS}"
+    )
+
+    # we don't currently support inferring gptq from get_model, so we must use an adapter with hf_configured
+    gptq_kwargs_aiu, gptq_kwargs_cpu = __maybe_get_gptq_kwargs(model_path)
+
+    model = _get_aiu_model(
+        model_path,
+        gptq_kwargs_aiu,
+        persistent_model_inst=None,
+    )
+
+    validation_model = _get_cpu_model(
+        model_path,
+        gptq_kwargs_cpu,
+        micro_model_state_dict=model.state_dict() if USE_MICRO_MODELS else None,
+    )
+
+    _run_cpu_aiu_validation_test(
+        model_path,
+        batch_size,
+        seq_length,
+        max_new_tokens,
+        validation_model,
+        model,
+        micro_model_path,
+        verify_cache_state=verify_cache_miss,
+    )
+
+
+def _get_cache_test_params():
+    # NOTE - currently we always use granite 3.3 for the cache test,
+    # TODO make this configurable as tests are refactored
+    model_path = GRANITE_3p3_8B_INSTRUCT
+    batch_size = COMMON_BATCH_SIZES[0]
+    seq_length = COMMON_SEQ_LENGTHS[0]
+    max_new_tokens = COMMON_MAX_NEW_TOKENS[0]
+    return [model_path, batch_size, seq_length, max_new_tokens]
 
 
 @pytest.mark.parametrize(
@@ -878,4 +967,52 @@ def test_common_shapes(
         validation_model,
         model,
         micro_model_path,
+    )
+
+
+def test_cache(use_cached_model):
+    torch.manual_seed(42)
+    torch.set_grad_enabled(False)
+    _reset_cache_settings(purge_cache_dir=False)
+
+    model_path, batch_size, seq_length, max_new_tokens = _get_cache_test_params()
+    micro_model_path = MICRO_MODEL_MAPPING.get(model_path, None)
+
+    def verify_cache_hit():
+        cache_dir = os.environ.get("TORCH_SENDNN_CACHE_DIR")
+        updated_cache_len = (
+            len(os.listdir(cache_dir)) if os.path.isdir(cache_dir) else 0
+        )
+        assert updated_cache_len == max_new_tokens, (
+            "cache miss occurred when hit was expected"
+        )
+
+    dprint(
+        f"testing: model={model_path}, batch_size={batch_size}, seq_length={seq_length}, max_new_tokens={max_new_tokens}, micro_model={USE_MICRO_MODELS}, for cache hit"
+    )
+
+    # we don't currently support inferring gptq from get_model, so we must use an adapter with hf_configured
+    gptq_kwargs_aiu, gptq_kwargs_cpu = __maybe_get_gptq_kwargs(model_path)
+
+    model = _get_aiu_model(
+        model_path,
+        gptq_kwargs_aiu,
+        persistent_model_inst=None,
+    )
+
+    validation_model = _get_cpu_model(
+        model_path,
+        gptq_kwargs_cpu,
+        micro_model_state_dict=model.state_dict() if USE_MICRO_MODELS else None,
+    )
+
+    _run_cpu_aiu_validation_test(
+        model_path,
+        batch_size,
+        seq_length,
+        max_new_tokens,
+        validation_model,
+        model,
+        micro_model_path,
+        verify_cache_state=verify_cache_hit,
     )
