@@ -67,6 +67,19 @@ def warmup_model(
     dprint(f"PT compile complete, took {pt_compile_model_time:.3f}s")
 
 
+def get_env_to_int_list(env_var_name, default):
+    """Utility function to convert list of strings passed as given environment variable to
+    list of integers
+    """
+    env_var_string = os.environ.get(env_var_name, default=default)
+    if not env_var_string:
+        return []
+    if isinstance(env_var_string, list):
+        return env_var_string
+
+    return [int(v) for v in env_var_string.split(",") if not isinstance(v, int)]
+
+
 def ids_for_prompt(prompt, tokenizer):
     tokens = tokenizer.tokenize(prompt)
     ids = tokenizer.convert_tokens_to_ids(tokens)
