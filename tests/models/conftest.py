@@ -23,6 +23,10 @@ def pytest_sessionstart(session):
     os.environ.setdefault("DTLOG_LEVEL", "error")
     os.environ.setdefault("DT_DEEPRT_VERBOSE", "-1")
 
+    # NOTE: we should configure the cachedir before importing torchsendnn's
+    # graph cache to prevent it from being initialized in the wrong place.
+    os.environ["TORCH_SENDNN_CACHE_DIR"] = os.path.join(os.getcwd(), ".cache")
+
 
 def pytest_addoption(parser):
     parser.addoption(
