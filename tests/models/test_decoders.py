@@ -44,6 +44,7 @@ GRANITE_3p2_8B_INSTRUCT = "ibm-granite/granite-3.2-8b-instruct"
 GRANITE_3p3_8B_INSTRUCT = "ibm-granite/granite-3.3-8b-instruct"
 GRANITE_20B_CODE_INSTRUCT_8K = "ibm-granite/granite-20b-code-instruct-8k"
 LLAMA_3p1_70B_INSTRUCT = "meta-llama/Llama-3.1-70B-Instruct"
+MISTRAL_0p3_7B_INSTRUCT = "mistralai/Mistral-7B-Instruct-v0.3"
 
 micro_model_mapping = {
     LLAMA_3p1_8B_INSTRUCT: os.path.join(
@@ -92,6 +93,7 @@ common_model_paths = os.environ.get(
         GRANITE_3p3_8B_INSTRUCT,
         GRANITE_20B_CODE_INSTRUCT_8K,
         LLAMA_3p1_70B_INSTRUCT,
+        MISTRAL_0p3_7B_INSTRUCT
     ],
 )
 model_configuration_path = os.environ.get(
@@ -181,24 +183,33 @@ if compile_dynamic_sendnn:
 # threshold key is (model_id, is_tiny_model)
 fail_thresholds = {
     (LLAMA_3p1_8B_INSTRUCT, False): (
-        2.6994638133048965,
-        0.00047589250549208347,
+        2.7080255031585696,
+        0.0004068055667448795,
     ),
     (GRANITE_3p2_8B_INSTRUCT, False): (
         2.3919514417648315,
         0.0005767398688476533,
+    ),
+    (GRANITE_3p2_8B_INSTRUCT, True): (
+        2.7449850964546205,
+        0.00018840670207282534,
     ),
     (GRANITE_3p3_8B_INSTRUCT, False): (
         2.4444521379470827,
         0.0004970188625156878,
     ),
     (GRANITE_20B_CODE_INSTRUCT_8K, False): (
-        2.640706129074097,
-        0.00034344267623964697,
+        2.646075320243838,
+        0.0003458251833217223,
     ),
+    # TODO: run llama 70B with 1,2,4,8 batches
     (LLAMA_3p1_70B_INSTRUCT, False): (
         2.841279556751251,
         0.0044301633024588115,
+    ),
+    (MISTRAL_0p3_7B_INSTRUCT, False): (
+        2.846206340789795,
+        0.0008768103783950205,
     ),
 }
 
