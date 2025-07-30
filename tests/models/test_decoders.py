@@ -556,11 +556,14 @@ def test_common_shapes(
                     - t.softmax(dim=1).to(dtype=torch.float32)
                 )
             )
-            return (cross_entropy, diff)
+
+            absolute_allclose = torch.allclose(r.softmax(dim=1).to(dtype=torch.float32), t.softmax(dim=1).to(dtype=torch.float32), rtol=0, atol=1e-3)
+            return (cross_entropy, diff, absolute_allclose)
 
         iters = 1024 // max_new_tokens
         ce_fail_responses_list = []
         diff_fail_responses_list = []
+        absolute_allclose_responses_list = []
         total_tokens = 0
         for i in range(iters):
             # for iteration 0, we have computed the cpu validation info in the prior step for seed=0, so skip
@@ -652,16 +655,23 @@ def test_common_shapes(
                 level_1_metrics,
                 lambda m: m[1] >= diff_threshold,
             )
+            absolute_allclose_fail_responses = filter_failed_level_1_cases(
+                level_1_metrics,
+                lambda m: not m[2]
+            )
 
             ce_fail_responses_list.extend(ce_fail_responses)
             diff_fail_responses_list.extend(diff_fail_responses)
+            absolute_allclose_responses_list.extend(absolute_allclose_fail_responses)
             total_tokens += len(level_1_metrics)
 
         # test the failure rates for across all tokens
         diff_failure_rate = len(diff_fail_responses_list) / total_tokens
         ce_failure_rate = len(ce_fail_responses_list) / total_tokens
+        abs_failure_rate = len(absolute_allclose_responses_list) / total_tokens
         dprint(f"mean diff failure rate: {diff_failure_rate}")
         dprint(f"cross entropy loss failure rate: {ce_failure_rate}")
+        dprint(f"absolute failre rate: {abs_failure_rate}")
         if "mean_diff" not in skip_assertions:
             assert diff_failure_rate < failure_rate_threshold, (
                 f"failure rate for mean diff was too high: {diff_failure_rate}"
