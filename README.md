@@ -1,14 +1,64 @@
-# aiu-fms-testing-utils
+# Installation Guide for AIU FMS Testing Utilities
 
-## Setup your environment
+This guide provides instructions for installing the `aiu-fms-testing-utils` package.
+
+## Installation with CPU-Only PyTorch
+
+To install the package with the CPU-only version of PyTorch, run the following command:
+
+```shell
+pip3 install aiu-fms-testing-utils --extra-index-url=https://download.pytorch.org/whl/cpu
+```
+
+## Installation with Default PyTorch
+
+To install the package with the platform's default PyTorch version, execute:
+
+```shell
+pip3 install aiu-fms-testing-utils
+```
+
+## Verify the PyTorch Version
+
+To ensure compatibility with aiu-fms-testing-utils, verify that the correct PyTorch version is installed.
+
+1. Check the PyTorch Version
+
+    ```shell
+    pip show torch
+    ```
+
+    Expected Output for CPU-Only PyTorch:
+
+    ```plain
+    Name: torch
+    Version: 2.7.1+cpu
+    ```
+
+    For the CPU-only version, the version string should include the +cpu postfix (e.g., 2.7.1+cpu).
+
+2. Corrective Action for Default PyTorch
+
+    If the installed PyTorch version does not include the +cpu postfix (e.g., 2.7.1 without +cpu), it indicates that the default PyTorch version (which may include CUDA support) was installed. To resolve this, uninstall torch and reinstall aiu-fms-testing-utils with the CPU-only version:
+
+    ```shell
+    pip3 uninstall torch -y
+    pip3 install aiu-fms-testing-utils --extra-index-url=https://download.pytorch.org/whl/cpu
+    ```
+
+## Setting Up the Development Environment from Source
+
+To set up the development environment for aiu-fms-testing-utils from source, follow these steps.
 
 In this directory, checkout the Foundation Model Stack (FMS) and the FMS Model Optimizer:
+
 ```shell
 git clone https://github.com/foundation-model-stack/foundation-model-stack.git
 git clone https://github.com/foundation-model-stack/fms-model-optimizer.git
 ```
 
 Install both FMS, FMS-Model-Optimizer and aiu-fms-testing-utils:
+
 ```shell
 cd foundation-model-stack
 pip install -e .
@@ -24,25 +74,30 @@ pip install -e .
 ### Running in OpenShift
 
 Use the `pod.yaml` file to get started with your OpenShift allocation
- * Modify the `ibm.com/aiu_pf_tier0` values to indicate the number of AIUs that you want to use
- * Modify the `namespace` to match your namespace/project (i.e., `oc project`)
+
+* Modify the `ibm.com/aiu_pf_tier0` values to indicate the number of AIUs that you want to use
+* Modify the `namespace` to match your namespace/project (i.e., `oc project`)
 
 Start the pod
+
 ```shell
 oc apply -f pod.yaml
 ```
 
 Copy this repository into the pod (includes scripts, FMS stack)
+
 ```shell
 oc cp ${PWD} my-workspace:/tmp/
 ```
 
 Exec into the pod
+
 ```shell
  oc rsh my-workspace bash -l
  ```
 
 When you are finished, make sure to delete your pod:
+
 ```shell
 oc delete -f pod.yaml
 ```
@@ -50,6 +105,7 @@ oc delete -f pod.yaml
 ### Setup the environment in the container
 
 Verify the AIU discovery has happened by looking for output like the following when you exec into the pod:
+
 ```console
 ---- IBM AIU Device Discovery...
 ---- IBM AIU Environment Setup... (Generate config and environment)
@@ -60,6 +116,7 @@ Verify the AIU discovery has happened by looking for output like the following w
 ```
 
 Inside the container, setup envars to use the FMS:
+
 ```shell
 export HOME=/tmp
 cd ${HOME}/aiu-fms-testing-utils/foundation-model-stack/
@@ -68,12 +125,14 @@ pip install -e .
 ```
 
 Run with AIU instead of, default, senulator.
+
 ```shell
 export FLEX_COMPUTE=SENTIENT
 export FLEX_DEVICE=VFIO
 ```
 
 Optional envars to supress debugging output:
+
 ```shell
 export DTLOG_LEVEL=error
 export TORCH_SENDNN_LOG=CRITICAL
@@ -88,7 +147,7 @@ The `--nproc-per-node` command line option controls the number of AIUs to use (n
 
 ### Small Toy
 
-The `small-toy.py` is a slimmed down version of the Big Toy model. The purpose of this model is to demostrate how to run a tensor parallel model with the FMS on AIU hardware.
+The `small-toy.py` is a slimmed down version of the Big Toy model. The purpose of this model is to demonstrate how to run a tensor parallel model with the FMS on AIU hardware.
 
 ```bash
 cd ${HOME}/aiu-fms-testing-utils/scripts
@@ -126,12 +185,12 @@ shell$ torchrun --nproc-per-node 4 ./small-toy.py --backend aiu
 0 / 4 : Done
 ```
 
-
 ### Roberta
 
-The `roberta.py` is a simple version of the Roberta model. The purpose of this model is to demostrate how to run a tensor parallel model with the FMS on AIU hardware. 
+The `roberta.py` is a simple version of the Roberta model. The purpose of this model is to demonstrate how to run a tensor parallel model with the FMS on AIU hardware.
 
 **Note**: We need to disable the Tensor Parallel `Embedding` conversion to avoid the use of a `torch.distributed` interface that `gloo` does not support. Namely `torch.ops._c10d_functional.all_gather_into_tensor`. The `roberta.py` script will set the following envar to avoid the problematic conversion. This will be removed in a future PyTorch release.
+
 ```shell
 export DISTRIBUTED_STRATEGY_IGNORE_MODULES=WordEmbedding,Embedding
 ```
@@ -173,6 +232,7 @@ shell$ torchrun --nproc-per-node 2 ./roberta.py --backend aiu
 ```
 
 ### LLaMA/Granite
+
 ```bash
 export DT_OPT=varsub=1,lxopt=1,opfusion=1,arithfold=1,dataopt=1,patchinit=1,patchprog=1,autopilot=1,weipreload=0,kvcacheopt=1,progshareopt=1
 
@@ -223,6 +283,7 @@ You can control the acceptable threshold with `--logits_loss_threshold`
 ### Pod connection error
 
 Errors like the following often indicate that the pod has not started or is still in the process of starting.
+
 ```console
 error: unable to upgrade connection: container not found ("my-pod")
 ```
