@@ -67,7 +67,7 @@ def warmup_model(
     dprint(f"PT compile complete, took {pt_compile_model_time:.3f}s")
 
 
-def get_env_to_datatype_list(env_var_name: str, default: Any, data_type = int):
+def get_env_to_datatype_list(env_var_name: str, default: Any, data_type = int) -> List[Any]:
     """Utility function to convert list of strings passed as given environment variable to
     list of provided data_type (default = int)
     Args:
@@ -77,7 +77,7 @@ def get_env_to_datatype_list(env_var_name: str, default: Any, data_type = int):
         data_type (type, optional): The data type to convert the string values to. Defaults to int.
 
     Returns:
-        list: A list of integers or the default value if the environment variable is not set or is an empty string.
+        list: A list of given data_type or the default value if the environment variable is not set or is an empty string.
     """
     env_var_string = os.environ.get(env_var_name, default=default)
     if not env_var_string:
