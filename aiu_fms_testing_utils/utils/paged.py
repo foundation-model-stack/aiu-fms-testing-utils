@@ -144,7 +144,7 @@ def generate(
 
     kvheads = kvheads // tensor_parallel_size if kvheads > 1 else kvheads
     head_size = model.config.emb_dim // nheads
-    if "fp8" in kwargs["attn_name"]:
+    if "fp8" in kwargs.get("attn_name", ""):
         from fms_mo.aiu_addons.fp8.fp8_utils import ScaledTensor
 
         kwargs["past_key_value_states"] = [
@@ -262,8 +262,9 @@ def generate(
 
                 # This view will result in a discontiguous tensor (creates a new graph during compile)
                 # For this reason, we must explicitly make contiguous
+                # kwargs["mask"][seq_i][:, -current_tkv:, -current_tkv:]
                 mask_i = (
-                    kwargs["mask"][seq_i][:, -current_tkv:, -current_tkv:]
+                    kwargs["mask"][seq_i][:, -current_tkv:]
                     .unsqueeze(0)
                     .contiguous()
                 )
@@ -364,7 +365,7 @@ def generate(
             torch._dynamo.mark_dynamic(kwargs["position_ids"], 0)
             torch._dynamo.mark_dynamic(kwargs["current_tkv_mask"], 0)
             torch._dynamo.mark_dynamic(kwargs["left_padded_prompt_mask"], 0)
-            if "fp8" in kwargs["attn_name"]:
+            if "fp8" in kwargs.get("attn_name", ""):
                 for k_cache, v_cache in kwargs["past_key_value_states"]:
                     torch._dynamo.mark_dynamic(k_cache._scale, 0)
                     torch._dynamo.mark_dynamic(v_cache._scale, 0)

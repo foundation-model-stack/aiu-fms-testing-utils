@@ -1,5 +1,5 @@
 # Standard
-from typing import Optional, List, Tuple
+from typing import Any, Optional, List, Tuple
 import json
 import os
 import random
@@ -65,6 +65,27 @@ def warmup_model(
         )
     pt_compile_model_time = time.time() - pt_compile_model_time
     dprint(f"PT compile complete, took {pt_compile_model_time:.3f}s")
+
+
+def get_env_to_datatype_list(env_var_name: str, default: Any, data_type = int) -> List[Any]:
+    """Utility function to convert list of strings passed as given environment variable to
+    list of provided data_type (default = int)
+    Args:
+        env_var_name (str): The name of the environment variable to retrieve.
+        default (list or any): The default value to return if the environment variable is not set.
+            If a list is provided, it will be returned as is if the environment variable is not set.
+        data_type (type, optional): The data type to convert the string values to. Defaults to int.
+
+    Returns:
+        list: A list of given data_type or the default value if the environment variable is not set or is an empty string.
+    """
+    env_var_string = os.environ.get(env_var_name, default=default)
+    if not env_var_string:
+        return []
+    if isinstance(env_var_string, list):
+        return env_var_string
+
+    return [data_type(v) for v in env_var_string.split(",") if not isinstance(v, data_type)]
 
 
 def ids_for_prompt(prompt, tokenizer):
