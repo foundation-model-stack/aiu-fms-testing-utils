@@ -13,6 +13,8 @@ from fms.utils.generation import pad_input_ids
 import torch
 import torch.nn as nn
 
+import warnings
+
 
 def warmup_model(
     model: nn.Module,
@@ -90,6 +92,62 @@ def __download_file(url, filename):
         print(f"An error occurred: {e}")
 
 
+def get_pad_size(prompt_len: int, pad_multiple: int = 64):
+    """
+    Method to finding nearest prompt length with accepted padding multiple
+    i.e.
+        prompt length 65 with pad multiple = 64 returns 128
+        prompt length 64 with pad multiple = 64 returns 64
+    """
+    if prompt_len <= 0:
+        warnings.warn(f"{prompt_len=} which should probably be > 0", stacklevel=2)
+        return 0
+    else:
+        return ((prompt_len + pad_multiple - 1) // pad_multiple) * pad_multiple
+
+
+def _merge_enforce_keep_heterogeneous(
+    enforce_list: List[Tuple[str, int]],
+    heterogeneous_list: List[Tuple[str, int]],
+    batch_size: int,
+):
+    """
+    Method for returning a list that contains both enforced sizes and is heterogeneous
+
+    Args:
+        enforce_list: List[Tuple[str, int]], a list of prompt/prompt_len that contains prompt_lens
+            that must be enforced
+        heterogeneous_list: List[Tuple[str, int]], a list of prompt/prompt_len where all prompt_lens
+            are heterogeneous to the extent possible. i.e. if batch size is 3 but only 2 possible
+            prompt length exists, this list will contain both prompt lengths with third item sharing
+            the same prompt length as one of the previous items.
+        batch_size: int, will define the final size of the list.
+
+    Returns:
+        List[Tuple[str,int]] that will have all elements from enforce_list
+    """
+    final_list = enforce_list.copy()
+    unique_sizes = {num for _, num in enforce_list}
+    for prompt, size in heterogeneous_list:
+        if len(final_list) >= batch_size:
+            break
+        # if the size hasn't been covered by enforce_list, add to list to keep it heterogeneous
+        if size not in unique_sizes:
+            final_list.append((prompt, size))
+            unique_sizes.add(size)
+    if len(final_list) > batch_size:
+        warnings.warn(
+            f"Requested {batch_size=}, which is smaller than the enforced list, will return list larger than requested size",
+            stacklevel=2,
+        )
+    elif len(final_list) < batch_size:
+        warnings.warn(
+            f"Requested {batch_size=}, than possible combined list. Will return smaller list than batch size",
+            stacklevel=2,
+        )
+    return final_list
+
+
 def __sample_requests(
     prompt_list: List[str],
     num_requests: int,
@@ -97,15 +155,52 @@ def __sample_requests(
     prompt_length_min: int = 32,
     prompt_length_max: int = 64,
     seed: Optional[int] = None,
+    enforce_heterogeneous: bool = False,
+    enforce_sizes: List[int] = [],
+    pad_multiple: int = 64,
 ):
+    """
+    Shuffles dataset, tokenizes the prompts and then filters
+
+    Args:
+        prompt_length_min (int): filters out prompts shorter than this value.
+        prompt_length_max (int): filters out prompts larger than this value.
+        enforce_sizes (List[int]): sample request will grab a prompt with this length if available.
+        enforce_heterogeneous (bool): Pads all prompts within batch size to nearest multiple of 64.
+
+    Returns:
+        List[Tuple[str, int]]: a filtered dataset
+    """
+
+    # Based on min/max prompt length, one can back out the number of possible heterogeneous values
+    max_heterogeneous_combinations = (prompt_length_max // pad_multiple) - (
+        (prompt_length_min - 1) // pad_multiple
+    )
+
+    # Filter out sequences that are too long or too short
+    filtered_dataset: List[Tuple[str, int]] = []
+    enforced_dataset: List[Tuple[str, int]] = []
+
+    # To track sizes seen
+    seen_sizes: List[int] = []
+
+    if enforce_sizes:
+        for size in enforce_sizes:
+            # Check that enforced sizes fall within min/max range
+            assert prompt_length_min <= size <= prompt_length_max, (
+                f"Size {size} in enforced sizes not within {prompt_length_min=}, {prompt_length_max=}"
+            )
+        if len(enforce_sizes) > num_requests:
+            raise ValueError(
+                f"{num_requests=} which is smaller than {len(enforce_sizes)=}"
+            )
+
     # Shuffle the dataset.
     if seed is not None:
         random.Random(seed).shuffle(prompt_list)
 
-    # Filter out sequences that are too long or too short
-    filtered_dataset: List[Tuple[str, int, int]] = []
     for i in range(len(prompt_list)):
-        if len(filtered_dataset) == num_requests:
+        if len(filtered_dataset) == num_requests and not enforce_sizes:
             break
 
         # Tokenize the prompts and completions.
@@ -116,7 +211,45 @@ def __sample_requests(
         if prompt_len < prompt_length_min or prompt_len > prompt_length_max:
             # Prune too short or too long sequences.
             continue
-        filtered_dataset.append((prompt, prompt_len))
+        # This section is for enforce heterogeneous
+        if (
+            enforce_heterogeneous
+            and max_heterogeneous_combinations > len(filtered_dataset)
+            and len(filtered_dataset) < num_requests
+        ):
+            # for _, size in filtered_dataset:
+            current_padded_size = get_pad_size(prompt_len)
+
+            # If it's in the list of enforce_sizes it is enforced, can remove from list
+            if current_padded_size in enforce_sizes:
+                enforce_sizes.remove(current_padded_size)
+                enforced_dataset.append((prompt, prompt_len))
+
+            if current_padded_size in seen_sizes:
+                continue
+            filtered_dataset.append((prompt, prompt_len))
+            seen_sizes.append(current_padded_size)
+        # Forcing search for enforce_sizes
+        elif enforce_sizes:
+            current_padded_size = get_pad_size(prompt_len)
+            if current_padded_size not in enforce_sizes:
+                continue
+            else:
+                enforce_sizes.remove(current_padded_size)
+                enforced_dataset.append((prompt, prompt_len))
+        # when not enforcing heterogeneous or when exhausted all possible prompt_lengths
+        else:
+            filtered_dataset.append((prompt, prompt_len))
+    assert not enforce_sizes, "Enforce size should be empty if all lengths are captured"
+
+    if num_requests > max_heterogeneous_combinations:
+        print(
+            f"There will be repeats because {num_requests=} while {max_heterogeneous_combinations=}"
+        )
+    if enforced_dataset:
+        filtered_dataset = _merge_enforce_keep_heterogeneous(
+            enforced_dataset, filtered_dataset, num_requests
+        )
 
     return filtered_dataset
 
@@ -128,6 +261,8 @@ def sample_sharegpt_requests(
     prompt_length_min: int = 32,
     prompt_length_max: int = 64,
     seed: Optional[int] = None,
+    enforce_heterogeneous: bool = False,
+    enforce_sizes: List[int] = [],
 ) -> List[Tuple[str, int]]:
     if not os.path.exists(dataset_path):
         print("downloading share-gpt dataset as it does not exist")
@@ -141,7 +276,7 @@ def sample_sharegpt_requests(
         dataset = json.load(f)
     # Filter out the conversations with less than 2 turns.
     dataset = [data for data in dataset if len(data["conversations"]) >= 2]
-    dataset = [data["conversations"][0]["value"] for data in dataset]
+    dataset: List[str] = [data["conversations"][0]["value"] for data in dataset]
 
     return __sample_requests(
         dataset,
@@ -150,6 +285,8 @@ def sample_sharegpt_requests(
         prompt_length_min,
         prompt_length_max,
         seed,
+        enforce_heterogeneous,
+        enforce_sizes,
     )
 
 
@@ -160,6 +297,8 @@ def sample_squad_v2_qa_requests(
     prompt_length_min: int = 32,
     prompt_length_max: int = 64,
     seed: Optional[int] = None,
+    enforce_heterogeneous: bool = False,
+    enforce_sizes: List[int] = [],
 ) -> List[Tuple[str, int]]:
     from datasets import load_dataset
 
@@ -177,6 +316,8 @@ def sample_squad_v2_qa_requests(
         prompt_length_min,
         prompt_length_max,
         seed,
+        enforce_heterogeneous,
+        enforce_sizes,
     )
 
 
