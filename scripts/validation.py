@@ -340,7 +340,7 @@ else:
         print("must set AIU_WORLD_RANK_0")
         exit()
     os.environ["FLEX_COMPUTE"] = "SENTIENT"
-    os.environ["FLEX_DEVICE"] = "VFIO"
+    os.environ.setdefault("FLEX_DEVICE", "PF")
 
 aiu_device = torch.device("cpu")
 if default_dtype is not None:
