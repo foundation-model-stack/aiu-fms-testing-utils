@@ -112,7 +112,9 @@ save_validation_info_outputs = (
     os.environ.get("FMS_TEST_SHAPES_SAVE_VALIDATION_INFO_OUTPUTS", "0") == "1"
 )
 common_batch_sizes = os.environ.get("FMS_TEST_SHAPES_COMMON_BATCH_SIZES", [1, 2, 4, 8])
-common_seq_lengths = os.environ.get("FMS_TEST_SHAPES_COMMON_SEQ_LENGTHS", [64, 2048])
+common_seq_lengths = os.environ.get(
+    "FMS_TEST_SHAPES_COMMON_SEQ_LENGTHS", [64, 2048, 8192, 16384]
+)
 common_max_new_tokens = os.environ.get("FMS_TEST_SHAPES_COMMON_MAX_NEW_TOKENS", [128])
 
 if USE_DISTRIBUTED:
@@ -168,7 +170,7 @@ if compile_dynamic_sendnn:
     # the compiler supports certain max context lengths (VLLM_DT_MAX_CONTEXT_LEN)
     # this will ensure that we select smallest supported VLLM_DT_MAX_CONTEXT_LEN that fits the largest possible context (prompt size + max_new_tokens)
     __largest_context = max(common_seq_lengths) + max(common_max_new_tokens)
-    __supported_context_lengths = [256, 512, 1024, 2048, 4096, 8192]
+    __supported_context_lengths = [256, 512, 1024, 2048, 4096, 8192, 16384, 32768]
     os.environ["VLLM_DT_MAX_CONTEXT_LEN"] = str(
         __supported_context_lengths[
             bisect.bisect_left(__supported_context_lengths, __largest_context)
@@ -305,6 +307,9 @@ def __prepare_inputs(batch_size, seq_length, tokenizer, seed=0):
         seq_length // 2,
         seq_length,
         seed,
+        enforce_heterogeneous=True,
+        enforce_sizes=[seq_length],  # ensure at least the max seq length is sampled
+        pad_multiple=64,
     )
     prompt_list = []
     for prompt, _ in prompts_and_sizes:
