@@ -56,3 +56,56 @@ include = ["aiu_fms_testing_utils", "aiu_fms_testing_utils*"]
 Homepage = "https://github.com/foundation-model-stack/aiu-fms-testing-utils"
 Repository = "https://github.com/foundation-model-stack/aiu-fms-testing-utils"
 Issues = "https://github.com/foundation-model-stack/aiu-fms-testing-utils/issues"
+
+[tool.ruff]
+# Allow lines to be as long as 80.
+line-length = 80
+
+[tool.ruff.lint]
+select = [
+    # pycodestyle
+    "E",
+    # Pyflakes
+    "F",
+    # pyupgrade
+    "UP",
+    # flake8-bugbear
+    "B",
+    # flake8-simplify
+    "SIM",
+    # isort
+    # "I",
+    "G",
+]
+ignore = [
+    # star imports
+    "F405", "F403",
+    # lambda expression assignment
+    "E731",
+    # Loop control variable not used within loop body
+    "B007",
+    # f-string format
+    "UP032",
+]
+
+[tool.codespell]
+ignore-words-list = "dout, te, indicies, subtile, ElementE"
+#skip = "./tests/models/fixtures,./tests/prompts,./benchmarks/sonnet.txt,./tests/lora/data,./build"
+
+[tool.isort]
+use_parentheses = true
+skip_gitignore = true
+
+[dependency-groups]
+lint = [
+    "clang-format==18.1.5",
+    "codespell==2.4.1",
+    "isort==6.0.1",
+    "ruff==0.12.5",
+    "toml==0.10.2",
+    "tomli==2.0.2",
+    "types-pyyaml>=6.0.12.20250326",
+    "types-requests>=2.32.0.20250328",
+    "types-setuptools>=77.0.2.20250328",
+    "yapf==0.43.0",
+]

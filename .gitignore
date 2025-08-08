@@ -1,13 +1,40 @@
-build
-dist
-.pytest_cache
-aiu-fms-testing-utils.egg-info
-*/**/__pycache__
+# Byte-compiled / optimized / DLL files
+__pycache__/
 *.pyc
-*/**/*.pyc
-.vscode
 export_deeprt
 export_dtcompiler
-*.egg-info
 
+# Distribution / packaging
+build/
+dist/
+*.egg
+*.egg-info/
+
+# VSCode
+.vscode
+
+# Unit test / coverage reports
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Linting
+actionlint
+shellcheck*/
+
+# AFTU
 aiu_fms_testing_utils/_version.py

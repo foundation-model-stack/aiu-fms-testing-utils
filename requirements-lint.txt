@@ -1,0 +1,4 @@
+yapf==0.43.0
+ruff==0.12.5
+codespell==2.4.1
+isort==6.0.1
