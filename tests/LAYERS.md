@@ -1,25 +1,30 @@
 # Layer Metrics Generation
 
-Generate metrics by layers to be used in tests and model enablement debugging. 
+This guide explains how to use the [`generate_layers_metrics.py`](../scripts/generate_layers_metrics.py) script to generate metrics by layer for validating models and debugging.
 
-1. [Generate metrics by layer in GPU](./LAYERS.md#1-generate-metrics-by-layer)
-2. [Get Thresholds](./LAYERS.md#2-get-thresholds)
-3. [Apply metrics where needed](./LAYERS.md#3-apply-the-thresholds-where-needed)
-
-The steps as part of the diagram below:
-![generate flow](./resources/assets/metrics_fms_deepview_integration.zoom.png)
-To see the full integration with other debugging tools, check [item 3](./LAYERS.md#3-apply-the-thresholds-where-needed).
+1. [Generate metrics by layer](./LAYERS.md#1-generate-metrics-by-layer)
+2. [Get thresholds](./LAYERS.md#2-get-thresholds)
+3. [Apply thresholds](./LAYERS.md#3-apply-the-thresholds)
 
 ## 1. Generate Metrics by Layer
 
-The idea is to run, the prompts through the model with the pre- and post-hooks added, and then get the metrics for the outputs intercepted by each layer, as in this diagram. Then we can have a baseline with CPU/GPU for a failure threshold in AIU tests. Same idea as the [test_decoders.py](https://github.com/foundation-model-stack/aiu-fms-testing-utils/blob/main/tests/models/test_decoders.py), but for each layer. This way we can measure the discrepancies for the outputs and use the thresholds for detailed debugging problems in AIU.
+The goal is to run prompts through the model with pre- and post-hooks added, allowing us to capture output metrics at each layer. This approach lets us establish a CPU/GPU baseline to define failure thresholds for AIU tests, similar to [test_decoders.py](https://github.com/foundation-model-stack/aiu-fms-testing-utils/blob/main/tests/models/test_decoders.py), but applied at each layer. This helps to measure the output discrepancies and use the thresholds for debugging problems on AIU.
 
 ![metrics generation by layer](./resources/assets/metrics_generation_layers.png)
 
-The script [generate_layers_metrics.py](../scripts/generate_layers_metrics.py) requires the following arguments to be run:
+### Script Usage
 
-```bash
-usage: generate_layers_metrics.py [-h] [--architecture ARCHITECTURE] [--variant VARIANT] [--model_path MODEL_PATH] --mode {generate,model-forward} --batch_sizes BATCH_SIZES --seq_lengths SEQ_LENGTHS --max_new_tokens MAX_NEW_TOKENS [--output_path OUTPUT_PATH] [--sharegpt_path SHAREGPT_PATH]
+```console
+usage: generate_layers_metrics.py [-h] 
+    [--architecture ARCHITECTURE] 
+    [--variant VARIANT] 
+    [--model_path MODEL_PATH] 
+    --mode {generate,model-forward} 
+    --batch_sizes BATCH_SIZES 
+    --seq_lengths SEQ_LENGTHS 
+    --max_new_tokens MAX_NEW_TOKENS 
+    [--output_path OUTPUT_PATH] 
+    [--sharegpt_path SHAREGPT_PATH]
 
 Script to generate the model's metrics by layer
 
@@ -44,10 +49,10 @@ options:
                         Path to sharegpt data json
 ```
 
-These variables support single and array values.
+The only required argument is `--mode`, which sets the type of generation to be used. The options are `generate` or `model-forward`.
 
-The argument required for this script is the `--mode`, which is the generation mode desired for the output; The choices can be `generate` or `model-forward`.
-- `generate` uses FMS [generate](../scripts/generate_layers_metrics.py#L118); It’s a high-level API that wraps many operations: forward pass, KV cache logic, sampling or greeting decoding, post-processing. 
+- `generate` uses [FMS' generate](https://github.com/foundation-model-stack/foundation-model-stack/blob/main/fms/utils/generation.py) function, a high-level API that wraps many operations (e.g. forward pass, KV cache logic, decoding, post-processing).
+
 ```python
 result = generate(
     model,
@@ -62,7 +67,9 @@ result = generate(
     extra_kwargs={},
 )
 ```
-- `model-forward` will call [model.forward](../scripts/generate_layers_metrics.py#L135); Avoids introducing noise from sampling, past key caching, etc.
+
+- `model-forward` calls `model.forward` directly, avoiding introducing noise from sampling, past key caching, etc.
+
 ```python
 result = model.forward(
     ids,
@@ -70,34 +77,44 @@ result = model.forward(
     )
 ```
 
-### How to run
+#### How to Run
 
-Once all is set up, we can generate the CSV metrics:
+To run the script to generate CSV metrics for each layer of the model, first create a directory to hold the output files:
 
 ```bash
 cd aiu-fms-testing-utils/tests/resources
-
 mkdir /tmp/output
-
-python3 generate_layers_metrics.py --mode model-forward --variant ibm-granite/granite-3.2-8b-instruct --architecture hf_pretrained --batch_sizes 1 --seq_lengths 64 --max_new_tokens 128
 ```
-The files should get created at `/tmp/output` dir:
+
+Then, run the script:
+
 ```bash
-ibm-granite--granite-3.2-8b-instruct_max-new-tokens-128_batch-size-1_seq-length-64_dtype-float16--model.base_model.layers7.ln.abs_diff.csv
-ibm-granite--granite-3.2-8b-instruct_max-new-tokens-128_batch-size-1_seq-length-64_dtype-float16--model.base_model.layers7.ln.cos_sim.csv
-ibm-granite--granite-3.2-8b-instruct_max-new-tokens-128_batch-size-1_seq-length-64_dtype-float16--model.base_model.layers8.attn.dense.abs_diff.csv
-ibm-granite--granite-3.2-8b-instruct_max-new-tokens-128_batch-size-1_seq-length-64_dtype-float16--model.base_model.layers8.attn.dense.cos_sim.csv
+python3 generate_layers_metrics.py --mode model-forward --variant ibm-granite/granite-3.3-8b-instruct --architecture hf_pretrained --batch_sizes 1 --seq_lengths 64 --max_new_tokens 128
+```
+
+CSV files will be generated under `/tmp/output`, unless `--output_path` was specified:
+
+```bash
+ibm-granite--granite-3.3-8b-instruct_max-new-tokens-128_batch-size-1_seq-length-64_dtype-float16--model.base_model.layers7.ln.abs_diff.csv
+ibm-granite--granite-3.3-8b-instruct_max-new-tokens-128_batch-size-1_seq-length-64_dtype-float16--model.base_model.layers7.ln.cos_sim.csv
+ibm-granite--granite-3.3-8b-instruct_max-new-tokens-128_batch-size-1_seq-length-64_dtype-float16--model.base_model.layers8.attn.dense.abs_diff.csv
+ibm-granite--granite-3.3-8b-instruct_max-new-tokens-128_batch-size-1_seq-length-64_dtype-float16--model.base_model.layers8.attn.dense.cos_sim.csv
 ```
 
 ## 2. Get Thresholds
 
-To get the second step of the flow and get the thresholds by layer, run:
-```bash
-cd /aiu-fms-testing-utils/tests/resources
+Once the layer-wise metrics are generated, you can compute the thresholds for each layer to serve as baseline metrics.
 
-python3 get_thresholds.py --models ibm-granite/granite-3.2-8b-instruct --metrics abs_diff cos_sim_avg cos_sim_men --file_base /tmp/output --layer_io
+Run the [`get_thresholds.py`](./resources/get_thresholds.py) script:
+
+```bash
+cd aiu-fms-testing-utils/tests/resources
+
+python3 get_thresholds.py --models ibm-granite/granite-3.3-8b-instruct --metrics abs_diff cos_sim_avg cos_sim_men --file_base /tmp/output --layer_io
 ```
-It should print the metric of each layer:
+
+You’ll see output like this, showing the computed metrics per layer:
+
 ```bash
 2025-07-09 19:02:40,657 found 484 layers metric files
 2025-07-09 19:02:40,674 Layer model.base_model.embedding abs_diff_linalg_norm = 1.7258892434335918e-07
@@ -122,11 +139,11 @@ It should print the metric of each layer:
 2025-07-09 19:03:27,055 Layer model.base_model.layers0.ff_ln cos_sim_mean = 0.9999961135908961
 
 ```
-Also, a JSON file is saved to the same output dir. A sample file can be found at: [sample_layer_th.json](https://github.com/flaviabeo/aiu-fms-testing-utils/blob/generate_metrics_layers/tests/resources/sample_layer_th.json)
 
-## 3. Apply the thresholds where needed
+A `JSON` summary file containing these thresholds is also saved in the same output directory. An example of this file can be found here: [sample_layer_th.json](./resources/sample_layer_th.json).
 
-In case of AIU debugging tools, the thresholds will be applied to compare AIU outputs with CPU, and then assert if the differences are within the thresholds generated. Below, is an architecture of the full integration:
-![full integration](./resources/assets/metrics_fms_deepview_integration.full.png)
+## 3. Apply the Thresholds
 
-The box named `deepview layer debug` has the diagram of how the model layers outputs are generated to be compared against the CPU results. This is important so that the debug tools can catch operations and layers that have issues in their enablement for AIU hardware.
+The thresholds serve as bounds to determine whether AIU outputs diverge from CPU.
+
+**TODO:** Add integration architecture
