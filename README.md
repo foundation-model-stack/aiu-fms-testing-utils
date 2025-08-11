@@ -65,7 +65,7 @@ pip install -e .
 cd ..
 
 cd fms-model-optimizer
-pip install -e .
+pip install -e . --no-dependencies
 cd ..
 
 pip install -e .
