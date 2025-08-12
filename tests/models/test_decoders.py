@@ -662,6 +662,12 @@ def _run_validation_level_0(
     extra_kwargs,
     model,
 ):
+    """Runs validation level 0 for comparing AIU / CPU models. validation level 0 entails
+    comparing the extracted tokens for AIU / CPU.
+
+    NOTE: we try to load CPU validation info from disk to save time. Some of the computations
+    here are also reused in level1 validation.
+    """
     cpu_validation_info = _get_device_validation_information(
         model_path=model_path,
         batch_size=batch_size,
@@ -729,6 +735,14 @@ def _run_validation_level_1(
     micro_model_path,
     validation_zero_info,
 ):
+    """Runs validation level 1 for comparing AIU / CPU models. validation level 1 entails
+    cycling over a variety of seeds & filtering by sequence length before computing level 1
+    metrics, which currently consists of cross entropy loss per token & mean absolute diff
+    per decode step.
+
+    Thresholds for what are allowed to be passing are determined based on the model ID and
+    the micro model configuration.
+    """
     iters = 1024 // max_new_tokens
     ce_fail_responses_list = []
     diff_fail_responses_list = []
