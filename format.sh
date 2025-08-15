@@ -99,22 +99,13 @@ else
 fi
 echo 'AFTU yapf: Done'
 
-# If git diff returns a file that is in the skip list, the file may be checked anyway:
-# https://github.com/codespell-project/codespell/issues/1915
-# Avoiding the "./" prefix and using "/**" globs for directories appears to solve the problem
-CODESPELL_EXCLUDES=(
-    '--skip' 'tests/resources/prompts/**/*.txt'
-    '-L' 'ans' # ignore words
-)
-
-
 # Check spelling of specified files
 spell_check() {
     codespell "$@"
 }
 
 spell_check_all(){
-  codespell --toml pyproject.toml "${CODESPELL_EXCLUDES[@]}"
+  codespell --toml pyproject.toml
 }
 
 # Spelling check of files that differ from main branch.
@@ -128,7 +119,7 @@ spell_check_changed() {
     MERGEBASE="$(git merge-base origin/main HEAD)"
     if ! git diff --diff-filter=ACM --quiet --exit-code "$MERGEBASE" -- '*.py' '*.pyi' &>/dev/null; then
         git diff --name-only --diff-filter=ACM "$MERGEBASE" -- '*.py' '*.pyi' | xargs \
-            codespell "${CODESPELL_EXCLUDES[@]}"
+            codespell
     fi
 }
 

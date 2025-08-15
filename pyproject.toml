@@ -94,8 +94,8 @@ ignore_patterns = [
 ]
 
 [tool.codespell]
-ignore-words-list = "dout, te, indicies, subtile, ElementE"
-#skip = "./tests/models/fixtures,./tests/prompts,./benchmarks/sonnet.txt,./tests/lora/data,./build"
+ignore-words-list = "dout, te, indicies, subtile, ElementE, ans"
+skip = "./tests/resources/prompts/**/*.txt"
 
 [tool.isort]
 use_parentheses = true
