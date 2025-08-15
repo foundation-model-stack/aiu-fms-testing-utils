@@ -6,7 +6,6 @@ import argparse
 import itertools
 import torch
 
-from fms.utils import tokenizers
 from fms.models import get_model
 from fms.utils.generation import generate
 
@@ -15,6 +14,7 @@ from aiu_fms_testing_utils.testing.validation import get_default_validation_pref
 from aiu_fms_testing_utils.utils import prepare_inputs
 from aiu_fms_testing_utils.utils.metrics_utils import tensor_abs_diff, tensor_cos_sim
 
+from transformers import AutoTokenizer
 
 logger = logging.getLogger(__name__)
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
@@ -347,7 +347,7 @@ def generate_layers_metrics(model_path, batch_size, seq_length, max_new_tokens):
         **micro_model_kwargs,
     }
 
-    tokenizer = tokenizers.get_tokenizer(model_path)
+    tokenizer = AutoTokenizer.from_pretrained(model_path)
 
     # prepare the cpu model
     validation_model = get_model(

@@ -1,5 +1,5 @@
 from fms.models.hf.utils import AutoConfig
-from fms.utils import serialization, tokenizers
+from fms.utils import serialization
 import pytest
 from fms.models import get_model
 from fms.utils.generation import pad_input_ids
@@ -20,9 +20,10 @@ from aiu_fms_testing_utils.testing.validation import (
 from aiu_fms_testing_utils.utils import (
     warmup_model,
     sample_sharegpt_requests,
-    ids_for_prompt,
 )
 import json
+from transformers import AutoTokenizer
+
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, aiu_dist_setup
 
 import os
@@ -117,6 +118,9 @@ common_max_new_tokens = os.environ.get("FMS_TEST_SHAPES_COMMON_MAX_NEW_TOKENS", 
 if USE_DISTRIBUTED:
     dist.init_process_group()
     aiu_dist_setup(dist.get_rank(), dist.get_world_size())
+    save_validation_info_outputs = save_validation_info_outputs and (
+        dist.get_rank() == 0
+    )
 
 if USE_MICRO_MODELS:
     validation_info_dir = os.path.join(validation_info_dir, "tiny_models")
@@ -257,7 +261,10 @@ def __maybe_get_gptq_kwargs(model_path):
     if GPTQ_ENABLED:
         # TODO: hf_configured/hf_pretrained options in get_model should be inferring the linear_config based on the hf quantization_config attribute
         config = AutoConfig.from_pretrained(model_path)
-        if hasattr(config, "quantization_config"):
+        if (
+            hasattr(config, "quantization_config")
+            and config.quantization_config["quant_method"] == "gptq"
+        ):
             gptq_adapter_step.append("gptq_qweights_transpose_aiu")
             group_size = config.quantization_config["group_size"]
             desc_act = config.quantization_config["desc_act"]
@@ -304,7 +311,7 @@ def __prepare_inputs(batch_size, seq_length, tokenizer, seed=0):
     )
     prompt_list = []
     for prompt, _ in prompts_and_sizes:
-        prompt_list.append(ids_for_prompt(prompt, tokenizer))
+        prompt_list.append(tokenizer.encode(prompt, return_tensors="pt").squeeze(0))
 
     input_ids, extra_kwargs = pad_input_ids(prompt_list, min_pad_length=seq_length)
     return input_ids, extra_kwargs
@@ -361,15 +368,17 @@ class PersistentModel:
     def __init__(self):
         self.model = None
 
-    def get_or_create(self, is_gptq, **kwargs):
+    def get_or_create(self, is_gptq, is_fp8, **kwargs):
         if self.model is None:
             model = get_model(
                 device_type="cpu",
-                data_type=None if is_gptq else torch.float16,
+                data_type=None if is_fp8 or is_gptq else torch.float16,
                 fused_weights=False,
                 **kwargs,
             )
             self.__maybe_reset_model(model, is_gptq)
+
+            self.__maybe_prepare_fp8_weights(model, is_fp8)
 
             model.eval()
             model.compile(
@@ -382,6 +391,17 @@ class PersistentModel:
             return model
         else:
             return self.model
+
+    @staticmethod
+    def __maybe_prepare_fp8_weights(model, is_fp8):
+        if is_fp8:
+            for name, param in model.named_parameters():
+                if param.dtype == torch.bfloat16:
+                    if param.max() > torch.finfo(torch.float16).max:
+                        dprint(
+                            f"[WARNING] You are casting param {name} to fp16, which will cause loss of accuracy. You can ignore this warning if this is intended."
+                        )
+                    param.data = param.data.to(dtype=torch.float16)
 
     # TODO: This was added as we require a special reset for gptq models. Ideally, we would be able to do something like this reset when calling reset_parameters() on the model
     #  however the gptq modules are yet to support this
@@ -431,6 +451,7 @@ def test_common_shapes(
     # we don't currently support inferring gptq from get_model, so we must use an adapter with hf_configured
     gptq_kwargs_aiu, gptq_kwargs_cpu = __maybe_get_gptq_kwargs(model_path)
     is_gptq = len(gptq_kwargs_aiu) != 0
+    is_fp8 = "fp8" in ATTN_NAME
 
     micro_model_path = micro_model_mapping.get(model_path, None)
     if USE_MICRO_MODELS and micro_model_path is None:
@@ -460,17 +481,17 @@ def test_common_shapes(
             **distributed_kwargs,
         }
 
-    tokenizer = tokenizers.get_tokenizer(model_path)
+    tokenizer = AutoTokenizer.from_pretrained(model_path)
 
     # prepare the AIU model
     model = persistent_model.get_or_create(
-        is_gptq, **gptq_kwargs_aiu, **get_model_kwargs
+        is_gptq, is_fp8, **gptq_kwargs_aiu, **get_model_kwargs
     )
 
     # prepare the cpu model
     validation_model = get_model(
         device_type="cpu",
-        data_type=None if is_gptq else torch.float32,
+        data_type=None if is_fp8 or is_gptq else torch.float32,
         fused_weights=False,
         **gptq_kwargs_cpu,
         **get_model_kwargs,

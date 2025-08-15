@@ -15,10 +15,10 @@ from aiu_fms_testing_utils.testing.validation import (
     GoldenTokenHook,
     top_k_loss_calculator,
 )
-from aiu_fms_testing_utils.utils import ids_for_prompt, sample_sharegpt_requests
+from aiu_fms_testing_utils.utils import sample_sharegpt_requests
 from fms.models import get_model
-from fms.utils import tokenizers
 from fms.utils.generation import pad_input_ids
+from transformers import AutoTokenizer
 
 parser = argparse.ArgumentParser(
     description="Script to determine a reasonable logits loss threshold when testing with aiu"
@@ -156,7 +156,7 @@ if args.default_dtype is not None:
 if default_dtype is not None:
     torch.set_default_dtype(default_dtype)
 
-tokenizer = tokenizers.get_tokenizer(args.tokenizer)
+tokenizer = AutoTokenizer.from_pretrained(args.tokenizer)
 
 torch.set_grad_enabled(False)
 
@@ -190,7 +190,7 @@ def __prepare_inputs(batch_size, seq_length, tokenizer, seed=0):
     )
     prompt_list = []
     for prompt, _ in prompts_and_sizes:
-        prompt_list.append(ids_for_prompt(prompt, tokenizer))
+        prompt_list.append(tokenizer.encode(prompt, return_tensors="pt").squeeze(0))
 
     input_ids, padding_kwargs = pad_input_ids(prompt_list, min_pad_length=seq_length)
     return input_ids, padding_kwargs

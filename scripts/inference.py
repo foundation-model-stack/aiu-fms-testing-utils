@@ -1,5 +1,6 @@
 # Standard
 import argparse
+import datetime
 from functools import partial
 import itertools
 import json
@@ -9,15 +10,17 @@ import random
 import time
 
 # Third Party
-from aiu_fms_testing_utils.utils import aiu_setup, warmup_model
+from aiu_fms_testing_utils.utils import aiu_setup, warmup_model, stagger_region
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, rank, local_rank, world_size
 import numpy as np
 import torch
 from torch import distributed as dist
 from fms.models import get_model, register_model
 from fms.models.llama import LLaMAConfig, _llama_factory_factory
-from fms.utils import generation, tokenizers
+from fms.utils import generation
 from fms.utils.generation import pad_input_ids
+
+from transformers import AutoTokenizer
 
 
 # This example script validates the LLaMA implementation by running inference on a couple of prompts.
@@ -235,6 +238,24 @@ parser.add_argument(
     default="sdpa",
     help="which backend attention to use in mha",
 )
+parser.add_argument(
+    "--stagger_load",
+    type=int,
+    default=0,
+    help="Limit the number of concurrent processes executing the model loading phase. Set to 0 to allow all processes",
+)
+parser.add_argument(
+    "--stagger_update_lazyhandle",
+    type=int,
+    default=0,
+    help="Limit the number of concurrent processes executing the AIU update_lazyhandle phase. Set to 0 to allow all processes",
+)
+parser.add_argument(
+    "--dist_timeout",
+    type=int,
+    default=0,
+    help="Timeout to use for messaging in minutes. Default set by PyTorch dist.init_process_group",
+)
 args = parser.parse_args()
 
 attention_map = {
@@ -296,7 +317,13 @@ dprint(f"{args}")
 is_aiu_backend = "aiu" in args.device_type
 
 if args.distributed:
-    dist.init_process_group()
+    if args.dist_timeout > 0:
+        # Default timeout:
+        # https://docs.pytorch.org/docs/stable/distributed.html#torch.distributed.init_process_group
+        dist.init_process_group(timeout=datetime.timedelta(minutes=args.dist_timeout))
+        dprint(f"NOTICE: init_process_group timeout set to {args.dist_timeout} minutes")
+    else:
+        dist.init_process_group()
     # Fix until PT 2.3
     torch._C._distributed_c10d._register_process_group("default", dist.group.WORLD)
     aiu_setup.aiu_dist_setup(dist.get_rank(), dist.get_world_size())
@@ -476,18 +503,19 @@ dprint(f"{fused_weights=}")
 dprint(f"data_type={default_dtype}")
 dprint("=" * 60 + "\n")
 
-model = get_model(
-    args.architecture,
-    args.variant,
-    model_path=args.model_path,
-    device_type="cpu" if is_aiu_backend else args.device_type,
-    data_type=default_dtype,
-    source=args.model_source,
-    distributed_strategy=distr_param,
-    group=dist.group.WORLD,
-    linear_config=linear_config,
-    fused_weights=fused_weights,
-)
+with stagger_region(args.stagger_load):
+    model = get_model(
+        args.architecture,
+        args.variant,
+        model_path=args.model_path,
+        device_type="cpu" if is_aiu_backend else args.device_type,
+        data_type=default_dtype,
+        source=args.model_source,
+        distributed_strategy=distr_param,
+        group=dist.group.WORLD,
+        linear_config=linear_config,
+        fused_weights=fused_weights,
+    )
 
 ### Quantization
 
@@ -551,7 +579,7 @@ if args.quantization in ["gptq", "int8"]:
     dprint(model)
     dprint("=" * 60 + "\n")
 
-tokenizer = tokenizers.get_tokenizer(args.tokenizer)
+tokenizer = AutoTokenizer.from_pretrained(args.tokenizer)
 model.eval()
 torch.set_grad_enabled(False)
 loading_model_time = time.time() - loading_model_time
@@ -568,15 +596,6 @@ if args.compile:
         model.compile(mode=args.compile_mode, backend=args.compile_backend)
 
 add_special_tokens = tokenizer.bos_token_id != tokenizer.eos_token_id
-
-
-def ids_for_prompt(prompt):
-    tokens = tokenizer.tokenize(prompt)
-    ids = tokenizer.convert_tokens_to_ids(tokens)
-    if add_special_tokens:
-        ids = [tokenizer.bos_token_id] + ids
-    ids = torch.tensor(ids, dtype=torch.long, device=device)
-    return ids
 
 
 def truncate_prompts_to_max_length(prompts, max_len, max_allowed_length):
@@ -626,7 +645,11 @@ if args.prompt_path != "":
     for i, prompt_file_path in enumerate(prompt_file_paths):
         if i == args.batch_size:
             break
-        prompts.append(ids_for_prompt(prompt_file_path.read_text(encoding="utf-8")))
+        prompts.append(
+            tokenizer.encode(
+                prompt_file_path.read_text(encoding="utf-8"), return_tensors="pt"
+            ).squeeze(0)
+        )
 
 else:
     if args.prompt_type == "chat":
@@ -656,10 +679,10 @@ else:
         dprint("prompt_type must be one of chat or code")
         exit()
 
-    prompt1 = ids_for_prompt(prompt1)
-    prompt2 = ids_for_prompt(prompt2)
-    prompt3 = ids_for_prompt(prompt3)
-    prompt4 = ids_for_prompt(prompt4)
+    prompt1 = tokenizer.encode(prompt1, return_tensors="pt").squeeze(0)
+    prompt2 = tokenizer.encode(prompt2, return_tensors="pt").squeeze(0)
+    prompt3 = tokenizer.encode(prompt3, return_tensors="pt").squeeze(0)
+    prompt4 = tokenizer.encode(prompt4, return_tensors="pt").squeeze(0)
     prompts = [prompt1, prompt2, prompt3, prompt4]
     prompts = prompts * ((args.batch_size // 4) + 1)
     prompts = prompts[: args.batch_size]
@@ -721,9 +744,7 @@ def print_result(result, result_idx: int):
     if not args.no_early_termination:
         result = generation.truncate_after_eos(result, tokenizer.eos_token_id)
 
-    output_str = tokenizer.convert_tokens_to_string(
-        tokenizer.convert_ids_to_tokens(result)
-    )
+    output_str = tokenizer.decode(result)
 
     if args.output_path != "":
         output_path = Path(args.output_path)
@@ -819,6 +840,8 @@ if args.compile:
                 ids,
                 args.max_new_tokens,
                 args.compile_dynamic_sendnn,
+                use_cache=cache,
+                stagger_update_lazyhandle=args.stagger_update_lazyhandle,
                 **extra_generation_kwargs,
             )
         if (

@@ -7,13 +7,42 @@ import requests
 import time
 
 # Third Party
-from aiu_fms_testing_utils.utils.aiu_setup import dprint
-from fms.utils.tokenizers import BaseTokenizer
+
+from aiu_fms_testing_utils.utils.aiu_setup import dprint, rank, world_size
+from transformers.tokenization_utils_base import PreTrainedTokenizerBase
+
 from fms.utils.generation import pad_input_ids
 import torch
 import torch.nn as nn
-
+import math
+import contextlib
 import warnings
+
+
+@contextlib.contextmanager
+def stagger_region(limit: int):
+    """
+    Limit the number of concurrent processes into this region of code.
+    Processes yield from this function when they are allowed to enter the region of code.
+    Processes return from this function when all of the processes have completed the region of code.
+
+    :param limit: Number of concurrent processes allowed in the code region if > 0.
+    """
+    if limit > 0 and limit != world_size:
+        for _set in range(math.ceil(world_size / float(limit))):
+            if rank < (_set + 1) * limit:
+                break
+            torch.distributed.barrier()
+        dprint(
+            f"Stagger: Enter (Set: {_set + 1} of {math.ceil(world_size / float(limit))})"
+        )
+    yield
+    if limit > 0 and limit != world_size:
+        for _set in range(math.ceil(world_size / float(limit))):
+            if rank >= (_set + 1) * limit:
+                continue
+            torch.distributed.barrier()
+        dprint("Stagger: All Complete")
 
 
 def warmup_model(
@@ -22,6 +51,7 @@ def warmup_model(
     max_new_tokens: int,
     compile_dynamic_sendnn: bool = False,
     use_cache: bool = True,
+    stagger_update_lazyhandle: int = 0,
     **extra_kwargs,
 ):
     import torch_sendnn
@@ -55,27 +85,19 @@ def warmup_model(
 
     extra_kwargs = {**_extra_kwargs, "only_last_token": "paged" not in attn_name}
 
-    with torch_sendnn.warmup_mode():
-        generate(
-            model,
-            _warmup_input_ids,
-            max_new_tokens=_max_new_tokens,
-            do_sample=False,
-            use_cache=use_cache,
-            extra_kwargs=extra_kwargs,
-            **attention_specific_kwargs,
-        )
+    with stagger_region(stagger_update_lazyhandle):
+        with torch_sendnn.warmup_mode():
+            generate(
+                model,
+                _warmup_input_ids,
+                max_new_tokens=_max_new_tokens,
+                do_sample=False,
+                use_cache=use_cache,
+                extra_kwargs=extra_kwargs,
+                **attention_specific_kwargs,
+            )
     pt_compile_model_time = time.time() - pt_compile_model_time
     dprint(f"PT compile complete, took {pt_compile_model_time:.3f}s")
-
-
-def ids_for_prompt(prompt, tokenizer):
-    tokens = tokenizer.tokenize(prompt)
-    ids = tokenizer.convert_tokens_to_ids(tokens)
-    if tokenizer.bos_token_id != tokenizer.eos_token_id:
-        ids = [tokenizer.bos_token_id] + ids
-    ids = torch.tensor(ids, dtype=torch.long, device="cpu")
-    return ids
 
 
 def __download_file(url, filename):
@@ -153,7 +175,7 @@ def _merge_enforce_keep_heterogeneous(
 def __sample_requests(
     prompt_list: List[str],
     num_requests: int,
-    tokenizer: BaseTokenizer,
+    tokenizer: PreTrainedTokenizerBase,
     prompt_length_min: int = 32,
     prompt_length_max: int = 64,
     seed: Optional[int] = None,
@@ -206,7 +228,7 @@ def __sample_requests(
 
         # Tokenize the prompts and completions.
         prompt = prompt_list[i]
-        prompt_token_ids = ids_for_prompt(prompt, tokenizer)
+        prompt_token_ids = tokenizer.encode(prompt, return_tensors="pt").squeeze(0)
 
         prompt_len = len(prompt_token_ids)
         if prompt_len < prompt_length_min or prompt_len > prompt_length_max:
@@ -255,7 +277,7 @@ def __sample_requests(
 def sample_sharegpt_requests(
     dataset_path: str,
     num_requests: int,
-    tokenizer: BaseTokenizer,
+    tokenizer: PreTrainedTokenizerBase,
     prompt_length_min: int = 32,
     prompt_length_max: int = 64,
     seed: Optional[int] = None,
@@ -293,7 +315,7 @@ def sample_sharegpt_requests(
 def sample_squad_v2_qa_requests(
     dataset_path: str,
     num_requests: int,
-    tokenizer: BaseTokenizer,
+    tokenizer: PreTrainedTokenizerBase,
     prompt_length_min: int = 32,
     prompt_length_max: int = 64,
     seed: Optional[int] = None,
@@ -360,7 +382,7 @@ def prepare_inputs(
         )
     prompt_list = []
     for prompt, _ in prompts_and_sizes:
-        prompt_list.append(ids_for_prompt(prompt, tokenizer))
+        prompt_list.append(tokenizer.encode(prompt, return_tensors="pt").squeeze(0))
 
     input_ids, padding_kwargs = pad_input_ids(prompt_list, min_pad_length=seq_length)
     return input_ids, padding_kwargs

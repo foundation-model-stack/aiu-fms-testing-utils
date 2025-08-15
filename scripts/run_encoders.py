@@ -6,8 +6,8 @@ import time
 from fms.models import get_model
 from fms.models.roberta import RoBERTaForQuestionAnswering, RoBERTa
 from fms.models.hf.roberta.modeling_roberta_hf import HFAdaptedRoBERTaForMaskedLM
-from fms.utils import tokenizers
 from torch import distributed, set_grad_enabled
+from transformers import AutoTokenizer
 
 # Local Packages
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, rank, world_size
@@ -76,7 +76,7 @@ if args.is_quantized:
     validate_quantization(model, args)
     print_model_params(model, args)
 
-tokenizer = tokenizers.get_tokenizer(args.tokenizer)
+tokenizer = AutoTokenizer.from_pretrained(args.tokenizer)
 
 model.eval()
 set_grad_enabled(False)
