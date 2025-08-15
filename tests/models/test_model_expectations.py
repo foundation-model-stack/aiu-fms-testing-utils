@@ -1,13 +1,11 @@
-from fms.models import get_model
-from fms.utils.generation import pad_input_ids
+import os
+
 import pytest
 import torch
-
-from fms.testing._internal.model_test_suite import (
-    ModelConsistencyTestSuite,
-    ModelFixtureMixin,
-)
-import os
+from fms.models import get_model
+from fms.testing._internal.model_test_suite import (ModelConsistencyTestSuite,
+                                                    ModelFixtureMixin)
+from fms.utils.generation import pad_input_ids
 
 os.environ["COMPILATION_MODE"] = "offline"
 

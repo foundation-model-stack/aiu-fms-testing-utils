@@ -4,29 +4,22 @@ import time
 
 # Third Party
 from fms.models import get_model
-from fms.models.roberta import RoBERTaForQuestionAnswering, RoBERTa
-from fms.models.hf.roberta.modeling_roberta_hf import HFAdaptedRoBERTaForMaskedLM
+from fms.models.hf.roberta.modeling_roberta_hf import (
+    HFAdaptedRoBERTaForMaskedLM)
+from fms.models.roberta import RoBERTa, RoBERTaForQuestionAnswering
 from torch import distributed, set_grad_enabled
 from transformers import AutoTokenizer
 
 # Local Packages
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, rank, world_size
 from aiu_fms_testing_utils.utils.args_parsing import get_args
-from aiu_fms_testing_utils.utils.encoders_utils import (
-    wrap_encoder,
-    run_encoder_eval_qa,
-    run_encoder_eval_mlm,
-)
-from aiu_fms_testing_utils.utils.model_setup import (
-    setup_model,
-    print_model_params,
-    recast_16b,
-)
+from aiu_fms_testing_utils.utils.encoders_utils import (run_encoder_eval_mlm,
+                                                        run_encoder_eval_qa,
+                                                        wrap_encoder)
+from aiu_fms_testing_utils.utils.model_setup import (print_model_params,
+                                                     recast_16b, setup_model)
 from aiu_fms_testing_utils.utils.quantization_setup import (
-    import_addons,
-    get_linear_config,
-    validate_quantization,
-)
+    get_linear_config, import_addons, validate_quantization)
 
 parser = argparse.ArgumentParser(
     description="Entry point for AIU inference of encoder models."

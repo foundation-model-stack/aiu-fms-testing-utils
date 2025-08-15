@@ -1,10 +1,10 @@
 import argparse
+import ast
 import json
 import os
 import random
 import time
 from pathlib import Path
-import ast
 
 import numpy as np
 import torch
@@ -14,20 +14,15 @@ from fms.models.llama import LLaMAConfig, _llama_factory_factory
 from fms.utils import generation
 from fms.utils.generation import pad_input_ids
 from torch import distributed as dist
-from aiu_fms_testing_utils.utils import warmup_model
-from aiu_fms_testing_utils.testing.validation import (
-    LogitsExtractorHook,
-    capture_level_1_metrics,
-    extract_validation_information,
-    GoldenTokenHook,
-    filter_failed_level_1_cases,
-    validate_level_0,
-    load_validation_information,
-    print_failed_cases,
-)
-from aiu_fms_testing_utils.utils import aiu_setup
-from aiu_fms_testing_utils.utils.aiu_setup import dprint, rank, local_rank, world_size
 from transformers import AutoTokenizer
+
+from aiu_fms_testing_utils.testing.validation import (
+    GoldenTokenHook, LogitsExtractorHook, capture_level_1_metrics,
+    extract_validation_information, filter_failed_level_1_cases,
+    load_validation_information, print_failed_cases, validate_level_0)
+from aiu_fms_testing_utils.utils import aiu_setup, warmup_model
+from aiu_fms_testing_utils.utils.aiu_setup import (dprint, local_rank, rank,
+                                                   world_size)
 
 # This example script validates models on AIU through comparisons to other devices.
 parser = argparse.ArgumentParser(
@@ -267,7 +262,8 @@ fused_weights = not args.unfuse_weights
 if args.quantization == "gptq":
     try:
         # validation script always loads AIU addon
-        from fms_mo.aiu_addons.gptq import gptq_aiu_adapter, gptq_aiu_linear  # noqa: F401
+        from fms_mo.aiu_addons.gptq import (gptq_aiu_adapter,  # noqa: F401
+                                            gptq_aiu_linear)
 
         print("Loaded `aiu_addons` functionalities")
 

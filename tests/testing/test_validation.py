@@ -1,13 +1,13 @@
 import tempfile
+
 import pytest
-from aiu_fms_testing_utils.testing.validation import (
-    LogitsExtractorHook,
-    extract_validation_information,
-    load_validation_information,
-)
+import torch
 from fms.models import get_model
 from fms.utils.generation import pad_input_ids
-import torch
+
+from aiu_fms_testing_utils.testing.validation import (
+    LogitsExtractorHook, extract_validation_information,
+    load_validation_information)
 
 
 @pytest.mark.parametrize(

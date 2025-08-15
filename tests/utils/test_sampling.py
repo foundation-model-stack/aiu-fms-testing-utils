@@ -1,13 +1,13 @@
-from aiu_fms_testing_utils.utils import (
-    sample_sharegpt_requests,
-    get_pad_size,
-    _merge_enforce_keep_heterogeneous,
-)
-from typing import List
-from transformers import AutoTokenizer
-import pytest
-from itertools import product
 import os
+from itertools import product
+from typing import List
+
+import pytest
+from transformers import AutoTokenizer
+
+from aiu_fms_testing_utils.utils import (_merge_enforce_keep_heterogeneous,
+                                         get_pad_size,
+                                         sample_sharegpt_requests)
 
 BATCH_SIZES = [0, 1, 2, 3, 4, 8, 16]
 ENFORCE_HETEROGENEOUS = [True, False]

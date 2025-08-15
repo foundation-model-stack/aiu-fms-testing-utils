@@ -1,9 +1,10 @@
+import os
 from pathlib import Path
-from typing import List, Tuple, Callable, MutableMapping, Any, Optional
+from typing import Any, Callable, List, MutableMapping, Optional, Tuple
 
 import torch
+
 from aiu_fms_testing_utils.utils.aiu_setup import dprint
-import os
 
 
 class LogitsExtractorHook(

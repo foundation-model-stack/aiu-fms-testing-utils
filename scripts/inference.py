@@ -1,27 +1,27 @@
 # Standard
 import argparse
 import datetime
-from functools import partial
 import itertools
 import json
 import os
-from pathlib import Path
 import random
 import time
+from functools import partial
+from pathlib import Path
 
-# Third Party
-from aiu_fms_testing_utils.utils import aiu_setup, warmup_model, stagger_region
-from aiu_fms_testing_utils.utils.aiu_setup import dprint, rank, local_rank, world_size
 import numpy as np
 import torch
-from torch import distributed as dist
 from fms.models import get_model, register_model
 from fms.models.llama import LLaMAConfig, _llama_factory_factory
 from fms.utils import generation
 from fms.utils.generation import pad_input_ids
-
+from torch import distributed as dist
 from transformers import AutoTokenizer
 
+# Third Party
+from aiu_fms_testing_utils.utils import aiu_setup, stagger_region, warmup_model
+from aiu_fms_testing_utils.utils.aiu_setup import (dprint, local_rank, rank,
+                                                   world_size)
 
 # This example script validates the LLaMA implementation by running inference on a couple of prompts.
 #
@@ -278,14 +278,16 @@ if "fp8" in attn_name:
 if args.quantization == "gptq":
     if "aiu" in args.device_type:
         try:
-            from fms_mo.aiu_addons.gptq import gptq_aiu_adapter, gptq_aiu_linear  # noqa
+            from fms_mo.aiu_addons.gptq import (gptq_aiu_adapter,  # noqa
+                                                gptq_aiu_linear)
 
             print("Loaded `aiu_addons` functionalities")
         except ImportError:
             raise ImportError("Failed to import GPTQ addons from fms-mo.")
 elif args.quantization == "int8":
     try:
-        from fms_mo.aiu_addons.i8i8 import i8i8_aiu_adapter, i8i8_aiu_linear  # noqa
+        from fms_mo.aiu_addons.i8i8 import (i8i8_aiu_adapter,  # noqa
+                                            i8i8_aiu_linear)
 
         print("Loaded `aiu_addons` functionalities")
     except ImportError:

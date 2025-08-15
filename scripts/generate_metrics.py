@@ -3,22 +3,17 @@ import ast
 import os
 
 import torch
-from torch import distributed as dist
-from aiu_fms_testing_utils.testing.validation import (
-    capture_level_1_metrics,
-    extract_validation_information,
-    LogitsExtractorHook,
-    get_default_validation_prefix,
-    load_validation_information,
-    print_failed_cases,
-    validate_level_0,
-    GoldenTokenHook,
-    top_k_loss_calculator,
-)
-from aiu_fms_testing_utils.utils import sample_sharegpt_requests
 from fms.models import get_model
 from fms.utils.generation import pad_input_ids
+from torch import distributed as dist
 from transformers import AutoTokenizer
+
+from aiu_fms_testing_utils.testing.validation import (
+    GoldenTokenHook, LogitsExtractorHook, capture_level_1_metrics,
+    extract_validation_information, get_default_validation_prefix,
+    load_validation_information, print_failed_cases, top_k_loss_calculator,
+    validate_level_0)
+from aiu_fms_testing_utils.utils import sample_sharegpt_requests
 
 parser = argparse.ArgumentParser(
     description="Script to determine a reasonable logits loss threshold when testing with aiu"

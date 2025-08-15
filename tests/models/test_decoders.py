@@ -1,35 +1,27 @@
-from fms.models.hf.utils import AutoConfig
-from fms.utils import serialization
-import pytest
-from fms.models import get_model
-from fms.utils.generation import pad_input_ids
 import itertools
-import torch
-from torch import distributed as dist
-from aiu_fms_testing_utils.testing.validation import (
-    extract_validation_information,
-    LogitsExtractorHook,
-    GoldenTokenHook,
-    capture_level_1_metrics,
-    filter_failed_level_1_cases,
-    get_default_validation_prefix,
-    load_validation_information,
-    validate_level_0,
-    top_k_loss_calculator,
-)
-from aiu_fms_testing_utils.utils import (
-    warmup_model,
-    sample_sharegpt_requests,
-)
 import json
-from transformers import AutoTokenizer
-
-from aiu_fms_testing_utils.utils.aiu_setup import dprint, aiu_dist_setup
-
 import os
 
+import pytest
+import torch
+from fms.models import get_model
+from fms.models.hf.utils import AutoConfig
+from fms.utils import serialization
+from fms.utils.generation import pad_input_ids
+from torch import distributed as dist
+from transformers import AutoTokenizer
+
+from aiu_fms_testing_utils.testing.validation import (
+    GoldenTokenHook, LogitsExtractorHook, capture_level_1_metrics,
+    extract_validation_information, filter_failed_level_1_cases,
+    get_default_validation_prefix, load_validation_information,
+    top_k_loss_calculator, validate_level_0)
+from aiu_fms_testing_utils.utils import sample_sharegpt_requests, warmup_model
+from aiu_fms_testing_utils.utils.aiu_setup import aiu_dist_setup, dprint
+
 try:
-    from fms_mo.aiu_addons.gptq import gptq_aiu_adapter, gptq_aiu_linear  # noqa: F401
+    from fms_mo.aiu_addons.gptq import (gptq_aiu_adapter,  # noqa: F401
+                                        gptq_aiu_linear)
 
     GPTQ_ENABLED = True
 except ImportError:

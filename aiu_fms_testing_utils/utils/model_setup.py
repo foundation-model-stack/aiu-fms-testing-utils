@@ -1,17 +1,18 @@
 # Standard
 import argparse
 import os
+import random
 import sys
 
 # Third party
 import numpy as np
-import random
 import torch
-from torch import nn, distributed
+from torch import distributed, nn
 
-# Local
-from aiu_fms_testing_utils.utils.aiu_setup import dprint, rank, local_rank, world_size
 from aiu_fms_testing_utils.utils import aiu_setup
+# Local
+from aiu_fms_testing_utils.utils.aiu_setup import (dprint, local_rank, rank,
+                                                   world_size)
 
 
 def get_default_dtype(args: argparse.Namespace) -> torch.dtype | None:

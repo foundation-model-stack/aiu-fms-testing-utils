@@ -1,22 +1,24 @@
 # Standard
-from typing import Optional, List, Tuple
+import contextlib
 import json
+import math
 import os
 import random
-import requests
 import time
+import warnings
+from typing import List, Optional, Tuple
+
+import requests
+import torch
+import torch.nn as nn
+from fms.utils.generation import pad_input_ids
+from transformers.tokenization_utils_base import PreTrainedTokenizerBase
+
+from aiu_fms_testing_utils.utils.aiu_setup import dprint, rank, world_size
 
 # Third Party
 
-from aiu_fms_testing_utils.utils.aiu_setup import dprint, rank, world_size
-from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 
-from fms.utils.generation import pad_input_ids
-import torch
-import torch.nn as nn
-import math
-import contextlib
-import warnings
 
 
 @contextlib.contextmanager
@@ -59,7 +61,8 @@ def warmup_model(
     attention_specific_kwargs = {}
     attn_name = extra_kwargs.get("attn_name", "sdpa")
     if "paged" in attn_name:
-        from aiu_fms_testing_utils.utils.paged import generate, adjust_inputs_to_batch
+        from aiu_fms_testing_utils.utils.paged import (adjust_inputs_to_batch,
+                                                       generate)
     else:
         # TODO: Add a unified generation dependent on attn_type
         from fms.utils.generation import generate

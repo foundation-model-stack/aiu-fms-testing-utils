@@ -1,17 +1,16 @@
-from fms.testing.comparison import (
-    ModelSignatureParams,
-    get_signature,
-)
-import pytest
-from fms.models import get_model
-from fms.utils.generation import pad_input_ids
 import itertools
+import os
+
+import numpy as np
+import pytest
 import torch
+from fms.models import get_model
+from fms.testing.comparison import ModelSignatureParams, get_signature
+from fms.utils.generation import pad_input_ids
+from transformers import AutoTokenizer
+
 from aiu_fms_testing_utils.utils import sample_squad_v2_qa_requests
 from aiu_fms_testing_utils.utils.aiu_setup import dprint
-import os
-import numpy as np
-from transformers import AutoTokenizer
 
 # Add models to test here
 ROBERTA_SQUAD_V2 = "deepset/roberta-base-squad2"

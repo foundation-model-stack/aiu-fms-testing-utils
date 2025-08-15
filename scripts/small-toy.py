@@ -1,22 +1,21 @@
+import argparse
 import os
 import sys
-import argparse
-
-from aiu_fms_testing_utils.utils import aiu_setup
-from aiu_fms_testing_utils.utils.aiu_setup import dprint, world_rank, world_size
 
 # PyTorch
 import torch
 import torch.distributed
-
 # Foundation Model Stack
 # - FeedForwardBlock : Building block for the model
 # - apply_tp : Convert serial model into tensor parallel
 from fms.modules.feedforward import FeedForwardBlock
 from fms.utils.tp_wrapping import apply_tp
-
 # Import AIU Libraries
 from torch_sendnn import torch_sendnn  # noqa
+
+from aiu_fms_testing_utils.utils import aiu_setup
+from aiu_fms_testing_utils.utils.aiu_setup import (dprint, world_rank,
+                                                   world_size)
 
 
 # ==============================================================

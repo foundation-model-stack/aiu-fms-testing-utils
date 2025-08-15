@@ -1,14 +1,14 @@
-import glob
-import numpy as np
 import argparse
+import glob
+import json
+import logging
 import os
 import re
 
-import logging
+import numpy as np
 
-import json
-
-from aiu_fms_testing_utils.utils.metrics_utils import abs_diff_linalg_norm, list_mean
+from aiu_fms_testing_utils.utils.metrics_utils import (abs_diff_linalg_norm,
+                                                       list_mean)
 
 logger = logging.getLogger(__name__)
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()

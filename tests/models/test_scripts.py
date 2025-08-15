@@ -1,9 +1,10 @@
-import pytest
-import os
-from subprocess import Popen, PIPE
-from pathlib import Path
 import itertools
 import math
+import os
+from pathlib import Path
+from subprocess import PIPE, Popen
+
+import pytest
 
 FMS_DIR = Path(__file__).parent
 AIU_FMS_DIR = os.path.join(FMS_DIR, "../../../aiu-fms-testing-utils/")

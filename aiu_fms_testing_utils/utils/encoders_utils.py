@@ -1,36 +1,31 @@
 # Standard
-from tqdm import tqdm
 import argparse
 import collections
 import json
 import os
 import time
 
+import evaluate
+import numpy as np
+import torch
 # Third Party
 from datasets import Dataset, load_dataset
 from fms.models.hf import to_hf_api
 from fms.models.hf.modeling_hf_adapter import HFModelArchitecture
 from fms.utils import has_package
-from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 from torch import nn
 from torch.utils.data import DataLoader
-import evaluate
-import numpy as np
-import torch
+from tqdm import tqdm
+from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 
 # Local Packages
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, rank
 
-
 # Optional imports (required for QA)
 has_hf = has_package("transformers")
 if has_hf:
-    from transformers import (
-        default_data_collator,
-        DataCollatorWithPadding,
-        EvalPrediction,
-        pipeline,
-    )
+    from transformers import (DataCollatorWithPadding, EvalPrediction,
+                              default_data_collator, pipeline)
 
 
 def wrap_encoder(model: nn.Module) -> HFModelArchitecture:

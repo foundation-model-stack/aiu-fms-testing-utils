@@ -1,20 +1,19 @@
+import argparse
+import itertools
+import logging
 import os
 import time
-import logging
-import argparse
 
-import itertools
 import torch
-
 from fms.models import get_model
 from fms.utils.generation import generate
-
-from aiu_fms_testing_utils.testing.validation import get_default_validation_prefix
-
-from aiu_fms_testing_utils.utils import prepare_inputs
-from aiu_fms_testing_utils.utils.metrics_utils import tensor_abs_diff, tensor_cos_sim
-
 from transformers import AutoTokenizer
+
+from aiu_fms_testing_utils.testing.validation import (
+    get_default_validation_prefix)
+from aiu_fms_testing_utils.utils import prepare_inputs
+from aiu_fms_testing_utils.utils.metrics_utils import (tensor_abs_diff,
+                                                       tensor_cos_sim)
 
 logger = logging.getLogger(__name__)
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
