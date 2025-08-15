@@ -4,6 +4,8 @@ import pytest
 from fms.models import get_model
 from fms.utils.generation import pad_input_ids
 import itertools
+import warnings
+import re
 import torch
 from torch import distributed as dist
 from aiu_fms_testing_utils.testing.validation import (
@@ -171,7 +173,7 @@ if compile_dynamic_sendnn:
     # the compiler supports certain max context lengths (VLLM_DT_MAX_CONTEXT_LEN)
     # this will ensure that we select smallest supported VLLM_DT_MAX_CONTEXT_LEN that fits the largest possible context (prompt size + max_new_tokens)
     __largest_context = max(common_seq_lengths) + max(common_max_new_tokens)
-    __supported_context_lengths = [256, 512, 1024, 2048, 4096, 8192]
+    __supported_context_lengths = [256, 512, 1024, 2048, 4096, 8192, 16384, 32768]
     os.environ["VLLM_DT_MAX_CONTEXT_LEN"] = str(
         __supported_context_lengths[
             bisect.bisect_left(__supported_context_lengths, __largest_context)
@@ -301,14 +303,28 @@ def __maybe_get_gptq_kwargs(model_path):
 
 
 def __prepare_inputs(batch_size, seq_length, tokenizer, seed=0):
-    prompts_and_sizes = sample_sharegpt_requests(
-        SHARE_GPT_DATASET_PATH,
-        batch_size,
-        tokenizer,
-        seq_length // 2,
-        seq_length,
-        seed,
-    )
+    if "paged" in ATTN_NAME:
+        prompts_and_sizes = sample_sharegpt_requests(
+            SHARE_GPT_DATASET_PATH,
+            batch_size,
+            tokenizer,
+            seq_length // 2,
+            seq_length,
+            seed,
+            enforce_heterogeneous=True,
+            enforce_sizes=[seq_length],  # ensure at least the max seq length is sampled
+            pad_multiple=64,
+        )
+    else:
+        prompts_and_sizes = sample_sharegpt_requests(
+            SHARE_GPT_DATASET_PATH,
+            batch_size,
+            tokenizer,
+            seq_length // 2,
+            seq_length,
+            seed,
+        )
+
     prompt_list = []
     for prompt, _ in prompts_and_sizes:
         prompt_list.append(tokenizer.encode(prompt, return_tensors="pt").squeeze(0))
@@ -341,25 +357,45 @@ def __filter_before_eos(metrics, filter_indexes):
 
 
 def __get_validation_info_full_path(
-    model_path, batch_size, seq_length, max_new_tokens, seed, device_type="cpu"
+    model_path,
+    batch_size,
+    seq_length,
+    max_new_tokens,
+    seed,
+    attn_type: str,
+    device_type="cpu",
 ):
-    validation_file_name = f"{get_default_validation_prefix(model_path, max_new_tokens, batch_size, seq_length, 'fp16')}.{device_type}_validation_info.{seed}.out"
+    validation_file_name = f"{get_default_validation_prefix(model_path, max_new_tokens, batch_size, seq_length, 'fp16', attn_type)}.{device_type}_validation_info.{seed}.out"
     full_path = os.path.join(validation_info_dir, validation_file_name)
     return full_path
 
 
 def __load_validation_info(
-    model_path, batch_size, seq_length, max_new_tokens, tokenizer, seed
+    model_path, batch_size, seq_length, max_new_tokens, tokenizer, seed, attn_type: str
 ):
+    # if path doesn't exist and paged isn't in the attention name, remove `attn_type` and recheck again, warn that we will no longer in the future have paths without 'attn_type'
     full_path = __get_validation_info_full_path(
-        model_path, batch_size, seq_length, max_new_tokens, seed
+        model_path, batch_size, seq_length, max_new_tokens, seed, attn_type
     )
 
     if os.path.exists(full_path):
         dprint(f"cpu validation info found for seed={seed} -- loading it")
         return load_validation_information(full_path, "logits", batch_size, tokenizer)
     else:
-        return None
+        # This regex applies to a very specific file name format
+        modified_full_path = re.sub(r"_attn-type[^.]*", "", full_path)
+
+        if os.path.exists(modified_full_path):
+            warnings.warn(
+                f"All future paths should contain attn_type prefix information in path name, please modify {full_path=} to {modified_full_path=}",
+                stacklevel=2,
+            )
+            dprint(f"cpu validation info found for seed={seed} -- loading it")
+            return load_validation_information(
+                modified_full_path, "logits", batch_size, tokenizer
+            )
+        else:
+            return None
 
 
 class PersistentModel:
@@ -513,7 +549,7 @@ def test_common_shapes(
 
     # generate cpu validation info
     cpu_validation_info = __load_validation_info(
-        model_path, batch_size, seq_length, max_new_tokens, tokenizer, 0
+        model_path, batch_size, seq_length, max_new_tokens, tokenizer, 0, ATTN_NAME
     )
     if cpu_validation_info is None:
         cpu_validation_info = extract_validation_information(
@@ -529,7 +565,7 @@ def test_common_shapes(
         if save_validation_info_outputs:
             cpu_validation_info.save(
                 __get_validation_info_full_path(
-                    model_path, batch_size, seq_length, max_new_tokens, 0
+                    model_path, batch_size, seq_length, max_new_tokens, 0, ATTN_NAME
                 )
             )
     cpu_static_tokens = cpu_validation_info.get_info("tokens")
@@ -591,7 +627,13 @@ def test_common_shapes(
                 )
                 extra_kwargs["attn_name"] = ATTN_NAME
                 cpu_validation_info = __load_validation_info(
-                    model_path, batch_size, seq_length, max_new_tokens, tokenizer, i
+                    model_path,
+                    batch_size,
+                    seq_length,
+                    max_new_tokens,
+                    tokenizer,
+                    i,
+                    ATTN_NAME,
                 )
                 if cpu_validation_info is None:
                     cpu_validation_info = extract_validation_information(
@@ -609,7 +651,12 @@ def test_common_shapes(
                     if save_validation_info_outputs:
                         cpu_validation_info.save(
                             __get_validation_info_full_path(
-                                model_path, batch_size, seq_length, max_new_tokens, i
+                                model_path,
+                                batch_size,
+                                seq_length,
+                                max_new_tokens,
+                                i,
+                                ATTN_NAME,
                             )
                         )
                 cpu_static_tokens = cpu_validation_info.get_info("tokens")
@@ -634,7 +681,13 @@ def test_common_shapes(
             if save_validation_info_outputs:
                 aiu_validation_info.save(
                     __get_validation_info_full_path(
-                        model_path, batch_size, seq_length, max_new_tokens, i, "aiu"
+                        model_path,
+                        batch_size,
+                        seq_length,
+                        max_new_tokens,
+                        i,
+                        ATTN_NAME,
+                        "aiu",
                     )
                 )
 

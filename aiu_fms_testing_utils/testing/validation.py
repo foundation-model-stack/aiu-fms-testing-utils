@@ -124,9 +124,14 @@ class ValidationInfo:
 
 
 def get_default_validation_prefix(
-    model_id: str, max_new_tokens: int, batch_size: int, seq_length: int, dtype: str
+    model_id: str,
+    max_new_tokens: int,
+    batch_size: int,
+    seq_length: int,
+    dtype: str,
+    attn_type: str,
 ):
-    return f"{model_id.replace('/', '--')}_max-new-tokens-{max_new_tokens}_batch-size-{batch_size}_seq-length-{seq_length}_dtype-{dtype}"
+    return f"{model_id.replace('/', '--')}_max-new-tokens-{max_new_tokens}_batch-size-{batch_size}_seq-length-{seq_length}_dtype-{dtype}_attn-type-{attn_type}"
 
 
 def load_validation_information(
