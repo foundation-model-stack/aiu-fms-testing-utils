@@ -112,10 +112,11 @@ def test_common_shapes(model_path, batch_size, seq_length):
 
     tokenizer = AutoTokenizer.from_pretrained(model_path)
 
-    if os.path.exists(model_path):
-        model_path_kwargs = {"model_path": model_path}
-    else:
-        model_path_kwargs = {"variant": model_path}
+    model_path_kwargs = {
+        "model_path": model_path
+    } if os.path.exists(model_path) else {
+        "variant": model_path
+    }
 
     # prepare the AIU model
     model = get_model(

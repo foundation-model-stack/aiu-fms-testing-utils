@@ -24,7 +24,7 @@ from aiu_fms_testing_utils.utils.aiu_setup import (dprint, world_rank,
 class ToyModelFM(torch.nn.Module):
 
     def __init__(self):
-        super(ToyModelFM, self).__init__()
+        super().__init__()
         # Input layer size
         self.INPUT_N = 1024
         # Hidden factor of the feedforward layer
@@ -86,10 +86,7 @@ if __name__ == "__main__":
     )
     pargs = parser.parse_args()
 
-    if pargs.backend == "aiu":
-        dynamo_backend = "sendnn"
-    else:
-        dynamo_backend = "inductor"
+    dynamo_backend = "sendnn" if pargs.backend == "aiu" else "inductor"
 
     is_distributed = world_size > 1
     if is_distributed:
@@ -113,7 +110,7 @@ if __name__ == "__main__":
     # -------------
     # Display some diagnostics
     # -------------
-    if 0 == world_rank:
+    if world_rank == 0:
         dprint("-" * 60)
         dprint(
             f"Python Version  : {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
@@ -133,7 +130,7 @@ if __name__ == "__main__":
     # -------------
     # Create the model
     # -------------
-    if 0 == world_rank:
+    if world_rank == 0:
         dprint("Creating the model...")
     the_model = ToyModelFM()
     if is_distributed:
@@ -143,7 +140,7 @@ if __name__ == "__main__":
     # -------------
     # Compile the model
     # -------------
-    if 0 == world_rank:
+    if world_rank == 0:
         dprint("Compiling the model...")
     the_compiled_model = torch.compile(the_model, backend=dynamo_backend)
     the_compiled_model.eval()  # inference only mode
@@ -161,19 +158,19 @@ if __name__ == "__main__":
     the_inputs = torch.randn(NUM_BATCHES, the_model.INPUT_N)
 
     # First run will create compiled artifacts
-    if 0 == world_rank:
+    if world_rank == 0:
         dprint("Running model: First Time...")
     the_outputs = the_compiled_model(the_inputs)
 
     # Second run will be faster as it uses the cached artifacts
-    if 0 == world_rank:
+    if world_rank == 0:
         dprint("Running model: Second Time...")
     the_outputs = the_compiled_model(the_inputs)
 
     # -------------
     # Cleanup
     # -------------
-    if 0 == world_rank:
+    if world_rank == 0:
         dprint("Done")
     if is_distributed:
         torch.distributed.barrier()

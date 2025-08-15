@@ -292,20 +292,21 @@ if "fp8" in attn_name:
 if args.quantization == "gptq":
     if "aiu" in args.device_type:
         try:
-            from fms_mo.aiu_addons.gptq import gptq_aiu_adapter  # noqa
-            from fms_mo.aiu_addons.gptq import gptq_aiu_linear
+            from fms_mo.aiu_addons.gptq import gptq_aiu_adapter  # noqa: F401
+            from fms_mo.aiu_addons.gptq import gptq_aiu_linear  # noqa: F401
 
             print("Loaded `aiu_addons` functionalities")
-        except ImportError:
-            raise ImportError("Failed to import GPTQ addons from fms-mo.")
+        except ImportError as err:
+            raise ImportError(
+                "Failed to import GPTQ addons from fms-mo.") from err
 elif args.quantization == "int8":
     try:
-        from fms_mo.aiu_addons.i8i8 import i8i8_aiu_adapter  # noqa
-        from fms_mo.aiu_addons.i8i8 import i8i8_aiu_linear
+        from fms_mo.aiu_addons.i8i8 import i8i8_aiu_adapter  # noqa: F401
+        from fms_mo.aiu_addons.i8i8 import i8i8_aiu_linear  # noqa: F401
 
         print("Loaded `aiu_addons` functionalities")
-    except ImportError:
-        raise ImportError("Failed to import INT8 addons from fms-mo.")
+    except ImportError as err:
+        raise ImportError("Failed to import INT8 addons from fms-mo.") from err
 
 # this is a test model config
 config = LLaMAConfig(
@@ -363,13 +364,14 @@ elif is_aiu_backend:
         int(args.fixed_prompt_length * 2.5),
     )
     _prompt_size = max(int(args.min_pad_length), int(args.fixed_prompt_length))
-    if hasattr(torch._dynamo.config, "accumulated_cache_size_limit"):
-        if _target_cache_size > torch._dynamo.config.accumulated_cache_size_limit:
-            _prev = torch._dynamo.config.accumulated_cache_size_limit
-            torch._dynamo.config.accumulated_cache_size_limit = _target_cache_size
-            dprint(
-                f"NOTICE: Adjusting torch._dynamo.config.accumulated_cache_size_limit from {_prev} to {torch._dynamo.config.accumulated_cache_size_limit} to accommodate prompt size of {_prompt_size} and decode tokens of {args.max_new_tokens}"
-            )
+    if hasattr(
+            torch._dynamo.config, "accumulated_cache_size_limit"
+    ) and _target_cache_size > torch._dynamo.config.accumulated_cache_size_limit:
+        _prev = torch._dynamo.config.accumulated_cache_size_limit
+        torch._dynamo.config.accumulated_cache_size_limit = _target_cache_size
+        dprint(
+            f"NOTICE: Adjusting torch._dynamo.config.accumulated_cache_size_limit from {_prev} to {torch._dynamo.config.accumulated_cache_size_limit} to accommodate prompt size of {_prompt_size} and decode tokens of {args.max_new_tokens}"
+        )
 
     if _target_cache_size > torch._dynamo.config.cache_size_limit:
         _prev = torch._dynamo.config.cache_size_limit
@@ -416,13 +418,8 @@ if args.deterministic:
 
 dprint("loading model")
 loading_model_time = time.time()
-if args.distributed:
-    distr_param = "tp"
-else:
-    if torch.cuda.device_count() > 1 and world_size == 1:
-        distr_param = "mp"
-    else:
-        distr_param = None
+distr_param = "tp" if args.distributed else "mp" if torch.cuda.device_count(
+) > 1 and world_size == 1 else None
 
 fused_weights = not args.unfuse_weights
 if args.quantization == "gptq":
@@ -445,7 +442,7 @@ if args.quantization == "gptq":
 
     qconfig_path = args.model_path + "/quantize_config.json"
     if os.path.exists(qconfig_path):
-        with open(qconfig_path, "r") as f:
+        with open(qconfig_path) as f:
             dprint(f"loading quantization config from {qconfig_path}")
             qconfig = json.load(f)
             group_size = qconfig["group_size"]
@@ -632,10 +629,7 @@ if args.prompt_path != "":
     prompt_file_paths = []
 
     if prompt_path.is_dir():
-        if glob_pattern != "":
-            glob_pattern_list = [glob_pattern]
-        else:
-            glob_pattern_list = ["*.txt"]
+        glob_pattern_list = [glob_pattern] if glob_pattern != "" else ["*.txt"]
         for glob_pattern_possibility in glob_pattern_list:
             file_list = list(prompt_path.glob(glob_pattern_possibility))
             if len(file_list) > 0:
@@ -779,10 +773,7 @@ def infer(use_cache, do_sample, warmup):
         extra_generation_kwargs = {}
     extra_generation_kwargs["only_last_token"] = "paged" not in attn_name
 
-    if not args.no_early_termination and not warmup:
-        eos_token_id = tokenizer.eos_token_id
-    else:
-        eos_token_id = None
+    eos_token_id = tokenizer.eos_token_id if not args.no_early_termination and not warmup else None
 
     attention_specific_kwargs = {}
     if attn_name == "sdpa_causal":

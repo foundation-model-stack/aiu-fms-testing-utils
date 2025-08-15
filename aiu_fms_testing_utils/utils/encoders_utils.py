@@ -479,15 +479,16 @@ class EncoderQAInfer:
 
             # Make `predictions` JSON-serializable by casting np.float back to float.
             all_nbest_json[example["id"]] = [{
-                k: (float(v) if isinstance(v, (np.float16, np.float32,
-                                               np.float64)) else v)
+                k:
+                (float(v) if isinstance(v, np.float16 | np.float32
+                                        | np.float64) else v)
                 for k, v in pred.items()
             } for pred in predictions]
 
         # If we have an output_dir, let's save all those dicts.
         if output_dir is not None:
             if not os.path.isdir(output_dir):
-                raise EnvironmentError(f"{output_dir} is not a directory.")
+                raise OSError(f"{output_dir} is not a directory.")
 
             prediction_file = os.path.join(
                 output_dir,

@@ -99,13 +99,8 @@ def set_determinism(args: argparse.Namespace) -> None:
 def get_distributed_strategy(args: argparse.Namespace) -> str | None:
     """Return distributed strategy."""
 
-    if args.distributed:
-        dist_strat = "tp"
-    else:
-        if torch.cuda.device_count() > 1 and world_size == 1:
-            dist_strat = "mp"
-        else:
-            dist_strat = None
+    dist_strat = "tp" if args.distributed else "mp" if torch.cuda.device_count(
+    ) > 1 and world_size == 1 else None
     return dist_strat
 
 

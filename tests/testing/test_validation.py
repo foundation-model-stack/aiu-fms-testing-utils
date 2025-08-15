@@ -65,6 +65,6 @@ def test_validation_info_round_trip(validation_type, post_iteration_hook):
                 for k, v in loaded_vi.items() if v is not None
             }
             assert gen_vi_no_none.keys() == loaded_vi_no_none.keys()
-            for k in gen_vi_no_none.keys():
+            for k in gen_vi_no_none:
                 torch.testing.assert_close(gen_vi_no_none[k],
                                            loaded_vi_no_none[k])

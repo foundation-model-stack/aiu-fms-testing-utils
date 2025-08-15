@@ -58,8 +58,8 @@ Repository = "https://github.com/foundation-model-stack/aiu-fms-testing-utils"
 Issues = "https://github.com/foundation-model-stack/aiu-fms-testing-utils/issues"
 
 [tool.ruff]
-# Allow lines to be as long as 90.
-line-length = 90
+# Allow lines to be as long as 120.
+line-length = 120
 
 [tool.ruff.lint]
 select = [
@@ -86,6 +86,12 @@ ignore = [
     "B007",
     # f-string format
     "UP032",
+    # Line too long
+    "E501",
+    # zip-without-explicit-strict
+    "B905",
+    # logging-f-string
+    "G004",
 ]
 
 [tool.yapfignore]

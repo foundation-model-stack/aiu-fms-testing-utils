@@ -76,7 +76,7 @@ def load_metric_file(file_path, layer_header, values):
         list[float]: A list of metric values read from the file.
     """
     try:
-        with open(file_path, "r") as file:
+        with open(file_path) as file:
             if layer_header:
                 for _ in range(3):
                     next(file)
@@ -116,7 +116,7 @@ for model in models:
                                                      metric_layer_list)
                 if re.search(generate_mode_pattern, layer_name):
                     layer_name = re.sub(generate_mode_pattern, "", layer_name)
-                    if layer_name not in layers.keys():
+                    if layer_name not in layers:
                         layers[layer_name] = metric_layer_list
                     else:
                         layers[layer_name].extend(metric_layer_list)

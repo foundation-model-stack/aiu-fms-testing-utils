@@ -1,6 +1,7 @@
 import itertools
 import json
 import os
+from contextlib import suppress
 
 import pytest
 import torch
@@ -21,7 +22,7 @@ from aiu_fms_testing_utils.utils.aiu_setup import aiu_dist_setup, dprint
 
 try:
     from fms_mo.aiu_addons.gptq import gptq_aiu_adapter  # noqa: F401
-    from fms_mo.aiu_addons.gptq import gptq_aiu_linear
+    from fms_mo.aiu_addons.gptq import gptq_aiu_linear  # noqa: F401
 
     GPTQ_ENABLED = True
 except ImportError:
@@ -196,7 +197,7 @@ if model_configuration_path != "":
     USE_MICRO_MODELS = False
     common_model_paths = []
     frequency = int(model_configuration_frequency)
-    with open(model_configuration_path, "r") as f:
+    with open(model_configuration_path) as f:
         for line in f:
             try:
                 model_config = json.loads(line)
@@ -281,12 +282,11 @@ def __maybe_get_gptq_kwargs(model_path):
                 "variant": model_path,
                 **micro_cpu_kwargs,
             }
-    try:
+    with suppress(KeyError):
         # llama already has this adapter and it is the same for all models, so just use llama
         serialization.register_adapter(**__custom_adapter,
                                        adapter_steps=gptq_adapter_step)
-    except KeyError:
-        pass
+
     return gptq_kwargs_aiu, gptq_kwargs_cpu
 
 
@@ -447,7 +447,7 @@ def test_common_shapes(model_path, batch_size, seq_length, max_new_tokens,
     is_gptq = len(gptq_kwargs_aiu) != 0
     is_fp8 = "fp8" in ATTN_NAME
 
-    micro_model_path = micro_model_mapping.get(model_path, None)
+    micro_model_path = micro_model_mapping.get(model_path)
     if USE_MICRO_MODELS and micro_model_path is None:
         dprint("using randomly initialized model")
         micro_model_kwargs = {"architecture": "hf_configured", "nlayers": 3}
@@ -652,10 +652,10 @@ def test_common_shapes(model_path, batch_size, seq_length, max_new_tokens,
 
             # get all failed responses for each metric
             ce_fail_responses = filter_failed_level_1_cases(
-                level_1_metrics, lambda m: m[0] >= ce_threshold)
+                level_1_metrics, lambda m, ce=ce_threshold: m[0] >= ce)
             diff_fail_responses = filter_failed_level_1_cases(
                 level_1_metrics,
-                lambda m: m[1] >= diff_threshold,
+                lambda m, dt=diff_threshold: m[1] >= dt,
             )
 
             ce_fail_responses_list.extend(ce_fail_responses)

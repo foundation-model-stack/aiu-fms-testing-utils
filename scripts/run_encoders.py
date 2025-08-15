@@ -99,8 +99,7 @@ else:
 
 if isinstance(model, RoBERTaForQuestionAnswering):
     run_encoder_eval_qa(model, tokenizer, args)
-elif isinstance(model, RoBERTa) or isinstance(model,
-                                              HFAdaptedRoBERTaForMaskedLM):
+elif isinstance(model, RoBERTa | HFAdaptedRoBERTaForMaskedLM):
     # basic MaskedLM downstream task
     run_encoder_eval_mlm(model, tokenizer, args)
 

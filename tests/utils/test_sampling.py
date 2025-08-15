@@ -1,6 +1,5 @@
 import os
 from itertools import product
-from typing import List
 
 import pytest
 from transformers import AutoTokenizer
@@ -20,7 +19,7 @@ prompt_min_length = 64
 enforce_heterogeneous = True
 
 
-def expected_error(num_request: int, enforce_sizes: List[int]):
+def expected_error(num_request: int, enforce_sizes: list[int]):
     if num_request < len(enforce_sizes):
         raise ValueError("num request is smaller than enforce_sizes")
     return "OK"

@@ -1,7 +1,8 @@
 import os
 import random
 import time
-from typing import Any, Callable, List, MutableMapping, Optional, Tuple, Union
+from collections.abc import Callable, MutableMapping
+from typing import Any
 
 import fms.utils.spyre.paged  # noqa
 import torch
@@ -17,10 +18,10 @@ def adjust_inputs_to_batch(input_ids: torch.Tensor, **extra_kwargs):
     input_ids = input_ids[0].repeat(2, 1)
     # ensure we pass along other kwargs
     kwargs = {**extra_kwargs}
-    mask = extra_kwargs.get("mask", None)
+    mask = extra_kwargs.get("mask")
     if mask is not None:
         kwargs["mask"] = torch.stack((mask[0], mask[0]))
-    position_ids = extra_kwargs.get("position_ids", None)
+    position_ids = extra_kwargs.get("position_ids")
     if position_ids is not None:
         kwargs["position_ids"] = position_ids[0].repeat(2, 1)
     return input_ids, kwargs
@@ -28,7 +29,7 @@ def adjust_inputs_to_batch(input_ids: torch.Tensor, **extra_kwargs):
 
 # FIXME: We should use default generate, but that will require a larger re-work of generate
 def generate(
-    model: Union[Callable, torch.nn.Module],
+    model: Callable | torch.nn.Module,
     input_ids: torch.Tensor,
     max_new_tokens: int = 256,
     temperature: float = 1.0,
@@ -36,13 +37,13 @@ def generate(
     do_sample: bool = True,
     num_beams: int = 1,
     use_cache: bool = False,
-    eos_token_id: Optional[int] = None,
+    eos_token_id: int | None = None,
     timing: str = "",
-    post_iteration_hook: Optional[Callable[
+    post_iteration_hook: Callable[
         [int, torch.Tensor, torch.Tensor, MutableMapping[str, Any]],
-        Tuple[torch.Tensor, MutableMapping[str, Any]],
-    ]] = None,
-    extra_kwargs: Optional[MutableMapping[str, Any]] = None,
+        tuple[torch.Tensor, MutableMapping[str, Any]],
+    ] | None = None,
+    extra_kwargs: MutableMapping[str, Any] | None = None,
 ):
     """
     A trivial generate function that can be used for validation/testing in
@@ -226,7 +227,7 @@ def generate(
     prompt_length = input_ids.shape[1]
 
     if timing != "":
-        times: List[float] = []
+        times: list[float] = []
         start_time = time.time()
 
     for i in range(max_new_tokens):
@@ -420,10 +421,7 @@ def generate(
             if torch.sum(eos_found) == input_ids.shape[0]:
                 break
 
-        if use_cache:
-            next_input = next_val
-        else:
-            next_input = result
+        next_input = next_val if use_cache else result
 
         if timing == "per-token":
             if input_ids.device.type == "cuda":

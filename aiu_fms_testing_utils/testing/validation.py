@@ -1,6 +1,7 @@
 import os
+from collections.abc import Callable, MutableMapping
 from pathlib import Path
-from typing import Any, Callable, List, MutableMapping, Optional, Tuple
+from typing import Any
 
 import torch
 
@@ -9,12 +10,12 @@ from aiu_fms_testing_utils.utils.aiu_setup import dprint
 
 class LogitsExtractorHook(Callable[
     [int, torch.Tensor, torch.Tensor, MutableMapping[str, Any]],
-        Tuple[torch.Tensor, MutableMapping[str, Any]],
+        tuple[torch.Tensor, MutableMapping[str, Any]],
 ]):
 
     def __init__(self):
         super().__init__()
-        self.extracted_logits: Optional[torch.Tensor] = None
+        self.extracted_logits: torch.Tensor | None = None
 
     def __call__(
         self,
@@ -33,11 +34,11 @@ class LogitsExtractorHook(Callable[
 
 class StaticTokenInjectorHook(Callable[
     [int, torch.Tensor, torch.Tensor, MutableMapping[str, Any]],
-        Tuple[torch.Tensor, MutableMapping[str, Any]],
+        tuple[torch.Tensor, MutableMapping[str, Any]],
 ]):
 
     def __init__(self,
-                 static_tokens: List[torch.Tensor],
+                 static_tokens: list[torch.Tensor],
                  device_type: str = "cpu"):
         super().__init__()
         self.static_tokens = torch.tensor(static_tokens, device=device_type).t(
@@ -51,7 +52,7 @@ class StaticTokenInjectorHook(Callable[
 
 class GoldenTokenHook(Callable[
     [int, torch.Tensor, torch.Tensor, MutableMapping[str, Any]],
-        Tuple[torch.Tensor, MutableMapping[str, Any]],
+        tuple[torch.Tensor, MutableMapping[str, Any]],
 ]):
 
     def __init__(self, static_tokens: torch.Tensor, device_type: str = "cpu"):
@@ -77,8 +78,7 @@ class ValidationInfo:
         self._validation_info_list = validation_info_list
 
     def __iter__(self):
-        for vi in self._validation_info_list:
-            yield vi
+        yield from self._validation_info_list
 
     def get_info(self, info_name):
         return [[t.unsqueeze(0) for t in sentence[info_name]]
@@ -165,9 +165,7 @@ def load_validation_information(validation_path,
         else:
             if validation_files_type == "text":
                 glob_pattern_list = ["*.txt"]
-            elif validation_files_type == "tokens":
-                glob_pattern_list = ["*.pt"]
-            elif validation_files_type == "logits":
+            elif validation_files_type in ("tokens", "logits"):
                 glob_pattern_list = ["*.pt"]
         for glob_pattern_possibility in glob_pattern_list:
             file_list = list(

@@ -274,13 +274,13 @@ if args.quantization == "gptq":
     try:
         # validation script always loads AIU addon
         from fms_mo.aiu_addons.gptq import gptq_aiu_adapter  # noqa: F401
-        from fms_mo.aiu_addons.gptq import gptq_aiu_linear
+        from fms_mo.aiu_addons.gptq import gptq_aiu_linear  # noqa: F401
 
         print("Loaded `aiu_addons` functionalities")
 
-    except ImportError:
+    except ImportError as err:
         print("Failed to import addon packages")
-        raise Exception("GPTQ not enabled")
+        raise Exception("GPTQ not enabled") from err
 
 default_dtype = None
 dtypes_map = {
@@ -317,13 +317,14 @@ _target_cache_size = max(
     int(args.fixed_prompt_length * 2.5),
 )
 _prompt_size = max(int(args.min_pad_length), int(args.fixed_prompt_length))
-if hasattr(torch._dynamo.config, "accumulated_cache_size_limit"):
-    if _target_cache_size > torch._dynamo.config.accumulated_cache_size_limit:
-        _prev = torch._dynamo.config.accumulated_cache_size_limit
-        torch._dynamo.config.accumulated_cache_size_limit = _target_cache_size
-        dprint(
-            f"NOTICE: Adjusting torch._dynamo.config.accumulated_cache_size_limit from {_prev} to {torch._dynamo.config.accumulated_cache_size_limit} to accommodate prompt size of {_prompt_size} and decode tokens of {args.max_new_tokens}"
-        )
+if hasattr(
+        torch._dynamo.config, "accumulated_cache_size_limit"
+) and _target_cache_size > torch._dynamo.config.accumulated_cache_size_limit:
+    _prev = torch._dynamo.config.accumulated_cache_size_limit
+    torch._dynamo.config.accumulated_cache_size_limit = _target_cache_size
+    dprint(
+        f"NOTICE: Adjusting torch._dynamo.config.accumulated_cache_size_limit from {_prev} to {torch._dynamo.config.accumulated_cache_size_limit} to accommodate prompt size of {_prompt_size} and decode tokens of {args.max_new_tokens}"
+    )
 
 if _target_cache_size > torch._dynamo.config.cache_size_limit:
     _prev = torch._dynamo.config.cache_size_limit
@@ -365,18 +366,14 @@ if args.deterministic:
 
 dprint("loading model")
 loading_model_time = time.time()
-if args.distributed:
-    distr_param = "tp"
-else:
-    if torch.cuda.device_count() > 1 and world_size == 1:
-        distr_param = "mp"
-    else:
-        distr_param = None
+
+distr_param = "tp" if args.distributed else "mp" if torch.cuda.device_count(
+) > 1 and world_size == 1 else None
 
 if args.quantization == "gptq":
     qconfig_path = args.model_path + "/quantize_config.json"
     if os.path.exists(qconfig_path):
-        with open(qconfig_path, "r") as f:
+        with open(qconfig_path) as f:
             dprint(f"loading quantization config from {qconfig_path}")
             qconfig = json.load(f)
             group_size = qconfig["group_size"]
@@ -516,10 +513,7 @@ if args.prompt_path != "":
     prompt_file_paths = []
 
     if prompt_path.is_dir():
-        if glob_pattern != "":
-            glob_pattern_list = [glob_pattern]
-        else:
-            glob_pattern_list = ["*.txt"]
+        glob_pattern_list = [glob_pattern] if glob_pattern != "" else ["*.txt"]
         for glob_pattern_possibility in glob_pattern_list:
             file_list = list(prompt_path.glob(glob_pattern_possibility))
             if len(file_list) > 0:
@@ -667,7 +661,7 @@ if not needs_validation_generation:
     if needs_validation_run:
         val_ids = val_ids.to(validation_device)
         if padding_val_kwargs is not None:
-            for k in padding_val_kwargs.keys():
+            for k in padding_val_kwargs:
                 padding_val_kwargs[k] = padding_val_kwargs[k].to(
                     validation_device)
 

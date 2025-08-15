@@ -275,10 +275,9 @@ if not args.skip_computation:
     failed_responses = validate_level_0(cpu_static_tokens, cuda_static_tokens)
 
     print("extracted cuda validation information level 0")
-    if local_rank == 0:
-        if len(failed_responses) != 0:
-            print_failed_cases(failed_responses, cpu_static_tokens,
-                               cuda_static_tokens, tokenizer)
+    if local_rank == 0 and len(failed_responses) != 0:
+        print_failed_cases(failed_responses, cpu_static_tokens,
+                           cuda_static_tokens, tokenizer)
 
 num_test_tokens_per_sequence = args.num_test_tokens_per_sequence
 if num_test_tokens_per_sequence is None:

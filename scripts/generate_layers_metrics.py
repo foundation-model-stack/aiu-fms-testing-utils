@@ -198,7 +198,7 @@ def __register_call_layers(model, batch_size, device, seq_length,
         module_name[module] = name
         parent = name
         # if we are dealing with array of layers
-        array_layers = all(key.isdigit() for key in module._modules.keys())
+        array_layers = all(key.isdigit() for key in module._modules)
         for name, child in module._modules.items():
             if array_layers:
                 register_depths(child, current_depth + 1,
@@ -250,7 +250,7 @@ def __register_call_layers(model, batch_size, device, seq_length,
             global generate_iters
             generate_iters += 1
             layer_name = (f"{layer_name}.iter-{generate_iters}"
-                          if layer_name in layer_stack.keys() else layer_name)
+                          if layer_name in layer_stack else layer_name)
             tmp[layer_name] = output
             layer_stack.update(tmp)
             # Clean up
@@ -398,7 +398,7 @@ def generate_layers_metrics(model_path, batch_size, seq_length,
         tensor_cpu_out = None
         tensor_cuda_out = None
 
-        if layer_key in layer_stack_cpu.keys():
+        if layer_key in layer_stack_cpu:
             cpu_output = layer_stack_cpu[layer_key]
             cuda_output = output_val
             logger.info(f"Comparing CPU and GPU Layer {layer_key} output")
