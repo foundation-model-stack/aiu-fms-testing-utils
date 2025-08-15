@@ -1,28 +1,26 @@
+import argparse
+import itertools
+import logging
 import os
 import time
-import logging
-import argparse
 
-import itertools
 import torch
-
 from fms.models import get_model
 from fms.utils.generation import generate
-
-from aiu_fms_testing_utils.testing.validation import get_default_validation_prefix
-
-from aiu_fms_testing_utils.utils import prepare_inputs
-from aiu_fms_testing_utils.utils.metrics_utils import tensor_abs_diff, tensor_cos_sim
-
 from transformers import AutoTokenizer
+
+from aiu_fms_testing_utils.testing.validation import (
+    get_default_validation_prefix)
+from aiu_fms_testing_utils.utils import prepare_inputs
+from aiu_fms_testing_utils.utils.metrics_utils import (tensor_abs_diff,
+                                                       tensor_cos_sim)
 
 logger = logging.getLogger(__name__)
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s %(message)s")
 
 parser = argparse.ArgumentParser(
-    description="Script to generate the model's metrics by layer"
-)
+    description="Script to generate the model's metrics by layer")
 parser.add_argument(
     "--architecture",
     type=str,
@@ -32,12 +30,14 @@ parser.add_argument(
     "--variant",
     type=str,
     default=None,
-    help="The model variants (configuration) to benchmark. E.g. ibm-granite/granite-3.2-8b-instruct",
+    help=
+    "The model variants (configuration) to benchmark. E.g. ibm-granite/granite-3.2-8b-instruct",
 )
 parser.add_argument(
     "--model_path",
     type=str,
-    help="Paths to the directory containing model's weights (.pth files sharded by tensor parallel rank, not HF weights)",
+    help=
+    "Paths to the directory containing model's weights (.pth files sharded by tensor parallel rank, not HF weights)",
 )
 parser.add_argument(
     "--mode",
@@ -67,9 +67,10 @@ parser.add_argument(
     required=True,
     help="Max number of generated tokens separated by comma. Eg.: 64,128",
 )
-parser.add_argument(
-    "--output_path", type=str, default="/tmp/output", help="Path to save output files"
-)
+parser.add_argument("--output_path",
+                    type=str,
+                    default="/tmp/output",
+                    help="Path to save output files")
 parser.add_argument(
     "--sharegpt_path",
     type=str,
@@ -99,7 +100,9 @@ if isinstance(common_seq_lengths, str):
 # pass custom common max new tokens as a comma separated str of ints
 common_max_new_tokens = args.max_new_tokens
 if isinstance(common_max_new_tokens, str):
-    common_max_new_tokens = [int(mnt) for mnt in common_max_new_tokens.split(",")]
+    common_max_new_tokens = [
+        int(mnt) for mnt in common_max_new_tokens.split(",")
+    ]
 
 common_shapes = list(
     itertools.product(
@@ -107,13 +110,13 @@ common_shapes = list(
         common_batch_sizes,
         common_seq_lengths,
         common_max_new_tokens,
-    )
-)
+    ))
 
 generate_iters = 0
 
 
-def __infer_layer(model, max_len, device, max_new_tokens, batch_size, tokenizer):
+def __infer_layer(model, max_len, device, max_new_tokens, batch_size,
+                  tokenizer):
     """
     Infer a model with registered layer hooks using generated inputs.
 
@@ -167,9 +170,8 @@ def __infer_layer(model, max_len, device, max_new_tokens, batch_size, tokenizer)
         logger.info(f"Model forward completed: Result len is {len(result)}")
 
 
-def __register_call_layers(
-    model, batch_size, device, seq_length, max_new_tokens, tokenizer
-):
+def __register_call_layers(model, batch_size, device, seq_length,
+                           max_new_tokens, tokenizer):
     """
     This function registers hooks on the model to track the forward pass of each layer.
     It returns a list of tuples containing the name and output of each layer in the model.
@@ -196,10 +198,11 @@ def __register_call_layers(
         module_name[module] = name
         parent = name
         # if we are dealing with array of layers
-        array_layers = all(key.isdigit() for key in module._modules.keys())
+        array_layers = all(key.isdigit() for key in module._modules)
         for name, child in module._modules.items():
             if array_layers:
-                register_depths(child, current_depth + 1, parent + "[" + name + "]")
+                register_depths(child, current_depth + 1,
+                                parent + "[" + name + "]")
             else:
                 register_depths(child, current_depth + 1, parent + "." + name)
 
@@ -229,7 +232,8 @@ def __register_call_layers(
         input_type = str(input[0].dtype)
         if module.parameters() is None:
             return
-        param_size = sum(p.numel() for p in module.parameters() if p.requires_grad)
+        param_size = sum(p.numel() for p in module.parameters()
+                         if p.requires_grad)
         param_size_str = f"{param_size:,}" if param_size > 0 else "--"
         logger.info(
             f"{prefix}├─{layer_name}() -> {module.__class__.__name__} : | Input(arg): {input_shape_str} | {input_type} | Params: {param_size_str}"
@@ -245,11 +249,8 @@ def __register_call_layers(
         if hasattr(module, "_debug_input"):
             global generate_iters
             generate_iters += 1
-            layer_name = (
-                f"{layer_name}.iter-{generate_iters}"
-                if layer_name in layer_stack.keys()
-                else layer_name
-            )
+            layer_name = (f"{layer_name}.iter-{generate_iters}"
+                          if layer_name in layer_stack else layer_name)
             tmp[layer_name] = output
             layer_stack.update(tmp)
             # Clean up
@@ -289,7 +290,8 @@ def get_metric_values(metric_list):
     return metric_list_res, metric_shape
 
 
-def write_csv(values, path, metric, gpu_layer_shape, cpu_layer_shape, output_shape):
+def write_csv(values, path, metric, gpu_layer_shape, cpu_layer_shape,
+              output_shape):
     """
     Write values to a CSV file at the given path.
 
@@ -317,7 +319,8 @@ def write_csv(values, path, metric, gpu_layer_shape, cpu_layer_shape, output_sha
         f.close()
 
 
-def generate_layers_metrics(model_path, batch_size, seq_length, max_new_tokens):
+def generate_layers_metrics(model_path, batch_size, seq_length,
+                            max_new_tokens):
     """
     Generate metrics for layers in a given model.
 
@@ -337,9 +340,11 @@ def generate_layers_metrics(model_path, batch_size, seq_length, max_new_tokens):
     if "HF_HOME" not in os.environ:
         os.environ["HF_HOME"] = "/tmp/models/hf_cache"
 
-    model_path_kwargs = (
-        {"variant": model_path} if args.variant else {"model_path": model_path}
-    )
+    model_path_kwargs = ({
+        "variant": model_path
+    } if args.variant else {
+        "model_path": model_path
+    })
     micro_model_kwargs = {"architecture": args.architecture}
 
     get_model_kwargs = {
@@ -393,7 +398,7 @@ def generate_layers_metrics(model_path, batch_size, seq_length, max_new_tokens):
         tensor_cpu_out = None
         tensor_cuda_out = None
 
-        if layer_key in layer_stack_cpu.keys():
+        if layer_key in layer_stack_cpu:
             cpu_output = layer_stack_cpu[layer_key]
             cuda_output = output_val
             logger.info(f"Comparing CPU and GPU Layer {layer_key} output")
@@ -404,7 +409,7 @@ def generate_layers_metrics(model_path, batch_size, seq_length, max_new_tokens):
                 if len(cpu_output) < 2 and len(cpu_output[-1]) == 1:
                     # Projection layers (often called "query," "key," and "value" projections) are used to transform the input embeddings
                     # into separate query, key, and value vectors. They have tuple outputs, with more than 2 tensors - this path compares this type of output;
-                    # In case of head layers, the last item of the tuple is a list of tensors with the same lenght as the
+                    # In case of head layers, the last item of the tuple is a list of tensors with the same length as the
                     # number of layers in the model. The else path compares this other case.
                     tensor_cuda_out = cuda_output[-1]
                     tensor_cpu_out = cpu_output[-1]
@@ -413,14 +418,14 @@ def generate_layers_metrics(model_path, batch_size, seq_length, max_new_tokens):
                             f"inputs: {cuda_output[i].shape} {cpu_output[i].to('cuda').shape}"
                         )
                         cos_sim.append(
-                            tensor_cos_sim(cuda_output[i], cpu_output[i].to("cuda"))
-                        )
+                            tensor_cos_sim(cuda_output[i],
+                                           cpu_output[i].to("cuda")))
                         logger.debug(
                             f"cos_sim output:{tensor_cos_sim(cuda_output[i], cpu_output[i].to('cuda')).shape}"
                         )
                         abs_diff.append(
-                            tensor_abs_diff(cuda_output[i], cpu_output[i].to("cuda"))
-                        )
+                            tensor_abs_diff(cuda_output[i],
+                                            cpu_output[i].to("cuda")))
                 else:
                     head_tensor_cpu = cpu_output[-1]
                     head_tensor_gpu = cuda_output[-1]
@@ -436,8 +441,7 @@ def generate_layers_metrics(model_path, batch_size, seq_length, max_new_tokens):
                                     tensor_cos_sim(
                                         head_tensor_cpu[i][j].to("cuda"),
                                         head_tensor_gpu[i][j],
-                                    )
-                                )
+                                    ))
                                 logger.debug(
                                     f"cos_sim output:{tensor_cos_sim(head_tensor_cpu[i][j].to('cuda'), head_tensor_gpu[i][j]).shape}"
                                 )
@@ -445,8 +449,7 @@ def generate_layers_metrics(model_path, batch_size, seq_length, max_new_tokens):
                                     tensor_abs_diff(
                                         head_tensor_cpu[i][j].to("cuda"),
                                         head_tensor_gpu[i][j],
-                                    )
-                                )
+                                    ))
                         else:
                             tensor_cuda_out = head_tensor_gpu[i]
                             tensor_cpu_out = head_tensor_cpu[i]
@@ -454,35 +457,29 @@ def generate_layers_metrics(model_path, batch_size, seq_length, max_new_tokens):
                                 f"inputs: {head_tensor_gpu[i].shape} {head_tensor_cpu[i].to('cuda').shape}"
                             )
                             cos_sim.append(
-                                tensor_cos_sim(
-                                    head_tensor_cpu[i].to("cuda"), head_tensor_gpu[i]
-                                )
-                            )
+                                tensor_cos_sim(head_tensor_cpu[i].to("cuda"),
+                                               head_tensor_gpu[i]))
                             logger.debug(
                                 f"cos_sim output:{tensor_cos_sim(head_tensor_cpu[i].to('cuda'), head_tensor_gpu[i]).shape}"
                             )
                             abs_diff.append(
-                                tensor_abs_diff(
-                                    head_tensor_cpu[i].to("cuda"), head_tensor_gpu[i]
-                                )
-                            )
+                                tensor_abs_diff(head_tensor_cpu[i].to("cuda"),
+                                                head_tensor_gpu[i]))
             else:
                 tensor_cpu_out = cpu_output.to("cuda")
                 tensor_cuda_out = cuda_output
                 abs_diff = tensor_abs_diff(tensor_cpu_out, cuda_output)
                 cos_sim = tensor_cos_sim(tensor_cpu_out, cuda_output)
 
-            prefix = get_default_validation_prefix(
-                model_path, max_new_token, batch_size, seq_length, "float16"
-            )
+            prefix = get_default_validation_prefix(model_path, max_new_token,
+                                                   batch_size, seq_length,
+                                                   "float16")
             layer_name = str(layer_key).replace("[", "").replace("]", "")
 
             abs_diff_path = os.path.join(
-                output_path, f"{prefix}--{layer_name}.abs_diff.csv"
-            )
-            cos_sim_path = os.path.join(
-                output_path, f"{prefix}--{layer_name}.cos_sim.csv"
-            )
+                output_path, f"{prefix}--{layer_name}.abs_diff.csv")
+            cos_sim_path = os.path.join(output_path,
+                                        f"{prefix}--{layer_name}.cos_sim.csv")
 
             cos_sim_res, cos_shape = get_metric_values(cos_sim)
             abs_diff_res, abs_diff_shape = get_metric_values(abs_diff)
@@ -508,7 +505,8 @@ def generate_layers_metrics(model_path, batch_size, seq_length, max_new_tokens):
                     cos_shape,
                 )
 
-    logger.info(f"Completed {model_path} layers' metrics generation with {mode} mode")
+    logger.info(
+        f"Completed {model_path} layers' metrics generation with {mode} mode")
 
 
 for model_id, batch_size, sequence_length, max_new_token in common_shapes:

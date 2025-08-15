@@ -1,10 +1,10 @@
 import argparse
+import ast
 import json
 import os
 import random
 import time
 from pathlib import Path
-import ast
 
 import numpy as np
 import torch
@@ -14,25 +14,19 @@ from fms.models.llama import LLaMAConfig, _llama_factory_factory
 from fms.utils import generation
 from fms.utils.generation import pad_input_ids
 from torch import distributed as dist
-from aiu_fms_testing_utils.utils import warmup_model
-from aiu_fms_testing_utils.testing.validation import (
-    LogitsExtractorHook,
-    capture_level_1_metrics,
-    extract_validation_information,
-    GoldenTokenHook,
-    filter_failed_level_1_cases,
-    validate_level_0,
-    load_validation_information,
-    print_failed_cases,
-)
-from aiu_fms_testing_utils.utils import aiu_setup
-from aiu_fms_testing_utils.utils.aiu_setup import dprint, rank, local_rank, world_size
 from transformers import AutoTokenizer
+
+from aiu_fms_testing_utils.testing.validation import (
+    GoldenTokenHook, LogitsExtractorHook, capture_level_1_metrics,
+    extract_validation_information, filter_failed_level_1_cases,
+    load_validation_information, print_failed_cases, validate_level_0)
+from aiu_fms_testing_utils.utils import aiu_setup, warmup_model
+from aiu_fms_testing_utils.utils.aiu_setup import (dprint, local_rank, rank,
+                                                   world_size)
 
 # This example script validates models on AIU through comparisons to other devices.
 parser = argparse.ArgumentParser(
-    description="Script to validate AIU runs on causal models"
-)
+    description="Script to validate AIU runs on causal models")
 parser.add_argument(
     "--device_type",
     type=str,
@@ -83,14 +77,16 @@ parser.add_argument(
 parser.add_argument(
     "--unfuse_weights",
     action="store_true",
-    help="If set to True, this will unfuse any fused weight modules that support the unfuse_weights method",
+    help=
+    "If set to True, this will unfuse any fused weight modules that support the unfuse_weights method",
 )
 parser.add_argument(
     "--default_dtype",
     type=str,
     default=None,
     choices=["bf16", "fp16", "fp32"],
-    help="If set to one of the choices, overrides the model checkpoint weight format by setting the default pytorch format",
+    help=
+    "If set to one of the choices, overrides the model checkpoint weight format by setting the default pytorch format",
 )
 parser.add_argument(
     "--validation_compile",
@@ -124,12 +120,14 @@ parser.add_argument(
 parser.add_argument(
     "--deterministic",
     action="store_true",
-    help="Set torch.use_deterministic_algorithms? Requires env variable `CUBLAS_WORKSPACE_CONFIG=:4096:8`",
+    help=
+    "Set torch.use_deterministic_algorithms? Requires env variable `CUBLAS_WORKSPACE_CONFIG=:4096:8`",
 )
 parser.add_argument(
     "--distributed",
     action="store_true",
-    help="This is a distributed job (multiple instances run with RANK+WORLD_SIZE)",
+    help=
+    "This is a distributed job (multiple instances run with RANK+WORLD_SIZE)",
 )
 parser.add_argument(
     "--batch_size",
@@ -141,18 +139,21 @@ parser.add_argument(
     "--max_prompt_length",
     type=int,
     default=None,
-    help="cap the number of tokens per prompt to a maximum length prior to padding. If None, there will be no cap.",
+    help=
+    "cap the number of tokens per prompt to a maximum length prior to padding. If None, there will be no cap.",
 )
 parser.add_argument(
     "--min_pad_length",
     type=int,
-    help="Pad inputs to a minimum specified length. If any prompt is larger than the specified length, padding will be determined by the largest prompt",
+    help=
+    "Pad inputs to a minimum specified length. If any prompt is larger than the specified length, padding will be determined by the largest prompt",
     default=0,
 )
 parser.add_argument(
     "--fixed_prompt_length",
     type=int,
-    help="If defined, overrides both min_pad_length and max_prompt_length. Pads input to fixed_prompt_length, fails if any input needs truncation.",
+    help=
+    "If defined, overrides both min_pad_length and max_prompt_length. Pads input to fixed_prompt_length, fails if any input needs truncation.",
     default=0,
 )
 parser.add_argument(
@@ -177,20 +178,23 @@ parser.add_argument(
     "--prompt_path",
     type=str,
     default="",
-    help="if set, load the prompts from file(s) instead of the local examples. Supports glob-style patterns",
+    help=
+    "if set, load the prompts from file(s) instead of the local examples. Supports glob-style patterns",
 )
 parser.add_argument(
     "--validation_files_path",
     type=str,
     default="",
-    help="if set, load the validated outputs from file(s) instead of locally generating them. Supports glob-style patterns",
+    help=
+    "if set, load the validated outputs from file(s) instead of locally generating them. Supports glob-style patterns",
 )
 parser.add_argument(
     "--validation_files_type",
     type=str,
     choices=["text", "tokens", "logits"],
     default="text",
-    help="if validation_files_path is set, this informs the script of what kind of information we are loading for validation",
+    help=
+    "if validation_files_path is set, this informs the script of what kind of information we are loading for validation",
 )
 parser.add_argument(
     "--output_path",
@@ -210,25 +214,29 @@ parser.add_argument(
     type=int,
     choices=[0, 1],
     default=0,
-    help="Level at which you want to validate the AIU outputs. Level 0 is just token by token comparison for the outputs; Level 1 compares the logit outputs of the model against the validation logits, issues a warning if the cross entropy loss of the logits is above logits_loss_threshold, and replaces the token by the correct validated token to continue generation.",
+    help=
+    "Level at which you want to validate the AIU outputs. Level 0 is just token by token comparison for the outputs; Level 1 compares the logit outputs of the model against the validation logits, issues a warning if the cross entropy loss of the logits is above logits_loss_threshold, and replaces the token by the correct validated token to continue generation.",
 )
 parser.add_argument(
     "--logits_loss_threshold",
     type=float,
     default=2.5,
-    help="Threshold at which to issue a warning because the logits are too different between validated run and AIU",
+    help=
+    "Threshold at which to issue a warning because the logits are too different between validated run and AIU",
 )
 parser.add_argument(
     "--save_validation_info_path",
     type=str,
     default=None,
-    help="If set, will save the validation info into the path specified for later use",
+    help=
+    "If set, will save the validation info into the path specified for later use",
 )
 parser.add_argument(
     "--extra_get_model_kwargs",
     nargs="*",
     default={},
-    help="Use this to override model configuration values to get model. Example: --extra_get_model_kwargs nlayers=2,...",
+    help=
+    "Use this to override model configuration values to get model. Example: --extra_get_model_kwargs nlayers=2,...",
 )
 args = parser.parse_args()
 
@@ -255,11 +263,9 @@ register_model("llama", "194m", _llama_factory_factory(config))
 dprint(f"{args}")
 
 needs_validation_generation = args.validation_files_path == ""
-needs_validation_forward = (
-    not needs_validation_generation
-    and args.validation_files_type in ["text", "tokens"]
-    and args.validation_level == 1
-)
+needs_validation_forward = (not needs_validation_generation and
+                            args.validation_files_type in ["text", "tokens"]
+                            and args.validation_level == 1)
 needs_validation_run = needs_validation_forward or needs_validation_generation
 
 fused_weights = not args.unfuse_weights
@@ -267,13 +273,14 @@ fused_weights = not args.unfuse_weights
 if args.quantization == "gptq":
     try:
         # validation script always loads AIU addon
-        from fms_mo.aiu_addons.gptq import gptq_aiu_adapter, gptq_aiu_linear  # noqa: F401
+        from fms_mo.aiu_addons.gptq import gptq_aiu_adapter  # noqa: F401
+        from fms_mo.aiu_addons.gptq import gptq_aiu_linear  # noqa: F401
 
         print("Loaded `aiu_addons` functionalities")
 
-    except ImportError:
+    except ImportError as err:
         print("Failed to import addon packages")
-        raise Exception("GPTQ not enabled")
+        raise Exception("GPTQ not enabled") from err
 
 default_dtype = None
 dtypes_map = {
@@ -294,7 +301,8 @@ if needs_validation_run:
 if args.distributed:
     dist.init_process_group()
     # Fix until PT 2.3
-    torch._C._distributed_c10d._register_process_group("default", dist.group.WORLD)
+    torch._C._distributed_c10d._register_process_group("default",
+                                                       dist.group.WORLD)
     aiu_setup.aiu_dist_setup(dist.get_rank(), dist.get_world_size())
 
 # Always initialize AIU in this script
@@ -309,19 +317,20 @@ _target_cache_size = max(
     int(args.fixed_prompt_length * 2.5),
 )
 _prompt_size = max(int(args.min_pad_length), int(args.fixed_prompt_length))
-if hasattr(torch._dynamo.config, "accumulated_cache_size_limit"):
-    if _target_cache_size > torch._dynamo.config.accumulated_cache_size_limit:
-        _prev = torch._dynamo.config.accumulated_cache_size_limit
-        torch._dynamo.config.accumulated_cache_size_limit = _target_cache_size
-        dprint(
-            f"NOTICE: Adjusting torch._dynamo.config.accumulated_cache_size_limit from {_prev} to {torch._dynamo.config.accumulated_cache_size_limit} to accomodate prompt size of {_prompt_size} and decode tokens of {args.max_new_tokens}"
-        )
+if hasattr(
+        torch._dynamo.config, "accumulated_cache_size_limit"
+) and _target_cache_size > torch._dynamo.config.accumulated_cache_size_limit:
+    _prev = torch._dynamo.config.accumulated_cache_size_limit
+    torch._dynamo.config.accumulated_cache_size_limit = _target_cache_size
+    dprint(
+        f"NOTICE: Adjusting torch._dynamo.config.accumulated_cache_size_limit from {_prev} to {torch._dynamo.config.accumulated_cache_size_limit} to accommodate prompt size of {_prompt_size} and decode tokens of {args.max_new_tokens}"
+    )
 
 if _target_cache_size > torch._dynamo.config.cache_size_limit:
     _prev = torch._dynamo.config.cache_size_limit
     torch._dynamo.config.cache_size_limit = _target_cache_size
     dprint(
-        f"NOTICE: Adjusting torch._dynamo.config.cache_size_limit from {_prev} to {torch._dynamo.config.cache_size_limit} to accomodate prompt size of {_prompt_size} and decode tokens of {args.max_new_tokens}"
+        f"NOTICE: Adjusting torch._dynamo.config.cache_size_limit from {_prev} to {torch._dynamo.config.cache_size_limit} to accommodate prompt size of {_prompt_size} and decode tokens of {args.max_new_tokens}"
     )
 
 # This should be set outside!!!
@@ -357,31 +366,24 @@ if args.deterministic:
 
 dprint("loading model")
 loading_model_time = time.time()
-if args.distributed:
-    distr_param = "tp"
-else:
-    if torch.cuda.device_count() > 1 and world_size == 1:
-        distr_param = "mp"
-    else:
-        distr_param = None
+
+distr_param = "tp" if args.distributed else "mp" if torch.cuda.device_count(
+) > 1 and world_size == 1 else None
 
 if args.quantization == "gptq":
     qconfig_path = args.model_path + "/quantize_config.json"
     if os.path.exists(qconfig_path):
-        with open(qconfig_path, "r") as f:
+        with open(qconfig_path) as f:
             dprint(f"loading quantization config from {qconfig_path}")
             qconfig = json.load(f)
             group_size = qconfig["group_size"]
             desc_act = qconfig["desc_act"]
             if desc_act:
                 raise NotImplementedError(
-                    "Activation reordering not supported at this time."
-                )
+                    "Activation reordering not supported at this time.")
     else:
-        dprint(
-            "[WARNING] Could not locate quantization config file. "
-            "Default configuration will be used."
-        )
+        dprint("[WARNING] Could not locate quantization config file. "
+               "Default configuration will be used.")
         group_size = 128
         desc_act = False
 
@@ -410,8 +412,7 @@ if args.quantization == "gptq":
     # ckpt into the appropriate form for the model
     if fused_weights:
         raise ValueError(
-            "GPTQ checkpoints on AIU must always run with --unfuse_weights"
-        )
+            "GPTQ checkpoints on AIU must always run with --unfuse_weights")
     default_dtype = None  # GPTQ dtype always comes from ckpt, can't be enforced
 else:
     linear_config = {"linear_type": "torch_linear"}
@@ -433,18 +434,15 @@ model = get_model(
 
 if args.quantization == "gptq":
     if args.architecture == "llama":
-        dprint(
-            "[NOTE] It's OK for unused keys to contain bias "
-            "and rotary embeddings, in GPTQ LLaMA models"
-        )
+        dprint("[NOTE] It's OK for unused keys to contain bias "
+               "and rotary embeddings, in GPTQ LLaMA models")
     dprint(model)
     dprint("=" * 60 + "\n")
 
 if needs_validation_run:
     if args.quantization != "gptq":
-        data_type_validation = (
-            torch.float32 if validation_device == aiu_device else default_dtype
-        )
+        data_type_validation = (torch.float32 if validation_device
+                                == aiu_device else default_dtype)
     else:
         data_type_validation = default_dtype
     validation_model = get_model(
@@ -463,10 +461,8 @@ if needs_validation_run:
     validation_model.load_state_dict(model.state_dict())
     if args.quantization == "gptq":
         if args.architecture == "llama":
-            dprint(
-                "[NOTE] It's OK for unused keys to contain bias and "
-                "rotary embeddings, in GPTQ LLaMA models"
-            )
+            dprint("[NOTE] It's OK for unused keys to contain bias and "
+                   "rotary embeddings, in GPTQ LLaMA models")
         dprint(validation_model)
         dprint("=" * 60 + "\n")
 
@@ -486,7 +482,8 @@ model.compile(backend="sendnn")
 
 if needs_validation_run and args.validation_compile:
     dprint("compiling validation model")
-    validation_model.compile(mode=args.compile_mode, backend=args.compile_backend)
+    validation_model.compile(mode=args.compile_mode,
+                             backend=args.compile_backend)
 
 add_special_tokens = tokenizer.bos_token_id != tokenizer.eos_token_id
 
@@ -495,7 +492,9 @@ def truncate_prompts_to_max_length(prompts, max_len, max_allowed_length):
     # we may want the prompt length to be fixed to some max length
     # this will ensure that prior to padding the input ids
     if max_allowed_length is not None and max_len > max_allowed_length:
-        dprint(f"max prompt length is {max_len}, truncating to {max_allowed_length}")
+        dprint(
+            f"max prompt length is {max_len}, truncating to {max_allowed_length}"
+        )
         prompts = [prompt[:max_allowed_length] for prompt in prompts]
     return prompts
 
@@ -514,10 +513,7 @@ if args.prompt_path != "":
     prompt_file_paths = []
 
     if prompt_path.is_dir():
-        if glob_pattern != "":
-            glob_pattern_list = [glob_pattern]
-        else:
-            glob_pattern_list = ["*.txt"]
+        glob_pattern_list = [glob_pattern] if glob_pattern != "" else ["*.txt"]
         for glob_pattern_possibility in glob_pattern_list:
             file_list = list(prompt_path.glob(glob_pattern_possibility))
             if len(file_list) > 0:
@@ -528,7 +524,8 @@ if args.prompt_path != "":
         prompt_file_paths = [prompt_path]
 
     # Check if we found some files
-    assert len(prompt_file_paths) > 0, f"Can't find any prompt files at {prompt_path}"
+    assert len(
+        prompt_file_paths) > 0, f"Can't find any prompt files at {prompt_path}"
 
     # Check if we have enough files
     assert len(prompt_file_paths) >= args.batch_size, (
@@ -540,18 +537,15 @@ if args.prompt_path != "":
         if i == args.batch_size:
             break
         prompts.append(
-            tokenizer.encode(
-                prompt_file_path.read_text(encoding="utf-8"), return_tensors="pt"
-            ).squeeze(0)
-        )
+            tokenizer.encode(prompt_file_path.read_text(encoding="utf-8"),
+                             return_tensors="pt").squeeze(0))
 
 else:
     if args.prompt_type == "chat":
         template = "Below is an instruction that describes a task. Write a response that appropriately completes the request.\n\n### Instruction:\n{}\n\n### Response:"
 
         prompt1 = template.format(
-            "Provide a list of instructions for preparing chicken soup."
-        )
+            "Provide a list of instructions for preparing chicken soup.")
         prompt2 = template.format("Explain some popular greetings in Spanish.")
         prompt3 = template.format("Explain to me why ignorance is bliss.")
         prompt4 = template.format(
@@ -579,7 +573,7 @@ else:
     prompt4 = tokenizer.encode(prompt4, return_tensors="pt").squeeze(0)
     prompts = [prompt1, prompt2, prompt3, prompt4]
     prompts = prompts * ((args.batch_size // 4) + 1)
-    prompts = prompts[: args.batch_size]
+    prompts = prompts[:args.batch_size]
 
 if args.fixed_prompt_length != 0:
     padding_length = args.fixed_prompt_length
@@ -646,18 +640,16 @@ if not needs_validation_generation:
     val_num_gen_tokens = int(args.max_new_tokens)
     if max_allowed_length is not None:
         val_tokens = truncate_prompts_to_max_length(
-            val_tokens, max_val_len, max_allowed_length + val_num_gen_tokens
-        )
+            val_tokens, max_val_len, max_allowed_length + val_num_gen_tokens)
 
     # Truncate each answer to its prompt length + max_new_tokens
     for i, prompt in enumerate(prompts):
         prompt_len = prompt.size(0)
-        val_tokens[i] = val_tokens[i][: prompt_len + val_num_gen_tokens]
+        val_tokens[i] = val_tokens[i][:prompt_len + val_num_gen_tokens]
 
     if has_padding:
         val_ids, padding_val_kwargs = pad_input_ids(
-            val_tokens, min_pad_length=val_num_gen_tokens + padding_length
-        )
+            val_tokens, min_pad_length=val_num_gen_tokens + padding_length)
     else:
         val_ids = val_tokens
         padding_val_kwargs = None
@@ -669,16 +661,16 @@ if not needs_validation_generation:
     if needs_validation_run:
         val_ids = val_ids.to(validation_device)
         if padding_val_kwargs is not None:
-            for k in padding_val_kwargs.keys():
-                padding_val_kwargs[k] = padding_val_kwargs[k].to(validation_device)
+            for k in padding_val_kwargs:
+                padding_val_kwargs[k] = padding_val_kwargs[k].to(
+                    validation_device)
 
         if args.validation_device == "cpu":
             # Bug in 2.3.1 fixed in 2.4.1 for SDPA flash cpu impl when padding too much
             padding_val_kwargs["attn_algorithm"] = "math"
 
         val_logits = torch.unbind(
-            validation_model(val_ids, **padding_val_kwargs).to("cpu")
-        )
+            validation_model(val_ids, **padding_val_kwargs).to("cpu"))
 
         for idx, validation_dict in enumerate(validation_info):
             if validation_dict["logits"] is None:
@@ -694,9 +686,8 @@ else:
         **padding_kwargs,
     )
 
-warmup_model(
-    model, ids, args.max_new_tokens, args.compile_dynamic_sendnn, **padding_kwargs
-)
+warmup_model(model, ids, args.max_new_tokens, args.compile_dynamic_sendnn,
+             **padding_kwargs)
 
 ### AIU generation loop
 static_tokens = validation_info.get_info("tokens")
@@ -717,19 +708,19 @@ aiu_validation_info = extract_validation_information(
 
 if args.save_validation_info_path is not None:
     validation_info.save(os.path.join(args.save_validation_info_path, "cpu"))
-    aiu_validation_info.save(os.path.join(args.save_validation_info_path, "aiu"))
+    aiu_validation_info.save(
+        os.path.join(args.save_validation_info_path, "aiu"))
 
 aiu_static_tokens = aiu_validation_info.get_info("tokens")
 if args.validation_level == 0:
     failed_cases = validate_level_0(aiu_static_tokens, static_tokens)
 else:
     level_1_metrics = capture_level_1_metrics(
-        validation_info.get_info("logits"), aiu_validation_info.get_info("logits")
-    )
+        validation_info.get_info("logits"),
+        aiu_validation_info.get_info("logits"))
 
     failed_cases = filter_failed_level_1_cases(
-        level_1_metrics, lambda m: m >= args.logits_loss_threshold
-    )
+        level_1_metrics, lambda m: m >= args.logits_loss_threshold)
 
 validation_passed = len(failed_cases) == 0
 
@@ -741,7 +732,9 @@ for i in range(len(aiu_static_tokens)):
 
 if validation_passed:
     if args.validation_level == 0:
-        dprint("The validation has passed! All the outputs match within threshold")
+        dprint(
+            "The validation has passed! All the outputs match within threshold"
+        )
     elif args.validation_level == 1:
         dprint(
             "The validation has passed! All the logits cross entropy losses are below the threshold"
@@ -753,4 +746,5 @@ else:
         dprint(
             "The validation has failed! There are some logits cross entropy losses above the threshold"
         )
-    print_failed_cases(failed_cases, aiu_static_tokens, static_tokens, tokenizer)
+    print_failed_cases(failed_cases, aiu_static_tokens, static_tokens,
+                       tokenizer)

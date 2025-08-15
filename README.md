@@ -131,7 +131,7 @@ export FLEX_COMPUTE=SENTIENT
 export FLEX_DEVICE=PF
 ```
 
-Optional envars to supress debugging output:
+Optional envars to suppress debugging output:
 
 ```shell
 export DTLOG_LEVEL=error

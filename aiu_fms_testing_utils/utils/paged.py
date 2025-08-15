@@ -1,9 +1,11 @@
 import os
 import random
 import time
-from typing import Any, Callable, List, MutableMapping, Optional, Tuple, Union
-import torch
+from collections.abc import Callable, MutableMapping
+from typing import Any
+
 import fms.utils.spyre.paged  # noqa
+import torch
 
 
 def adjust_inputs_to_batch(input_ids: torch.Tensor, **extra_kwargs):
@@ -16,10 +18,10 @@ def adjust_inputs_to_batch(input_ids: torch.Tensor, **extra_kwargs):
     input_ids = input_ids[0].repeat(2, 1)
     # ensure we pass along other kwargs
     kwargs = {**extra_kwargs}
-    mask = extra_kwargs.get("mask", None)
+    mask = extra_kwargs.get("mask")
     if mask is not None:
         kwargs["mask"] = torch.stack((mask[0], mask[0]))
-    position_ids = extra_kwargs.get("position_ids", None)
+    position_ids = extra_kwargs.get("position_ids")
     if position_ids is not None:
         kwargs["position_ids"] = position_ids[0].repeat(2, 1)
     return input_ids, kwargs
@@ -27,7 +29,7 @@ def adjust_inputs_to_batch(input_ids: torch.Tensor, **extra_kwargs):
 
 # FIXME: We should use default generate, but that will require a larger re-work of generate
 def generate(
-    model: Union[Callable, torch.nn.Module],
+    model: Callable | torch.nn.Module,
     input_ids: torch.Tensor,
     max_new_tokens: int = 256,
     temperature: float = 1.0,
@@ -35,15 +37,13 @@ def generate(
     do_sample: bool = True,
     num_beams: int = 1,
     use_cache: bool = False,
-    eos_token_id: Optional[int] = None,
+    eos_token_id: int | None = None,
     timing: str = "",
-    post_iteration_hook: Optional[
-        Callable[
-            [int, torch.Tensor, torch.Tensor, MutableMapping[str, Any]],
-            Tuple[torch.Tensor, MutableMapping[str, Any]],
-        ]
-    ] = None,
-    extra_kwargs: Optional[MutableMapping[str, Any]] = None,
+    post_iteration_hook: Callable[
+        [int, torch.Tensor, torch.Tensor, MutableMapping[str, Any]],
+        tuple[torch.Tensor, MutableMapping[str, Any]],
+    ] | None = None,
+    extra_kwargs: MutableMapping[str, Any] | None = None,
 ):
     """
     A trivial generate function that can be used for validation/testing in
@@ -80,7 +80,8 @@ def generate(
     """
     random.seed(0)
     if num_beams != 1:
-        raise NotImplementedError("generate() does yet not support beam search")
+        raise NotImplementedError(
+            "generate() does yet not support beam search")
 
     kwargs: MutableMapping[str, Any] = dict()
     if extra_kwargs is not None:
@@ -100,9 +101,9 @@ def generate(
     if not hasattr(model, "config"):
         raise ValueError("model must have a config")
 
-    eos_found = torch.zeros(
-        input_ids.shape[0], dtype=torch.bool, device=input_ids.device
-    )
+    eos_found = torch.zeros(input_ids.shape[0],
+                            dtype=torch.bool,
+                            device=input_ids.device)
 
     result = input_ids
     next_input = input_ids
@@ -134,11 +135,9 @@ def generate(
         kvheads = nheads
 
     if hasattr(model, "distributed_strategy"):
-        tensor_parallel_size = (
-            model.distributed_strategy.group.size()
-            if hasattr(model.distributed_strategy, "group")
-            else 1
-        )
+        tensor_parallel_size = (model.distributed_strategy.group.size()
+                                if hasattr(model.distributed_strategy, "group")
+                                else 1)
     else:
         raise ValueError("model must have a distributed_strategy")
 
@@ -147,45 +146,43 @@ def generate(
     if "fp8" in kwargs["attn_name"]:
         from fms_mo.aiu_addons.fp8.fp8_utils import ScaledTensor
 
-        kwargs["past_key_value_states"] = [
-            (
-                ScaledTensor(
-                    torch.zeros(
-                        NUM_BLOCKS,
-                        BLOCK_SIZE,
-                        kvheads,
-                        head_size,
-                        dtype=torch.float8_e4m3fn,
-                    ),
-                    torch.tensor([1.0] * input_ids.shape[0], dtype=torch.float32),
-                    False,
+        kwargs["past_key_value_states"] = [(
+            ScaledTensor(
+                torch.zeros(
+                    NUM_BLOCKS,
+                    BLOCK_SIZE,
+                    kvheads,
+                    head_size,
+                    dtype=torch.float8_e4m3fn,
                 ),
-                ScaledTensor(
-                    torch.zeros(
-                        NUM_BLOCKS,
-                        BLOCK_SIZE,
-                        kvheads,
-                        head_size,
-                        dtype=torch.float8_e4m3fn,
-                    ),
-                    torch.tensor([1.0] * input_ids.shape[0], dtype=torch.float32),
-                    False,
+                torch.tensor([1.0] * input_ids.shape[0], dtype=torch.float32),
+                False,
+            ),
+            ScaledTensor(
+                torch.zeros(
+                    NUM_BLOCKS,
+                    BLOCK_SIZE,
+                    kvheads,
+                    head_size,
+                    dtype=torch.float8_e4m3fn,
                 ),
-            )
-            for _ in range(model.config.nlayers)
-        ]
+                torch.tensor([1.0] * input_ids.shape[0], dtype=torch.float32),
+                False,
+            ),
+        ) for _ in range(model.config.nlayers)]
     else:
-        kwargs["past_key_value_states"] = [
-            (
-                torch.zeros(
-                    NUM_BLOCKS, BLOCK_SIZE, kvheads, head_size, dtype=model_dtype
-                ),
-                torch.zeros(
-                    NUM_BLOCKS, BLOCK_SIZE, kvheads, head_size, dtype=model_dtype
-                ),
-            )
-            for _ in range(model.config.nlayers)
-        ]
+        kwargs["past_key_value_states"] = [(
+            torch.zeros(NUM_BLOCKS,
+                        BLOCK_SIZE,
+                        kvheads,
+                        head_size,
+                        dtype=model_dtype),
+            torch.zeros(NUM_BLOCKS,
+                        BLOCK_SIZE,
+                        kvheads,
+                        head_size,
+                        dtype=model_dtype),
+        ) for _ in range(model.config.nlayers)]
     kwargs["block_table"] = None
     block_numbers = [i for i in range(NUM_BLOCKS)]
     # this will ensure we don't have contiguous blocks
@@ -200,8 +197,7 @@ def generate(
 
     # this is the context length for each sequence with no empty pages (padded to multiple of 64)
     context_lengths = BLOCK_SIZE * (
-        (context_lengths_without_pads + BLOCK_SIZE - 1) // BLOCK_SIZE
-    )
+        (context_lengths_without_pads + BLOCK_SIZE - 1) // BLOCK_SIZE)
 
     # left_padded_prompt_mask - empty_slots + context_lengths
     current_tkv_mask = torch.fill(context_lengths, torch.max(context_lengths))
@@ -210,7 +206,9 @@ def generate(
     block_table = []
     # each sequence has the possibility of a different tkv, so loop over that
     for seq_tkv in context_lengths:
-        block_table_i = [block_numbers.pop(0) for _ in range(seq_tkv // BLOCK_SIZE)]
+        block_table_i = [
+            block_numbers.pop(0) for _ in range(seq_tkv // BLOCK_SIZE)
+        ]
         slot_mapping_i = []
         for pos_i in range(seq_tkv):
             # we may have already popped a block, so index to the proper block
@@ -229,7 +227,7 @@ def generate(
     prompt_length = input_ids.shape[1]
 
     if timing != "":
-        times: List[float] = []
+        times: list[float] = []
         start_time = time.time()
 
     for i in range(max_new_tokens):
@@ -244,29 +242,26 @@ def generate(
 
             if "fp8" in kwargs["attn_name"]:
                 current_kv_scales = [
-                    (t1._scale, t2._scale) for t1, t2 in kwargs["past_key_value_states"]
+                    (t1._scale, t2._scale)
+                    for t1, t2 in kwargs["past_key_value_states"]
                 ]
             for seq_i, current_tkv in enumerate(context_lengths):
                 # remove extra pads from the input_ids, slot_mapping, position_ids, mask to account for empty pages
                 # each input should be padded to its smallest multiple of BLOCK_SIZE (64)
                 # we need to clone these tensors to ensure the pointer offset is 0
-                input_ids_i = input_ids[seq_i][-current_tkv:].unsqueeze(0).clone()
-                slot_mapping_i = (
-                    torch.tensor(slot_mapping[seq_i][-current_tkv:], dtype=torch.int64)
-                    .unsqueeze(0)
-                    .clone()
-                )
-                position_ids_i = (
-                    kwargs["position_ids"][seq_i][-current_tkv:].unsqueeze(0).clone()
-                )
+                input_ids_i = input_ids[seq_i][-current_tkv:].unsqueeze(
+                    0).clone()
+                slot_mapping_i = (torch.tensor(
+                    slot_mapping[seq_i][-current_tkv:],
+                    dtype=torch.int64).unsqueeze(0).clone())
+                position_ids_i = (kwargs["position_ids"][seq_i]
+                                  [-current_tkv:].unsqueeze(0).clone())
 
                 # This view will result in a discontiguous tensor (creates a new graph during compile)
                 # For this reason, we must explicitly make contiguous
-                mask_i = (
-                    kwargs["mask"][seq_i][:, -current_tkv:, -current_tkv:]
-                    .unsqueeze(0)
-                    .contiguous()
-                )
+                mask_i = (kwargs["mask"][seq_i][:, -current_tkv:,
+                                                -current_tkv:].unsqueeze(
+                                                    0).contiguous())
 
                 # batch dynamic
                 torch._dynamo.mark_static(input_ids_i, 0)
@@ -284,8 +279,10 @@ def generate(
                 # FP8 per-sentence scale handling
                 if "fp8" in kwargs["attn_name"]:
                     for layer_idx, (t1, t2) in enumerate(current_kv_cache):
-                        t1._scale = current_kv_scales[layer_idx][0][seq_i].reshape(-1)
-                        t2._scale = current_kv_scales[layer_idx][1][seq_i].reshape(-1)
+                        t1._scale = current_kv_scales[layer_idx][0][
+                            seq_i].reshape(-1)
+                        t2._scale = current_kv_scales[layer_idx][1][
+                            seq_i].reshape(-1)
 
                 only_last_token = kwargs.get("only_last_token", False)
                 output, current_kv_cache = model(
@@ -342,20 +339,17 @@ def generate(
                 slot_mapping.append([slot])
 
             kwargs["block_table"] = torch.tensor(
-                [
-                    (
-                        [b_seq[0]]
-                        * (max(2, max([len(b) for b in block_table])) - len(b_seq))
-                    )
-                    + b_seq
-                    for b_seq in block_table
-                ],
+                [([b_seq[0]] *
+                  (max(2, max([len(b)
+                               for b in block_table])) - len(b_seq))) + b_seq
+                 for b_seq in block_table],
                 dtype=torch.int64,
             )
             kwargs["left_padded_prompt_mask"] = left_padded_prompt_mask
             current_tkv_mask = current_tkv_mask + 1
             kwargs["current_tkv_mask"] = current_tkv_mask
-            kwargs["slot_mapping"] = torch.tensor(slot_mapping, dtype=torch.int64)
+            kwargs["slot_mapping"] = torch.tensor(slot_mapping,
+                                                  dtype=torch.int64)
 
             # batch
             torch._dynamo.mark_dynamic(input_ids, 0)
@@ -412,9 +406,8 @@ def generate(
             if not is_batch:
                 _logits = logits[0].unsqueeze(0)
                 _next_val = _next_val[0].unsqueeze(0)
-            _next_val, kwargs = post_iteration_hook(
-                i + prompt_length, _logits, _next_val, kwargs
-            )
+            _next_val, kwargs = post_iteration_hook(i + prompt_length, _logits,
+                                                    _next_val, kwargs)
             # we need to normalize back to batch size 2
             if not is_batch:
                 # we need to do an in-place copy here for the same reason we do in-place copy for injecting tokens
@@ -428,10 +421,7 @@ def generate(
             if torch.sum(eos_found) == input_ids.shape[0]:
                 break
 
-        if use_cache:
-            next_input = next_val
-        else:
-            next_input = result
+        next_input = next_val if use_cache else result
 
         if timing == "per-token":
             if input_ids.device.type == "cuda":

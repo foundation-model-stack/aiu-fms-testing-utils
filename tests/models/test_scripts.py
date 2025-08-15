@@ -1,9 +1,10 @@
-import pytest
-import os
-from subprocess import Popen, PIPE
-from pathlib import Path
 import itertools
 import math
+import os
+from pathlib import Path
+from subprocess import PIPE, Popen
+
+import pytest
 
 FMS_DIR = Path(__file__).parent
 AIU_FMS_DIR = os.path.join(FMS_DIR, "../../../aiu-fms-testing-utils/")
@@ -29,8 +30,7 @@ common_params = list(
         common_seq_lengths,
         common_max_new_tokens,
         common_attn_types,
-    )
-)
+    ))
 
 current_env = os.environ.copy()
 
@@ -39,12 +39,12 @@ def execute_script(execute_cmd):
     current_env["MAX_SHAREDPROG_ITERS"] = f"{common_max_new_tokens[0]}"
 
     with Popen(
-        execute_cmd,
-        stdin=PIPE,
-        stdout=PIPE,
-        stderr=PIPE,
-        universal_newlines=True,
-        env=current_env,
+            execute_cmd,
+            stdin=PIPE,
+            stdout=PIPE,
+            stderr=PIPE,
+            universal_newlines=True,
+            env=current_env,
     ) as p:
         output, error = p.communicate()
         if p.returncode == 0:
@@ -53,7 +53,8 @@ def execute_script(execute_cmd):
             raise Exception(error)
 
 
-def execute_inference(model_path, batch_size, seq_length, max_new_tokens, attn_type):
+def execute_inference(model_path, batch_size, seq_length, max_new_tokens,
+                      attn_type):
     extra_args = []
     if attn_type == "paged":
         extra_args.append("--compile_dynamic_sendnn")
@@ -94,7 +95,7 @@ def __repeat_batch_asserts(bs: int) -> list[str]:
 # add the asserts based on batch size
 # for batches greater than common_asserts, repeat common_asserts since this follows inference behavior
 common_inference_params = [
-    common_param + (__repeat_batch_asserts(common_param[1]),)
+    common_param + (__repeat_batch_asserts(common_param[1]), )
     for common_param in common_params
 ]
 
@@ -103,12 +104,10 @@ common_inference_params = [
     "model_path,batch_size,seq_length,max_new_tokens,attn_type,asserts",
     common_inference_params,
 )
-def test_inference_script(
-    model_path, batch_size, seq_length, max_new_tokens, attn_type, asserts
-):
-    result_text = execute_inference(
-        model_path, batch_size, seq_length, max_new_tokens, attn_type
-    )
+def test_inference_script(model_path, batch_size, seq_length, max_new_tokens,
+                          attn_type, asserts):
+    result_text = execute_inference(model_path, batch_size, seq_length,
+                                    max_new_tokens, attn_type)
 
     for common_assert in asserts:
         assert common_assert in result_text

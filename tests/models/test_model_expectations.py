@@ -1,13 +1,11 @@
-from fms.models import get_model
-from fms.utils.generation import pad_input_ids
+import os
+
 import pytest
 import torch
-
-from fms.testing._internal.model_test_suite import (
-    ModelConsistencyTestSuite,
-    ModelFixtureMixin,
-)
-import os
+from fms.models import get_model
+from fms.testing._internal.model_test_suite import (ModelConsistencyTestSuite,
+                                                    ModelFixtureMixin)
+from fms.utils.generation import pad_input_ids
 
 os.environ["COMPILATION_MODE"] = "offline"
 
@@ -27,6 +25,7 @@ micro_models = {
 
 
 class AIUModelFixtureMixin(ModelFixtureMixin):
+
     @pytest.fixture(scope="class", autouse=True)
     def uninitialized_model(self, model_id):
         torch.manual_seed(42)
@@ -63,14 +62,13 @@ decoder_models = [
 
 
 class TestAIUDecoderModels(
-    ModelConsistencyTestSuite,
-    AIUModelFixtureMixin,
+        ModelConsistencyTestSuite,
+        AIUModelFixtureMixin,
 ):
     # x is the main parameter for this model which is the input tensor
     _get_signature_params = ["x"]
     _get_signature_input_ids, _get_signature_optional_params = pad_input_ids(
-        [torch.arange(start=5, end=65, dtype=torch.int64)], min_pad_length=64
-    )
+        [torch.arange(start=5, end=65, dtype=torch.int64)], min_pad_length=64)
 
     @pytest.fixture(scope="class", autouse=True, params=decoder_models)
     def model_id(self, request):
@@ -84,8 +82,8 @@ tuple_output_models = [ROBERTA_SQUAD_v2]
 
 
 class TestAIUModelsTupleOutput(
-    ModelConsistencyTestSuite,
-    AIUModelFixtureMixin,
+        ModelConsistencyTestSuite,
+        AIUModelFixtureMixin,
 ):
     # x is the main parameter for this model which is the input tensor
     _get_signature_params = ["x"]

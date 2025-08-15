@@ -1,5 +1,6 @@
 import argparse
 import os
+
 import torch
 
 # ==============================================================
@@ -59,7 +60,11 @@ def aiu_setup(rank=0, world_size=1, local_rank=0, local_size=1, verbose=False):
 # ==============================================================
 # Distributed setup
 # ==============================================================
-def aiu_dist_setup(rank, world_size, local_rank=-0, local_size=-1, verbose=False):
+def aiu_dist_setup(rank,
+                   world_size,
+                   local_rank=-0,
+                   local_size=-1,
+                   verbose=False):
     if local_rank < 0:
         local_rank = rank
     if local_size < 0:
@@ -90,28 +95,24 @@ def set_aiu_env_vars(args: argparse.Namespace) -> None:
                 int(args.min_pad_length * 2.5),
                 int(args.fixed_prompt_length * 2.5),
             )
-            _prompt_size = max(int(args.min_pad_length), int(args.fixed_prompt_length))
-            if hasattr(torch._dynamo.config, "accumulated_cache_size_limit"):
-                if (
-                    _target_cache_size
-                    > torch._dynamo.config.accumulated_cache_size_limit
-                ):
-                    _prev = torch._dynamo.config.accumulated_cache_size_limit
-                    torch._dynamo.config.accumulated_cache_size_limit = (
-                        _target_cache_size
-                    )
-                    dprint(
-                        "NOTICE: Adjusting torch._dynamo.config.accumulated_cache_size_limit "
-                        f"from {_prev} to {torch._dynamo.config.accumulated_cache_size_limit} "
-                        f"to accomodate prompt size of {_prompt_size} and decode tokens of "
-                        f"{args.max_new_tokens}"
-                    )
+            _prompt_size = max(int(args.min_pad_length),
+                               int(args.fixed_prompt_length))
+            if (hasattr(torch._dynamo.config, "accumulated_cache_size_limit")
+                    and _target_cache_size
+                    > torch._dynamo.config.accumulated_cache_size_limit):
+                _prev = torch._dynamo.config.accumulated_cache_size_limit
+                torch._dynamo.config.accumulated_cache_size_limit = _target_cache_size
+                dprint(
+                    "NOTICE: Adjusting torch._dynamo.config.accumulated_cache_size_limit "
+                    f"from {_prev} to {torch._dynamo.config.accumulated_cache_size_limit} "
+                    f"to accommodate prompt size of {_prompt_size} and decode tokens of "
+                    f"{args.max_new_tokens}")
             if _target_cache_size > torch._dynamo.config.cache_size_limit:
                 _prev = torch._dynamo.config.cache_size_limit
                 torch._dynamo.config.cache_size_limit = _target_cache_size
                 dprint(
                     f"NOTICE: Adjusting torch._dynamo.config.cache_size_limit from {_prev} to "
-                    f"{torch._dynamo.config.cache_size_limit} to accomodate prompt size of "
+                    f"{torch._dynamo.config.cache_size_limit} to accommodate prompt size of "
                     f"{_prompt_size} and decode tokens of {args.max_new_tokens}"
                 )
             torch._dynamo.config.assume_static_by_default = True

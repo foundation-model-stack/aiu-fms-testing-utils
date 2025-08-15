@@ -1,9 +1,11 @@
+import os
+
 import torch
 from fms.models import get_model
-from fms.utils.generation import pad_input_ids, generate
-from aiu_fms_testing_utils.utils.paged import generate as paged_generate
+from fms.utils.generation import generate, pad_input_ids
 from fms.utils.tokenizers import get_tokenizer
-import os
+
+from aiu_fms_testing_utils.utils.paged import generate as paged_generate
 
 
 def test_paged_equivalence():
@@ -42,6 +44,9 @@ def test_paged_equivalence():
             max_new_tokens=5,
             do_sample=False,
             use_cache=True,
-            extra_kwargs={"attn_name": "spyre_paged_attn", **padding_kwargs},
+            extra_kwargs={
+                "attn_name": "spyre_paged_attn",
+                **padding_kwargs
+            },
         )
         torch.testing.assert_close(result, result_paged)

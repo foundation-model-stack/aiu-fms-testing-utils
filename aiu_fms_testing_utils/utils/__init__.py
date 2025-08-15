@@ -1,22 +1,21 @@
 # Standard
-from typing import Optional, List, Tuple
+import contextlib
 import json
+import math
 import os
 import random
-import requests
 import time
+import warnings
 
-# Third Party
-
-from aiu_fms_testing_utils.utils.aiu_setup import dprint, rank, world_size
-from transformers.tokenization_utils_base import PreTrainedTokenizerBase
-
-from fms.utils.generation import pad_input_ids
+import requests
 import torch
 import torch.nn as nn
-import math
-import contextlib
-import warnings
+from fms.utils.generation import pad_input_ids
+from transformers.tokenization_utils_base import PreTrainedTokenizerBase
+
+from aiu_fms_testing_utils.utils.aiu_setup import dprint, rank, world_size
+
+# Third Party
 
 
 @contextlib.contextmanager
@@ -59,13 +58,15 @@ def warmup_model(
     attention_specific_kwargs = {}
     attn_name = extra_kwargs.get("attn_name", "sdpa")
     if "paged" in attn_name:
-        from aiu_fms_testing_utils.utils.paged import generate, adjust_inputs_to_batch
+        from aiu_fms_testing_utils.utils.paged import (adjust_inputs_to_batch,
+                                                       generate)
     else:
         # TODO: Add a unified generation dependent on attn_type
         from fms.utils.generation import generate
 
         attention_specific_kwargs["contiguous_cache"] = True
-        attention_specific_kwargs["max_seq_len"] = input_ids.shape[1] + max_new_tokens
+        attention_specific_kwargs[
+            "max_seq_len"] = input_ids.shape[1] + max_new_tokens
 
     dprint("AIU warmup")
     pt_compile_model_time = time.time()
@@ -83,19 +84,20 @@ def warmup_model(
                 **extra_kwargs,
             )
 
-    extra_kwargs = {**_extra_kwargs, "only_last_token": "paged" not in attn_name}
+    extra_kwargs = {
+        **_extra_kwargs, "only_last_token": "paged" not in attn_name
+    }
 
-    with stagger_region(stagger_update_lazyhandle):
-        with torch_sendnn.warmup_mode():
-            generate(
-                model,
-                _warmup_input_ids,
-                max_new_tokens=_max_new_tokens,
-                do_sample=False,
-                use_cache=use_cache,
-                extra_kwargs=extra_kwargs,
-                **attention_specific_kwargs,
-            )
+    with stagger_region(stagger_update_lazyhandle), torch_sendnn.warmup_mode():
+        generate(
+            model,
+            _warmup_input_ids,
+            max_new_tokens=_max_new_tokens,
+            do_sample=False,
+            use_cache=use_cache,
+            extra_kwargs=extra_kwargs,
+            **attention_specific_kwargs,
+        )
     pt_compile_model_time = time.time() - pt_compile_model_time
     dprint(f"PT compile complete, took {pt_compile_model_time:.3f}s")
 
@@ -124,15 +126,16 @@ def get_pad_size(prompt_len: int, pad_multiple: int = 64):
     # handle outliers and case where you cannot divide by 0
     if prompt_len <= 0 or pad_multiple == 0:
         if prompt_len < 0:
-            warnings.warn(f"{prompt_len=} which should probably be > 0", stacklevel=2)
+            warnings.warn(f"{prompt_len=} which should probably be > 0",
+                          stacklevel=2)
         return 0
     else:
         return ((prompt_len + pad_multiple - 1) // pad_multiple) * pad_multiple
 
 
 def _merge_enforce_keep_heterogeneous(
-    enforce_list: List[Tuple[str, int]],
-    heterogeneous_list: List[Tuple[str, int]],
+    enforce_list: list[tuple[str, int]],
+    heterogeneous_list: list[tuple[str, int]],
     batch_size: int,
 ):
     """
@@ -173,14 +176,14 @@ def _merge_enforce_keep_heterogeneous(
 
 
 def __sample_requests(
-    prompt_list: List[str],
+    prompt_list: list[str],
     num_requests: int,
     tokenizer: PreTrainedTokenizerBase,
     prompt_length_min: int = 32,
     prompt_length_max: int = 64,
-    seed: Optional[int] = None,
+    seed: int | None = None,
     enforce_heterogeneous: bool = False,
-    enforce_sizes: List[int] = [],
+    enforce_sizes: list[int] | None = None,
     pad_multiple: int = 64,
 ):
     """
@@ -197,15 +200,17 @@ def __sample_requests(
 
     # Based on min/max prompt length, one can back out the number of possible heterogeneous values
     max_heterogeneous_combinations = (prompt_length_max // pad_multiple) - (
-        (prompt_length_min - 1) // pad_multiple
-    )
+        (prompt_length_min - 1) // pad_multiple)
 
     # Filter out sequences that are too long or too short
-    filtered_dataset: List[Tuple[str, int]] = []
-    enforced_dataset: List[Tuple[str, int]] = []
+    filtered_dataset: list[tuple[str, int]] = []
+    enforced_dataset: list[tuple[str, int]] = []
 
     # To track sizes seen
-    seen_sizes: List[int] = []
+    seen_sizes: list[int] = []
+
+    if enforce_sizes is None:
+        enforce_sizes = []
 
     if enforce_sizes:
         for size in enforce_sizes:
@@ -215,8 +220,7 @@ def __sample_requests(
             )
         if len(enforce_sizes) > num_requests:
             raise ValueError(
-                f"{num_requests=} which is smaller than {len(enforce_sizes)=}"
-            )
+                f"{num_requests=} which is smaller than {len(enforce_sizes)=}")
 
     # Shuffle the dataset.
     if seed is not None:
@@ -228,18 +232,17 @@ def __sample_requests(
 
         # Tokenize the prompts and completions.
         prompt = prompt_list[i]
-        prompt_token_ids = tokenizer.encode(prompt, return_tensors="pt").squeeze(0)
+        prompt_token_ids = tokenizer.encode(prompt,
+                                            return_tensors="pt").squeeze(0)
 
         prompt_len = len(prompt_token_ids)
         if prompt_len < prompt_length_min or prompt_len > prompt_length_max:
             # Prune too short or too long sequences.
             continue
         # This section is for enforce heterogeneous
-        if (
-            enforce_heterogeneous
-            and max_heterogeneous_combinations > len(filtered_dataset)
-            and len(filtered_dataset) < num_requests
-        ):
+        if (enforce_heterogeneous
+                and max_heterogeneous_combinations > len(filtered_dataset)
+                and len(filtered_dataset) < num_requests):
             # for _, size in filtered_dataset:
             current_padded_size = get_pad_size(prompt_len, pad_multiple)
 
@@ -268,8 +271,7 @@ def __sample_requests(
         )
     if enforced_dataset:
         filtered_dataset = _merge_enforce_keep_heterogeneous(
-            enforced_dataset, filtered_dataset, num_requests
-        )
+            enforced_dataset, filtered_dataset, num_requests)
 
     return filtered_dataset
 
@@ -280,11 +282,11 @@ def sample_sharegpt_requests(
     tokenizer: PreTrainedTokenizerBase,
     prompt_length_min: int = 32,
     prompt_length_max: int = 64,
-    seed: Optional[int] = None,
+    seed: int | None = None,
     enforce_heterogeneous: bool = False,
-    enforce_sizes: List[int] = [],
+    enforce_sizes: list[int] | None = None,
     pad_multiple: int = 64,
-) -> List[Tuple[str, int]]:
+) -> list[tuple[str, int]]:
     if not os.path.exists(dataset_path):
         print("downloading share-gpt dataset as it does not exist")
         __download_file(
@@ -297,7 +299,12 @@ def sample_sharegpt_requests(
         dataset = json.load(f)
     # Filter out the conversations with less than 2 turns.
     dataset = [data for data in dataset if len(data["conversations"]) >= 2]
-    dataset: List[str] = [data["conversations"][0]["value"] for data in dataset]
+    dataset: list[str] = [
+        data["conversations"][0]["value"] for data in dataset
+    ]
+
+    if enforce_sizes is None:
+        enforce_sizes = []
 
     return __sample_requests(
         dataset,
@@ -318,19 +325,23 @@ def sample_squad_v2_qa_requests(
     tokenizer: PreTrainedTokenizerBase,
     prompt_length_min: int = 32,
     prompt_length_max: int = 64,
-    seed: Optional[int] = None,
+    seed: int | None = None,
     enforce_heterogeneous: bool = False,
-    enforce_sizes: List[int] = [],
+    enforce_sizes: list[int] | None = None,
     pad_multiple: int = 64,
-) -> List[Tuple[str, int]]:
+) -> list[tuple[str, int]]:
     from datasets import load_dataset
 
     if os.path.exists(dataset_path):
         ds = load_dataset(dataset_path)["train"]
     else:
-        ds = load_dataset("rajpurkar/squad_v2", cache_dir=dataset_path)["train"]
+        ds = load_dataset("rajpurkar/squad_v2",
+                          cache_dir=dataset_path)["train"]
 
     ds = [f"{data['context']}\n{data['question']}" for data in ds]
+
+    if enforce_sizes is None:
+        enforce_sizes = []
 
     return __sample_requests(
         ds,
@@ -345,9 +356,12 @@ def sample_squad_v2_qa_requests(
     )
 
 
-def prepare_inputs(
-    batch_size, seq_length, tokenizer, ds_path, seed=0, ds_type="sharegpt"
-):
+def prepare_inputs(batch_size,
+                   seq_length,
+                   tokenizer,
+                   ds_path,
+                   seed=0,
+                   ds_type="sharegpt"):
     """
     Prepare input IDs and padding kwargs for a batch of questions.
 
@@ -382,7 +396,9 @@ def prepare_inputs(
         )
     prompt_list = []
     for prompt, _ in prompts_and_sizes:
-        prompt_list.append(tokenizer.encode(prompt, return_tensors="pt").squeeze(0))
+        prompt_list.append(
+            tokenizer.encode(prompt, return_tensors="pt").squeeze(0))
 
-    input_ids, padding_kwargs = pad_input_ids(prompt_list, min_pad_length=seq_length)
+    input_ids, padding_kwargs = pad_input_ids(prompt_list,
+                                              min_pad_length=seq_length)
     return input_ids, padding_kwargs

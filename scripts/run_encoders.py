@@ -4,33 +4,25 @@ import time
 
 # Third Party
 from fms.models import get_model
-from fms.models.roberta import RoBERTaForQuestionAnswering, RoBERTa
-from fms.models.hf.roberta.modeling_roberta_hf import HFAdaptedRoBERTaForMaskedLM
+from fms.models.hf.roberta.modeling_roberta_hf import (
+    HFAdaptedRoBERTaForMaskedLM)
+from fms.models.roberta import RoBERTa, RoBERTaForQuestionAnswering
 from torch import distributed, set_grad_enabled
 from transformers import AutoTokenizer
 
 # Local Packages
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, rank, world_size
 from aiu_fms_testing_utils.utils.args_parsing import get_args
-from aiu_fms_testing_utils.utils.encoders_utils import (
-    wrap_encoder,
-    run_encoder_eval_qa,
-    run_encoder_eval_mlm,
-)
-from aiu_fms_testing_utils.utils.model_setup import (
-    setup_model,
-    print_model_params,
-    recast_16b,
-)
+from aiu_fms_testing_utils.utils.encoders_utils import (run_encoder_eval_mlm,
+                                                        run_encoder_eval_qa,
+                                                        wrap_encoder)
+from aiu_fms_testing_utils.utils.model_setup import (print_model_params,
+                                                     recast_16b, setup_model)
 from aiu_fms_testing_utils.utils.quantization_setup import (
-    import_addons,
-    get_linear_config,
-    validate_quantization,
-)
+    get_linear_config, import_addons, validate_quantization)
 
 parser = argparse.ArgumentParser(
-    description="Entry point for AIU inference of encoder models."
-)
+    description="Entry point for AIU inference of encoder models.")
 args = get_args(parser)
 args.is_encoder = True  # add argument directly into Namespace
 
@@ -38,7 +30,9 @@ if args.is_quantized:
     import_addons(args)
 
 if args.distributed:
-    distributed.init_process_group(backend="gloo", rank=rank, world_size=world_size)
+    distributed.init_process_group(backend="gloo",
+                                   rank=rank,
+                                   world_size=world_size)
 
 # Main model setup
 default_dtype, device, dist_strat = setup_model(args)
@@ -82,10 +76,12 @@ model.eval()
 set_grad_enabled(False)
 if args.distributed:
     distributed.barrier()
-dprint(f"Loading model completed in {time.time() - loading_model_start:.2f} s.")
+dprint(
+    f"Loading model completed in {time.time() - loading_model_start:.2f} s.")
 
 if isinstance(model, RoBERTa):
-    model = wrap_encoder(model)  # enable using pipeline to eval RoBERTa MaskedLM
+    model = wrap_encoder(
+        model)  # enable using pipeline to eval RoBERTa MaskedLM
 
 if args.compile:
     dprint("Compiling model...")
@@ -103,7 +99,7 @@ else:
 
 if isinstance(model, RoBERTaForQuestionAnswering):
     run_encoder_eval_qa(model, tokenizer, args)
-elif isinstance(model, RoBERTa) or isinstance(model, HFAdaptedRoBERTaForMaskedLM):
+elif isinstance(model, RoBERTa | HFAdaptedRoBERTaForMaskedLM):
     # basic MaskedLM downstream task
     run_encoder_eval_mlm(model, tokenizer, args)
 

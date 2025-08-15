@@ -1,20 +1,21 @@
+import os
+from collections.abc import Callable, MutableMapping
 from pathlib import Path
-from typing import List, Tuple, Callable, MutableMapping, Any, Optional
+from typing import Any
 
 import torch
+
 from aiu_fms_testing_utils.utils.aiu_setup import dprint
-import os
 
 
-class LogitsExtractorHook(
-    Callable[
-        [int, torch.Tensor, torch.Tensor, MutableMapping[str, Any]],
-        Tuple[torch.Tensor, MutableMapping[str, Any]],
-    ]
-):
+class LogitsExtractorHook(Callable[
+    [int, torch.Tensor, torch.Tensor, MutableMapping[str, Any]],
+        tuple[torch.Tensor, MutableMapping[str, Any]],
+]):
+
     def __init__(self):
         super().__init__()
-        self.extracted_logits: Optional[torch.Tensor] = None
+        self.extracted_logits: torch.Tensor | None = None
 
     def __call__(
         self,
@@ -27,69 +28,61 @@ class LogitsExtractorHook(
             self.extracted_logits = logits.unsqueeze(1)
         else:
             self.extracted_logits = torch.cat(
-                (self.extracted_logits, logits.unsqueeze(1)), dim=1
-            )
+                (self.extracted_logits, logits.unsqueeze(1)), dim=1)
         return next_val, kwargs
 
 
-class StaticTokenInjectorHook(
-    Callable[
-        [int, torch.Tensor, torch.Tensor, MutableMapping[str, Any]],
-        Tuple[torch.Tensor, MutableMapping[str, Any]],
-    ]
-):
-    def __init__(self, static_tokens: List[torch.Tensor], device_type: str = "cpu"):
-        super().__init__()
-        self.static_tokens = torch.tensor(
-            static_tokens, device=device_type
-        ).t()  # transposing so batch tokens per token_position
+class StaticTokenInjectorHook(Callable[
+    [int, torch.Tensor, torch.Tensor, MutableMapping[str, Any]],
+        tuple[torch.Tensor, MutableMapping[str, Any]],
+]):
 
-    def __call__(
-        self, token_position: int, logits: torch.Tensor, next_val: torch.Tensor, kwargs
-    ):
+    def __init__(self,
+                 static_tokens: list[torch.Tensor],
+                 device_type: str = "cpu"):
+        super().__init__()
+        self.static_tokens = torch.tensor(static_tokens, device=device_type).t(
+        )  # transposing so batch tokens per token_position
+
+    def __call__(self, token_position: int, logits: torch.Tensor,
+                 next_val: torch.Tensor, kwargs):
         next_val.copy_(self.static_tokens[token_position].unsqueeze(1))
         return next_val, kwargs
 
 
-class GoldenTokenHook(
-    Callable[
-        [int, torch.Tensor, torch.Tensor, MutableMapping[str, Any]],
-        Tuple[torch.Tensor, MutableMapping[str, Any]],
-    ]
-):
+class GoldenTokenHook(Callable[
+    [int, torch.Tensor, torch.Tensor, MutableMapping[str, Any]],
+        tuple[torch.Tensor, MutableMapping[str, Any]],
+]):
+
     def __init__(self, static_tokens: torch.Tensor, device_type: str = "cpu"):
         super().__init__()
         self.logits_extractor = LogitsExtractorHook()
         self.extracted_logits = None
-        self.token_injector = StaticTokenInjectorHook(
-            static_tokens, device_type=device_type
-        )
+        self.token_injector = StaticTokenInjectorHook(static_tokens,
+                                                      device_type=device_type)
 
-    def __call__(
-        self, token_position: int, logits: torch.Tensor, next_val: torch.Tensor, kwargs
-    ):
-        next_val, kwargs = self.logits_extractor(
-            token_position, logits, next_val, kwargs
-        )
+    def __call__(self, token_position: int, logits: torch.Tensor,
+                 next_val: torch.Tensor, kwargs):
+        next_val, kwargs = self.logits_extractor(token_position, logits,
+                                                 next_val, kwargs)
         self.extracted_logits = self.logits_extractor.extracted_logits
         return self.token_injector(token_position, logits, next_val, kwargs)
 
 
 class ValidationInfo:
+
     def __init__(self, validation_info_list):
         super().__init__()
 
         self._validation_info_list = validation_info_list
 
     def __iter__(self):
-        for vi in self._validation_info_list:
-            yield vi
+        yield from self._validation_info_list
 
     def get_info(self, info_name):
-        return [
-            [t.unsqueeze(0) for t in sentence[info_name]]
-            for sentence in self._validation_info_list
-        ]
+        return [[t.unsqueeze(0) for t in sentence[info_name]]
+                for sentence in self._validation_info_list]
 
     def save(self, save_dir_path: str):
         """Save the validation information into a directory.
@@ -123,15 +116,16 @@ class ValidationInfo:
         return len(self._validation_info_list)
 
 
-def get_default_validation_prefix(
-    model_id: str, max_new_tokens: int, batch_size: int, seq_length: int, dtype: str
-):
+def get_default_validation_prefix(model_id: str, max_new_tokens: int,
+                                  batch_size: int, seq_length: int,
+                                  dtype: str):
     return f"{model_id.replace('/', '--')}_max-new-tokens-{max_new_tokens}_batch-size-{batch_size}_seq-length-{seq_length}_dtype-{dtype}"
 
 
-def load_validation_information(
-    validation_path, validation_files_type, batch_size, tokenizer=None
-):
+def load_validation_information(validation_path,
+                                validation_files_type,
+                                batch_size,
+                                tokenizer=None):
     """Load the validation information from a directory
 
     The files will be assumed to be in the following structure:
@@ -155,7 +149,8 @@ def load_validation_information(
     :return: a new validation info
     """
     if isinstance(validation_path, str):
-        validation_files_path, sep, glob_pattern = validation_path.partition("*")
+        validation_files_path, sep, glob_pattern = validation_path.partition(
+            "*")
     else:
         sep = ""
         glob_pattern = ""
@@ -170,12 +165,11 @@ def load_validation_information(
         else:
             if validation_files_type == "text":
                 glob_pattern_list = ["*.txt"]
-            elif validation_files_type == "tokens":
-                glob_pattern_list = ["*.pt"]
-            elif validation_files_type == "logits":
+            elif validation_files_type in ("tokens", "logits"):
                 glob_pattern_list = ["*.pt"]
         for glob_pattern_possibility in glob_pattern_list:
-            file_list = list(validation_files_path.glob(glob_pattern_possibility))
+            file_list = list(
+                validation_files_path.glob(glob_pattern_possibility))
             if len(file_list) > 0:
                 validation_files_paths = sorted(file_list)
                 break
@@ -185,8 +179,7 @@ def load_validation_information(
 
     # Check if we found some files
     assert len(validation_files_paths) > 0, (
-        f"Can't find any validation files at {validation_files_path}"
-    )
+        f"Can't find any validation files at {validation_files_path}")
 
     # Check if we have enough files
     assert len(validation_files_paths) >= batch_size, (
@@ -200,31 +193,31 @@ def load_validation_information(
         if validation_files_type == "text":
             if tokenizer is None:
                 raise ValueError(
-                    "must provide a tokenizer when validation_files_type=text"
-                )
+                    "must provide a tokenizer when validation_files_type=text")
             # Text format will get tokenized
-            validation_info.append(
-                {
-                    "tokens": tokenizer.encode(
-                        validation_file_path.read_text(encoding="utf-8"),
-                        return_tensors="pt",
-                    ).squeeze(0),
-                    "logits": None,
-                }
-            )
+            validation_info.append({
+                "tokens":
+                tokenizer.encode(
+                    validation_file_path.read_text(encoding="utf-8"),
+                    return_tensors="pt",
+                ).squeeze(0),
+                "logits":
+                None,
+            })
         elif validation_files_type == "tokens":
             # Tokens are loaded as is
             # Assumption: the file contains the token tensor as-is
-            validation_info.append(
-                {
-                    "tokens": torch.load(validation_file_path, map_location="cpu"),
-                    "logits": None,
-                }
-            )
+            validation_info.append({
+                "tokens":
+                torch.load(validation_file_path, map_location="cpu"),
+                "logits":
+                None,
+            })
         elif validation_files_type == "logits":
             # Logits+tokens are loaded as is
             # Assumption: the file contains the dictionary with both tokens and logits
-            validation_info.append(torch.load(validation_file_path, map_location="cpu"))
+            validation_info.append(
+                torch.load(validation_file_path, map_location="cpu"))
 
     return ValidationInfo(validation_info)
 
@@ -248,7 +241,8 @@ def extract_validation_information(
         from fms.utils.generation import generate
 
         attention_specific_kwargs["contiguous_cache"] = True
-        attention_specific_kwargs["max_seq_len"] = input_ids.shape[1] + max_new_tokens
+        attention_specific_kwargs[
+            "max_seq_len"] = input_ids.shape[1] + max_new_tokens
 
     # Add only_last_token optimization
     extra_generation_kwargs = {**extra_kwargs}
@@ -285,14 +279,16 @@ def extract_validation_information(
         result = result.unsqueeze(0)
 
     if hasattr(post_iteration_hook, "extracted_logits"):
-        validation_info = [
-            {"tokens": t.to("cpu"), "logits": logits.to("cpu")}
-            for t, logits in zip(
-                torch.unbind(result), torch.unbind(post_iteration_hook.extracted_logits)
-            )
-        ]
+        validation_info = [{
+            "tokens": t.to("cpu"),
+            "logits": logits.to("cpu")
+        } for t, logits in zip(
+            torch.unbind(result),
+            torch.unbind(post_iteration_hook.extracted_logits))]
     else:
-        validation_info = [{"tokens": t.to("cpu")} for t in torch.unbind(result)]
+        validation_info = [{
+            "tokens": t.to("cpu")
+        } for t in torch.unbind(result)]
     return ValidationInfo(validation_info)
 
 
@@ -300,19 +296,17 @@ def validate_level_0(aiu_tokens_per_sentence, validation_tokens_per_sentence):
     failed_cases = []
 
     for sentence_idx, (aiu_sentence, validation_sentence) in enumerate(
-        zip(aiu_tokens_per_sentence, validation_tokens_per_sentence)
-    ):
+            zip(aiu_tokens_per_sentence, validation_tokens_per_sentence)):
         for token_idx, (aiu_token, validation_token) in enumerate(
-            zip(aiu_sentence, validation_sentence)
-        ):
+                zip(aiu_sentence, validation_sentence)):
             if aiu_token != validation_token:
                 failed_cases.append((sentence_idx, token_idx))
     return failed_cases
 
 
-def top_k_loss_calculator(
-    top_k: int, loss_f: Callable[[torch.Tensor, torch.Tensor], float]
-):
+def top_k_loss_calculator(top_k: int,
+                          loss_f: Callable[[torch.Tensor, torch.Tensor],
+                                           float]):
     """
     Function which will take the top_k logits indexes / values from a reference validation info and retrieve the same indexes from the test validation info logits
     and perform a loss function over the 2 tensors
@@ -325,9 +319,9 @@ def top_k_loss_calculator(
         reference_logits_prob = reference_logits.to(dtype=torch.float32)
         test_logits_prob = test_logits.to(dtype=torch.float32)
 
-        reference_values, reference_indices = torch.topk(
-            reference_logits_prob, top_k, dim=1
-        )
+        reference_values, reference_indices = torch.topk(reference_logits_prob,
+                                                         top_k,
+                                                         dim=1)
         test_values = test_logits_prob[:, reference_indices.squeeze(0)]
 
         return loss_f(reference_values, test_values)
@@ -335,17 +329,15 @@ def top_k_loss_calculator(
     return loss_func
 
 
-def capture_level_1_metrics(
-    reference_logits_per_sentence, test_logits_per_sentence, metrics_calculator=None
-):
+def capture_level_1_metrics(reference_logits_per_sentence,
+                            test_logits_per_sentence,
+                            metrics_calculator=None):
     loss_metrics = []
 
     for sentence_idx, (reference_sentence, test_sentence) in enumerate(
-        zip(reference_logits_per_sentence, test_logits_per_sentence)
-    ):
+            zip(reference_logits_per_sentence, test_logits_per_sentence)):
         for token_idx, (reference_logits, test_logits) in enumerate(
-            zip(reference_sentence, test_sentence)
-        ):
+                zip(reference_sentence, test_sentence)):
             # computing cross entropy loss per token
             if metrics_calculator is None:
                 loss_fn = torch.nn.CrossEntropyLoss()
@@ -354,14 +346,17 @@ def capture_level_1_metrics(
                     test_logits.softmax(dim=1).to(dtype=torch.float32),
                 )
             else:
-                metrics_value = metrics_calculator(reference_logits, test_logits)
+                metrics_value = metrics_calculator(reference_logits,
+                                                   test_logits)
 
             loss_metrics.append((sentence_idx, token_idx, metrics_value))
 
     return loss_metrics
 
 
-def filter_failed_level_1_cases(level_1_loss_metrics, fail_f, print_failed=False):
+def filter_failed_level_1_cases(level_1_loss_metrics,
+                                fail_f,
+                                print_failed=False):
     failed_cases = []
     for sentence_idx, token_idx, metrics_value in level_1_loss_metrics:
         if fail_f(metrics_value):

@@ -1,38 +1,37 @@
 # Standard
 import argparse
 import datetime
-from functools import partial
 import itertools
 import json
 import os
-from pathlib import Path
 import random
 import time
+from functools import partial
+from pathlib import Path
 
-# Third Party
-from aiu_fms_testing_utils.utils import aiu_setup, warmup_model, stagger_region
-from aiu_fms_testing_utils.utils.aiu_setup import dprint, rank, local_rank, world_size
 import numpy as np
 import torch
-from torch import distributed as dist
 from fms.models import get_model, register_model
 from fms.models.llama import LLaMAConfig, _llama_factory_factory
 from fms.utils import generation
 from fms.utils.generation import pad_input_ids
-
+from torch import distributed as dist
 from transformers import AutoTokenizer
 
+# Third Party
+from aiu_fms_testing_utils.utils import aiu_setup, stagger_region, warmup_model
+from aiu_fms_testing_utils.utils.aiu_setup import (dprint, local_rank, rank,
+                                                   world_size)
 
 # This example script validates the LLaMA implementation by running inference on a couple of prompts.
 #
-# Example usage with single-GPU 7B model on slurm, with torch.compile and determinstic behavior:
+# Example usage with single-GPU 7B model on slurm, with torch.compile and deterministic behavior:
 # CUBLAS_WORKSPACE_CONFIG=:4096:8 srun -N 1 --gres=gpu:1 python scripts/inference.py --model_path=~/models/7B-F/ --tokenizer=~/models/tokenizer.model --compile --deterministic
 # Example usage of 13B model on 2 GPUs with Tensor Parallel:
 # srun -N 1 --gres=gpu:2 torchrun --nproc_per_node=2 scripts/inference.py --model_path=~/models/13B-F --tokenizer=~/models/tokenizer.model --distributed
 
 parser = argparse.ArgumentParser(
-    description="Script to run inference on a causal model"
-)
+    description="Script to run inference on a causal model")
 parser.add_argument(
     "--device_type",
     type=str,
@@ -54,7 +53,8 @@ parser.add_argument(
 parser.add_argument(
     "--model_path",
     type=str,
-    help="Path to the directory containing LLaMa weights (.pth files sharded by tensor parallel rank, not HF weights)",
+    help=
+    "Path to the directory containing LLaMa weights (.pth files sharded by tensor parallel rank, not HF weights)",
 )
 parser.add_argument(
     "--model_source",
@@ -99,24 +99,28 @@ parser.add_argument(
 parser.add_argument(
     "--unfuse_weights",
     action="store_true",
-    help="If set to True, this will unfuse any fused weight modules that support the unfuse_weights method",
+    help=
+    "If set to True, this will unfuse any fused weight modules that support the unfuse_weights method",
 )
 parser.add_argument(
     "--default_dtype",
     type=str,
     default=None,
     choices=["bf16", "fp16", "fp32"],
-    help="If set to one of the choices, overrides the model checkpoint weight format by setting the default pytorch format. This will break quantized checkpoints.",
+    help=
+    "If set to one of the choices, overrides the model checkpoint weight format by setting the default pytorch format. This will break quantized checkpoints.",
 )
 parser.add_argument(
     "--cast_bf16_to_fp16",
     action="store_true",
-    help="If set, cast any bf16 weights in the model to fp16 for AIU compiler. Doesn't touch fp32 or quantized",
+    help=
+    "If set, cast any bf16 weights in the model to fp16 for AIU compiler. Doesn't touch fp32 or quantized",
 )
 parser.add_argument(
     "--cast_fp16_to_bf16",
     action="store_true",
-    help="If set, cast any fp16 weights in the model to bf16 for GPU. Doesn't touch fp32 or quantized",
+    help=
+    "If set, cast any fp16 weights in the model to bf16 for GPU. Doesn't touch fp32 or quantized",
 )
 parser.add_argument(
     "--compile",
@@ -150,12 +154,14 @@ parser.add_argument(
 parser.add_argument(
     "--deterministic",
     action="store_true",
-    help="Set torch.use_deterministic_algorithms? Requires env variable `CUBLAS_WORKSPACE_CONFIG=:4096:8`",
+    help=
+    "Set torch.use_deterministic_algorithms? Requires env variable `CUBLAS_WORKSPACE_CONFIG=:4096:8`",
 )
 parser.add_argument(
     "--distributed",
     action="store_true",
-    help="This is a distributed job (multiple instances run with RANK+WORLD_SIZE)",
+    help=
+    "This is a distributed job (multiple instances run with RANK+WORLD_SIZE)",
 )
 parser.add_argument(
     "--batch_size",
@@ -167,18 +173,21 @@ parser.add_argument(
     "--max_prompt_length",
     type=int,
     default=None,
-    help="cap the number of tokens per prompt to a maximum length prior to padding. If None, there will be no cap.",
+    help=
+    "cap the number of tokens per prompt to a maximum length prior to padding. If None, there will be no cap.",
 )
 parser.add_argument(
     "--min_pad_length",
     type=int,
-    help="Pad inputs to a minimum specified length. If any prompt is larger than the specified length, padding will be determined by the largest prompt",
+    help=
+    "Pad inputs to a minimum specified length. If any prompt is larger than the specified length, padding will be determined by the largest prompt",
     default=0,
 )
 parser.add_argument(
     "--fixed_prompt_length",
     type=int,
-    help="If defined, overrides both min_pad_length and max_prompt_length. Pads input to fixed_prompt_length, fails if any input needs truncation.",
+    help=
+    "If defined, overrides both min_pad_length and max_prompt_length. Pads input to fixed_prompt_length, fails if any input needs truncation.",
     default=0,
 )
 parser.add_argument(
@@ -203,7 +212,8 @@ parser.add_argument(
     "--prompt_path",
     type=str,
     default="",
-    help="if set, load the prompts from file(s) instead of the local examples. Supports glob-style patterns",
+    help=
+    "if set, load the prompts from file(s) instead of the local examples. Supports glob-style patterns",
 )
 parser.add_argument(
     "--output_path",
@@ -222,7 +232,8 @@ parser.add_argument(
     "--iters",
     type=int,
     default=1,
-    help="Number of iterations of inference to perform. Used for variance performance capture.",
+    help=
+    "Number of iterations of inference to perform. Used for variance performance capture.",
 )
 parser.add_argument(
     "-v",
@@ -242,19 +253,22 @@ parser.add_argument(
     "--stagger_load",
     type=int,
     default=0,
-    help="Limit the number of concurrent processes executing the model loading phase. Set to 0 to allow all processes",
+    help=
+    "Limit the number of concurrent processes executing the model loading phase. Set to 0 to allow all processes",
 )
 parser.add_argument(
     "--stagger_update_lazyhandle",
     type=int,
     default=0,
-    help="Limit the number of concurrent processes executing the AIU update_lazyhandle phase. Set to 0 to allow all processes",
+    help=
+    "Limit the number of concurrent processes executing the AIU update_lazyhandle phase. Set to 0 to allow all processes",
 )
 parser.add_argument(
     "--dist_timeout",
     type=int,
     default=0,
-    help="Timeout to use for messaging in minutes. Default set by PyTorch dist.init_process_group",
+    help=
+    "Timeout to use for messaging in minutes. Default set by PyTorch dist.init_process_group",
 )
 args = parser.parse_args()
 
@@ -278,18 +292,21 @@ if "fp8" in attn_name:
 if args.quantization == "gptq":
     if "aiu" in args.device_type:
         try:
-            from fms_mo.aiu_addons.gptq import gptq_aiu_adapter, gptq_aiu_linear  # noqa
+            from fms_mo.aiu_addons.gptq import gptq_aiu_adapter  # noqa: F401
+            from fms_mo.aiu_addons.gptq import gptq_aiu_linear  # noqa: F401
 
             print("Loaded `aiu_addons` functionalities")
-        except ImportError:
-            raise ImportError("Failed to import GPTQ addons from fms-mo.")
+        except ImportError as err:
+            raise ImportError(
+                "Failed to import GPTQ addons from fms-mo.") from err
 elif args.quantization == "int8":
     try:
-        from fms_mo.aiu_addons.i8i8 import i8i8_aiu_adapter, i8i8_aiu_linear  # noqa
+        from fms_mo.aiu_addons.i8i8 import i8i8_aiu_adapter  # noqa: F401
+        from fms_mo.aiu_addons.i8i8 import i8i8_aiu_linear  # noqa: F401
 
         print("Loaded `aiu_addons` functionalities")
-    except ImportError:
-        raise ImportError("Failed to import INT8 addons from fms-mo.")
+    except ImportError as err:
+        raise ImportError("Failed to import INT8 addons from fms-mo.") from err
 
 # this is a test model config
 config = LLaMAConfig(
@@ -320,12 +337,16 @@ if args.distributed:
     if args.dist_timeout > 0:
         # Default timeout:
         # https://docs.pytorch.org/docs/stable/distributed.html#torch.distributed.init_process_group
-        dist.init_process_group(timeout=datetime.timedelta(minutes=args.dist_timeout))
-        dprint(f"NOTICE: init_process_group timeout set to {args.dist_timeout} minutes")
+        dist.init_process_group(timeout=datetime.timedelta(
+            minutes=args.dist_timeout))
+        dprint(
+            f"NOTICE: init_process_group timeout set to {args.dist_timeout} minutes"
+        )
     else:
         dist.init_process_group()
     # Fix until PT 2.3
-    torch._C._distributed_c10d._register_process_group("default", dist.group.WORLD)
+    torch._C._distributed_c10d._register_process_group("default",
+                                                       dist.group.WORLD)
     aiu_setup.aiu_dist_setup(dist.get_rank(), dist.get_world_size())
 
 if args.device_type == "cuda":
@@ -343,19 +364,20 @@ elif is_aiu_backend:
         int(args.fixed_prompt_length * 2.5),
     )
     _prompt_size = max(int(args.min_pad_length), int(args.fixed_prompt_length))
-    if hasattr(torch._dynamo.config, "accumulated_cache_size_limit"):
-        if _target_cache_size > torch._dynamo.config.accumulated_cache_size_limit:
-            _prev = torch._dynamo.config.accumulated_cache_size_limit
-            torch._dynamo.config.accumulated_cache_size_limit = _target_cache_size
-            dprint(
-                f"NOTICE: Adjusting torch._dynamo.config.accumulated_cache_size_limit from {_prev} to {torch._dynamo.config.accumulated_cache_size_limit} to accomodate prompt size of {_prompt_size} and decode tokens of {args.max_new_tokens}"
-            )
+    if hasattr(
+            torch._dynamo.config, "accumulated_cache_size_limit"
+    ) and _target_cache_size > torch._dynamo.config.accumulated_cache_size_limit:
+        _prev = torch._dynamo.config.accumulated_cache_size_limit
+        torch._dynamo.config.accumulated_cache_size_limit = _target_cache_size
+        dprint(
+            f"NOTICE: Adjusting torch._dynamo.config.accumulated_cache_size_limit from {_prev} to {torch._dynamo.config.accumulated_cache_size_limit} to accommodate prompt size of {_prompt_size} and decode tokens of {args.max_new_tokens}"
+        )
 
     if _target_cache_size > torch._dynamo.config.cache_size_limit:
         _prev = torch._dynamo.config.cache_size_limit
         torch._dynamo.config.cache_size_limit = _target_cache_size
         dprint(
-            f"NOTICE: Adjusting torch._dynamo.config.cache_size_limit from {_prev} to {torch._dynamo.config.cache_size_limit} to accomodate prompt size of {_prompt_size} and decode tokens of {args.max_new_tokens}"
+            f"NOTICE: Adjusting torch._dynamo.config.cache_size_limit from {_prev} to {torch._dynamo.config.cache_size_limit} to accommodate prompt size of {_prompt_size} and decode tokens of {args.max_new_tokens}"
         )
 
     if not args.compile_dynamic:
@@ -396,20 +418,14 @@ if args.deterministic:
 
 dprint("loading model")
 loading_model_time = time.time()
-if args.distributed:
-    distr_param = "tp"
-else:
-    if torch.cuda.device_count() > 1 and world_size == 1:
-        distr_param = "mp"
-    else:
-        distr_param = None
+distr_param = "tp" if args.distributed else "mp" if torch.cuda.device_count(
+) > 1 and world_size == 1 else None
 
 fused_weights = not args.unfuse_weights
 if args.quantization == "gptq":
     if fused_weights and is_aiu_backend:
         raise ValueError(
-            "GPTQ checkpoints on AIU must always run with --unfuse_weights"
-        )
+            "GPTQ checkpoints on AIU must always run with --unfuse_weights")
     if default_dtype is not None:
         raise ValueError(
             "GPTQ default_dtype must be None to preserve the checkpoint data types."
@@ -426,20 +442,17 @@ if args.quantization == "gptq":
 
     qconfig_path = args.model_path + "/quantize_config.json"
     if os.path.exists(qconfig_path):
-        with open(qconfig_path, "r") as f:
+        with open(qconfig_path) as f:
             dprint(f"loading quantization config from {qconfig_path}")
             qconfig = json.load(f)
             group_size = qconfig["group_size"]
             desc_act = qconfig["desc_act"]
             if desc_act:
                 raise NotImplementedError(
-                    "Activation reordering not supported at this time."
-                )
+                    "Activation reordering not supported at this time.")
     else:
-        dprint(
-            "[WARNING] Could not locate quantization config file. "
-            "Default configuration will be used."
-        )
+        dprint("[WARNING] Could not locate quantization config file. "
+               "Default configuration will be used.")
         group_size = 128
         desc_act = False
 
@@ -451,8 +464,7 @@ if args.quantization == "gptq":
 elif args.quantization == "int8":
     if fused_weights and is_aiu_backend:
         raise ValueError(
-            "INT8 checkpoints on AIU must always run with --unfuse_weights"
-        )
+            "INT8 checkpoints on AIU must always run with --unfuse_weights")
     if default_dtype is not None:
         raise ValueError(
             "INT8 default_dtype must be None to preserve the checkpoint data types."
@@ -465,33 +477,37 @@ elif args.quantization == "int8":
     ):
         if module_name is None:
             return "int8_aiu"
-        smoothquant_on_module = (
-            any([m in module_name for m in smoothquant_layers])
-            if smoothquant_layers is not None
-            else True
-        )
+        smoothquant_on_module = (any([
+            m in module_name for m in smoothquant_layers
+        ]) if smoothquant_layers is not None else True)
         use_smoothquant = smoothquant and smoothquant_on_module
         return "int8_smoothquant_aiu" if use_smoothquant else "int8_aiu"
 
     if args.int8_smoothquant:
         # TODO: consider saving this info into config during quantization
-        if any("granite" in p.lower() for p in [args.model_path, args.architecture]):
+        if any("granite" in p.lower()
+               for p in [args.model_path, args.architecture]):
             smoothquant_layers = ["key", "value", "w1", "wg"]
-        elif any("roberta" in p.lower() for p in [args.model_path, args.architecture]):
+        elif any("roberta" in p.lower()
+                 for p in [args.model_path, args.architecture]):
             smoothquant_layers = ["query", "key", "value", "w1"]
         else:
-            raise NotImplementedError("INT8 architecture does not support smoothquant.")
+            raise NotImplementedError(
+                "INT8 architecture does not support smoothquant.")
     else:
         smoothquant_layers = []
 
     linear_config = {
-        "linear_type": partial(
+        "linear_type":
+        partial(
             select_int8_module,
             smoothquant=args.int8_smoothquant,
             smoothquant_layers=smoothquant_layers,
         ),
-        "weight_per_channel": args.int8_weight_per_channel,
-        "activ_quant_type": args.int8_activ_quant_type,
+        "weight_per_channel":
+        args.int8_weight_per_channel,
+        "activ_quant_type":
+        args.int8_activ_quant_type,
     }
 else:
     linear_config = {"linear_type": "torch_linear"}
@@ -557,20 +573,12 @@ if args.cast_fp16_to_bf16:
 
 if args.quantization in ["gptq", "int8"]:
     if rank == 0 and args.verbose > 0:
-        dprint(
-            "PARAMS:\n"
-            + "\n".join(
-                f"{k:60} {str(v.dtype):15} {str(v.device):10} {list(v.size())}"
-                for k, v in model.named_parameters()
-            )
-        )
-        dprint(
-            "BUFFERS:\n"
-            + "\n".join(
-                f"{k:60} {str(v.dtype):15} {str(v.device):10} {list(v.size())}"
-                for k, v in model.named_buffers()
-            )
-        )
+        dprint("PARAMS:\n" + "\n".join(
+            f"{k:60} {str(v.dtype):15} {str(v.device):10} {list(v.size())}"
+            for k, v in model.named_parameters()))
+        dprint("BUFFERS:\n" + "\n".join(
+            f"{k:60} {str(v.dtype):15} {str(v.device):10} {list(v.size())}"
+            for k, v in model.named_buffers()))
         dprint("=" * 60 + "\n")
     if args.architecture == "llama":
         dprint(
@@ -588,9 +596,8 @@ dprint(f"loading complete, took {loading_model_time:.3f}s")
 if args.compile:
     dprint("compiling model")
     if is_aiu_backend:
-        model.compile(
-            backend="sendnn", options={"sendnn.dynamic": args.compile_dynamic_sendnn}
-        )
+        model.compile(backend="sendnn",
+                      options={"sendnn.dynamic": args.compile_dynamic_sendnn})
     else:
         # compiling can make first inference pass slow
         model.compile(mode=args.compile_mode, backend=args.compile_backend)
@@ -602,7 +609,9 @@ def truncate_prompts_to_max_length(prompts, max_len, max_allowed_length):
     # we may want the prompt length to be fixed to some max length
     # this will ensure that prior to padding the input ids
     if max_allowed_length is not None and max_len > max_allowed_length:
-        dprint(f"max prompt length is {max_len}, truncating to {max_allowed_length}")
+        dprint(
+            f"max prompt length is {max_len}, truncating to {max_allowed_length}"
+        )
         prompts = [prompt[:max_allowed_length] for prompt in prompts]
     return prompts
 
@@ -620,10 +629,7 @@ if args.prompt_path != "":
     prompt_file_paths = []
 
     if prompt_path.is_dir():
-        if glob_pattern != "":
-            glob_pattern_list = [glob_pattern]
-        else:
-            glob_pattern_list = ["*.txt"]
+        glob_pattern_list = [glob_pattern] if glob_pattern != "" else ["*.txt"]
         for glob_pattern_possibility in glob_pattern_list:
             file_list = list(prompt_path.glob(glob_pattern_possibility))
             if len(file_list) > 0:
@@ -634,7 +640,8 @@ if args.prompt_path != "":
         prompt_file_paths = [prompt_path]
 
     # Check if we found some files
-    assert len(prompt_file_paths) > 0, f"Can't find any prompt files at {prompt_path}"
+    assert len(
+        prompt_file_paths) > 0, f"Can't find any prompt files at {prompt_path}"
 
     # Check if we have enough files
     assert len(prompt_file_paths) >= args.batch_size, (
@@ -646,18 +653,15 @@ if args.prompt_path != "":
         if i == args.batch_size:
             break
         prompts.append(
-            tokenizer.encode(
-                prompt_file_path.read_text(encoding="utf-8"), return_tensors="pt"
-            ).squeeze(0)
-        )
+            tokenizer.encode(prompt_file_path.read_text(encoding="utf-8"),
+                             return_tensors="pt").squeeze(0))
 
 else:
     if args.prompt_type == "chat":
         template = "Below is an instruction that describes a task. Write a response that appropriately completes the request.\n\n### Instruction:\n{}\n\n### Response:"
 
         prompt1 = template.format(
-            "Provide a list of instructions for preparing chicken soup."
-        )
+            "Provide a list of instructions for preparing chicken soup.")
         prompt2 = template.format("Explain some popular greetings in Spanish.")
         prompt3 = template.format("Explain to me why ignorance is bliss.")
         prompt4 = template.format(
@@ -685,7 +689,7 @@ else:
     prompt4 = tokenizer.encode(prompt4, return_tensors="pt").squeeze(0)
     prompts = [prompt1, prompt2, prompt3, prompt4]
     prompts = prompts * ((args.batch_size // 4) + 1)
-    prompts = prompts[: args.batch_size]
+    prompts = prompts[:args.batch_size]
 
 if args.fixed_prompt_length != 0:
     padding_length = args.fixed_prompt_length
@@ -704,7 +708,8 @@ if args.fixed_prompt_length != 0 and args.fixed_prompt_length < max_len:
     exit(1)
 prompts = truncate_prompts_to_max_length(prompts, max_len, max_allowed_length)
 if has_padding:
-    ids, extra_generation_kwargs = pad_input_ids(prompts, min_pad_length=padding_length)
+    ids, extra_generation_kwargs = pad_input_ids(prompts,
+                                                 min_pad_length=padding_length)
 else:
     ids = prompts
     if isinstance(ids, list) and len(ids) == 1:
@@ -723,11 +728,8 @@ if "paged" in attn_name:
     __supported_context_lengths = [64, 128, 256, 512, 1024, 2048, 4096, 8192]
     os.environ.setdefault(
         "VLLM_DT_MAX_CONTEXT_LEN",
-        str(
-            __supported_context_lengths[
-                bisect.bisect_left(__supported_context_lengths, __largest_context)
-            ]
-        ),
+        str(__supported_context_lengths[bisect.bisect_left(
+            __supported_context_lengths, __largest_context)]),
     )
     os.environ.setdefault("VLLM_DT_MAX_BATCH_SIZE", str(max(ids.shape[0], 2)))
 
@@ -771,15 +773,13 @@ def infer(use_cache, do_sample, warmup):
         extra_generation_kwargs = {}
     extra_generation_kwargs["only_last_token"] = "paged" not in attn_name
 
-    if not args.no_early_termination and not warmup:
-        eos_token_id = tokenizer.eos_token_id
-    else:
-        eos_token_id = None
+    eos_token_id = tokenizer.eos_token_id if not args.no_early_termination and not warmup else None
 
     attention_specific_kwargs = {}
     if attn_name == "sdpa_causal":
         attention_specific_kwargs["contiguous_cache"] = True
-        attention_specific_kwargs["max_seq_len"] = ids.shape[1] + args.max_new_tokens
+        attention_specific_kwargs[
+            "max_seq_len"] = ids.shape[1] + args.max_new_tokens
 
     result = generate(
         model,
@@ -844,9 +844,8 @@ if args.compile:
                 stagger_update_lazyhandle=args.stagger_update_lazyhandle,
                 **extra_generation_kwargs,
             )
-        if (
-            args.device_type == "aiu"
-        ):  # run device initialization warmup for AIU, skip for senulator
+        if (args.device_type == "aiu"
+            ):  # run device initialization warmup for AIU, skip for senulator
             aiu_warmup_time = time.time()
             for sample, cache in itertools.product(do_sample, use_cache):
                 infer(cache, sample, True)

@@ -1,30 +1,30 @@
+import argparse
 import os
 import sys
-import argparse
-
-from aiu_fms_testing_utils.utils import aiu_setup
-from aiu_fms_testing_utils.utils.aiu_setup import dprint, world_rank, world_size
 
 # PyTorch
 import torch
 import torch.distributed
-
 # Foundation Model Stack
 # - FeedForwardBlock : Building block for the model
 # - apply_tp : Convert serial model into tensor parallel
 from fms.modules.feedforward import FeedForwardBlock
 from fms.utils.tp_wrapping import apply_tp
-
 # Import AIU Libraries
 from torch_sendnn import torch_sendnn  # noqa
+
+from aiu_fms_testing_utils.utils import aiu_setup
+from aiu_fms_testing_utils.utils.aiu_setup import (dprint, world_rank,
+                                                   world_size)
 
 
 # ==============================================================
 # Toy Encoder Model
 # ==============================================================
 class ToyModelFM(torch.nn.Module):
+
     def __init__(self):
-        super(ToyModelFM, self).__init__()
+        super().__init__()
         # Input layer size
         self.INPUT_N = 1024
         # Hidden factor of the feedforward layer
@@ -47,17 +47,15 @@ class ToyModelFM(torch.nn.Module):
         self_parent_layer = self if par_model is None else par_model
         with torch.no_grad():
             for (seq_name, seq_layer), (self_name, self_layer) in zip(
-                seq_model.named_children(), self_parent_layer.named_children()
-            ):
+                    seq_model.named_children(),
+                    self_parent_layer.named_children()):
                 if hasattr(self_layer, "load_weights"):
-                    self_layer.load_weights(
-                        {
-                            "w1.weight": seq_layer.w1.weight,
-                            "w1.bias": seq_layer.w1.bias,
-                            "w2.weight": seq_layer.w2.weight,
-                            "w2.bias": seq_layer.w2.bias,
-                        }
-                    )
+                    self_layer.load_weights({
+                        "w1.weight": seq_layer.w1.weight,
+                        "w1.bias": seq_layer.w1.bias,
+                        "w2.weight": seq_layer.w2.weight,
+                        "w2.bias": seq_layer.w2.bias,
+                    })
                 else:
                     self.copy_weights(self_layer, seq_layer)
 
@@ -79,8 +77,7 @@ if __name__ == "__main__":
     # Command line argument parsing
     # -------------
     parser = argparse.ArgumentParser(
-        description="PyTorch Small Toy Tensor Parallel Example"
-    )
+        description="PyTorch Small Toy Tensor Parallel Example")
     parser.add_argument(
         "--backend",
         help="PyTorch Dynamo compiler backend",
@@ -89,24 +86,20 @@ if __name__ == "__main__":
     )
     pargs = parser.parse_args()
 
-    if pargs.backend == "aiu":
-        dynamo_backend = "sendnn"
-    else:
-        dynamo_backend = "inductor"
+    dynamo_backend = "sendnn" if pargs.backend == "aiu" else "inductor"
 
     is_distributed = world_size > 1
     if is_distributed:
         # Initialize the process group
-        torch.distributed.init_process_group(
-            backend="gloo", rank=world_rank, world_size=world_size
-        )
+        torch.distributed.init_process_group(backend="gloo",
+                                             rank=world_rank,
+                                             world_size=world_size)
         # Looks like a string compare, but is actually comparing the components
         # https://github.com/pytorch/pytorch/blob/b5be4d8c053e22672719b9a33386b071daf9860d/torch/torch_version.py#L10-L16
         if torch.__version__ < "2.3.0":
             # Fix until PyTorch 2.3
             torch._C._distributed_c10d._register_process_group(
-                "default", torch.distributed.group.WORLD
-            )
+                "default", torch.distributed.group.WORLD)
 
     # -------------
     # Setup AIU specific environment variables
@@ -117,7 +110,7 @@ if __name__ == "__main__":
     # -------------
     # Display some diagnostics
     # -------------
-    if 0 == world_rank:
+    if world_rank == 0:
         dprint("-" * 60)
         dprint(
             f"Python Version  : {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
@@ -127,7 +120,9 @@ if __name__ == "__main__":
         if pargs.backend == "aiu":
             for peer_rank in range(world_size):
                 pcie_env_str = "AIU_WORLD_RANK_" + str(peer_rank)
-                dprint(f"PCI Addr. for Rank {peer_rank} : {os.environ[pcie_env_str]}")
+                dprint(
+                    f"PCI Addr. for Rank {peer_rank} : {os.environ[pcie_env_str]}"
+                )
         print("-" * 60)
     if is_distributed:
         torch.distributed.barrier()
@@ -135,7 +130,7 @@ if __name__ == "__main__":
     # -------------
     # Create the model
     # -------------
-    if 0 == world_rank:
+    if world_rank == 0:
         dprint("Creating the model...")
     the_model = ToyModelFM()
     if is_distributed:
@@ -145,7 +140,7 @@ if __name__ == "__main__":
     # -------------
     # Compile the model
     # -------------
-    if 0 == world_rank:
+    if world_rank == 0:
         dprint("Compiling the model...")
     the_compiled_model = torch.compile(the_model, backend=dynamo_backend)
     the_compiled_model.eval()  # inference only mode
@@ -163,19 +158,19 @@ if __name__ == "__main__":
     the_inputs = torch.randn(NUM_BATCHES, the_model.INPUT_N)
 
     # First run will create compiled artifacts
-    if 0 == world_rank:
+    if world_rank == 0:
         dprint("Running model: First Time...")
     the_outputs = the_compiled_model(the_inputs)
 
     # Second run will be faster as it uses the cached artifacts
-    if 0 == world_rank:
+    if world_rank == 0:
         dprint("Running model: Second Time...")
     the_outputs = the_compiled_model(the_inputs)
 
     # -------------
     # Cleanup
     # -------------
-    if 0 == world_rank:
+    if world_rank == 0:
         dprint("Done")
     if is_distributed:
         torch.distributed.barrier()
