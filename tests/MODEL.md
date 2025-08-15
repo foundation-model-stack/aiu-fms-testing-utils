@@ -220,7 +220,7 @@ Using AIU_TOPO_FILE=/etc/aiu/topo.json
 [ 0/ 1]: cpu validation info extracted for validation level 1 - iter=1
 [ 0/ 1]: aiu validation info extracted for validation level 1 - iter=1
 [ 0/ 1]: cpu validation info extracted for validation level 1 - iter=2
-[...] (iteractions removed for better readability)
+[...] (iterations removed for better readability)
 [ 0/ 1]: aiu validation info extracted for validation level 1 - iter=60
 [ 0/ 1]: cpu validation info extracted for validation level 1 - iter=61
 [ 0/ 1]: aiu validation info extracted for validation level 1 - iter=61

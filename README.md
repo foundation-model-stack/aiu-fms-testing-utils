@@ -73,7 +73,7 @@ export FLEX_COMPUTE=SENTIENT
 export FLEX_DEVICE=VFIO
 ```
 
-Optional envars to supress debugging output:
+Optional envars to suppress debugging output:
 ```shell
 export DTLOG_LEVEL=error
 export TORCH_SENDNN_LOG=CRITICAL
@@ -88,7 +88,7 @@ The `--nproc-per-node` command line option controls the number of AIUs to use (n
 
 ### Small Toy
 
-The `small-toy.py` is a slimmed down version of the Big Toy model. The purpose of this model is to demostrate how to run a tensor parallel model with the FMS on AIU hardware.
+The `small-toy.py` is a slimmed down version of the Big Toy model. The purpose of this model is to demonstrate how to run a tensor parallel model with the FMS on AIU hardware.
 
 ```bash
 cd ${HOME}/aiu-fms-testing-utils/scripts
@@ -129,7 +129,7 @@ shell$ torchrun --nproc-per-node 4 ./small-toy.py --backend aiu
 
 ### Roberta
 
-The `roberta.py` is a simple version of the Roberta model. The purpose of this model is to demostrate how to run a tensor parallel model with the FMS on AIU hardware. 
+The `roberta.py` is a simple version of the Roberta model. The purpose of this model is to demonstrate how to run a tensor parallel model with the FMS on AIU hardware.
 
 **Note**: We need to disable the Tensor Parallel `Embedding` conversion to avoid the use of a `torch.distributed` interface that `gloo` does not support. Namely `torch.ops._c10d_functional.all_gather_into_tensor`. The `roberta.py` script will set the following envar to avoid the problematic conversion. This will be removed in a future PyTorch release.
 ```shell

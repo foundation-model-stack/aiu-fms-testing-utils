@@ -22,7 +22,7 @@ from fms.utils.generation import pad_input_ids
 
 # This example script validates the LLaMA implementation by running inference on a couple of prompts.
 #
-# Example usage with single-GPU 7B model on slurm, with torch.compile and determinstic behavior:
+# Example usage with single-GPU 7B model on slurm, with torch.compile and deterministic behavior:
 # CUBLAS_WORKSPACE_CONFIG=:4096:8 srun -N 1 --gres=gpu:1 python scripts/inference.py --model_path=~/models/7B-F/ --tokenizer=~/models/tokenizer.model --compile --deterministic
 # Example usage of 13B model on 2 GPUs with Tensor Parallel:
 # srun -N 1 --gres=gpu:2 torchrun --nproc_per_node=2 scripts/inference.py --model_path=~/models/13B-F --tokenizer=~/models/tokenizer.model --distributed
@@ -321,14 +321,14 @@ elif is_aiu_backend:
             _prev = torch._dynamo.config.accumulated_cache_size_limit
             torch._dynamo.config.accumulated_cache_size_limit = _target_cache_size
             dprint(
-                f"NOTICE: Adjusting torch._dynamo.config.accumulated_cache_size_limit from {_prev} to {torch._dynamo.config.accumulated_cache_size_limit} to accomodate prompt size of {_prompt_size} and decode tokens of {args.max_new_tokens}"
+                f"NOTICE: Adjusting torch._dynamo.config.accumulated_cache_size_limit from {_prev} to {torch._dynamo.config.accumulated_cache_size_limit} to accommodate prompt size of {_prompt_size} and decode tokens of {args.max_new_tokens}"
             )
 
     if _target_cache_size > torch._dynamo.config.cache_size_limit:
         _prev = torch._dynamo.config.cache_size_limit
         torch._dynamo.config.cache_size_limit = _target_cache_size
         dprint(
-            f"NOTICE: Adjusting torch._dynamo.config.cache_size_limit from {_prev} to {torch._dynamo.config.cache_size_limit} to accomodate prompt size of {_prompt_size} and decode tokens of {args.max_new_tokens}"
+            f"NOTICE: Adjusting torch._dynamo.config.cache_size_limit from {_prev} to {torch._dynamo.config.cache_size_limit} to accommodate prompt size of {_prompt_size} and decode tokens of {args.max_new_tokens}"
         )
 
     if not args.compile_dynamic:

@@ -132,7 +132,7 @@ for a in args.extra_get_model_kwargs:
     except ValueError:
         extra_get_model_kwargs[a_split[0]] = a_split[1]
 
-# this follows the same pattern of naming in test_shapes. This way we can save and re-use for quicker shape testing.
+# this follows the same pattern of naming in test_shapes. This way we can save and reuse for quicker shape testing.
 prefix = get_default_validation_prefix(
     args.variant,
     args.max_new_tokens,

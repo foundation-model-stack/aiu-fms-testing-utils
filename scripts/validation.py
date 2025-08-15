@@ -313,14 +313,14 @@ if hasattr(torch._dynamo.config, "accumulated_cache_size_limit"):
         _prev = torch._dynamo.config.accumulated_cache_size_limit
         torch._dynamo.config.accumulated_cache_size_limit = _target_cache_size
         dprint(
-            f"NOTICE: Adjusting torch._dynamo.config.accumulated_cache_size_limit from {_prev} to {torch._dynamo.config.accumulated_cache_size_limit} to accomodate prompt size of {_prompt_size} and decode tokens of {args.max_new_tokens}"
+            f"NOTICE: Adjusting torch._dynamo.config.accumulated_cache_size_limit from {_prev} to {torch._dynamo.config.accumulated_cache_size_limit} to accommodate prompt size of {_prompt_size} and decode tokens of {args.max_new_tokens}"
         )
 
 if _target_cache_size > torch._dynamo.config.cache_size_limit:
     _prev = torch._dynamo.config.cache_size_limit
     torch._dynamo.config.cache_size_limit = _target_cache_size
     dprint(
-        f"NOTICE: Adjusting torch._dynamo.config.cache_size_limit from {_prev} to {torch._dynamo.config.cache_size_limit} to accomodate prompt size of {_prompt_size} and decode tokens of {args.max_new_tokens}"
+        f"NOTICE: Adjusting torch._dynamo.config.cache_size_limit from {_prev} to {torch._dynamo.config.cache_size_limit} to accommodate prompt size of {_prompt_size} and decode tokens of {args.max_new_tokens}"
     )
 
 # This should be set outside!!!

@@ -99,6 +99,15 @@ else
 fi
 echo 'AFTU yapf: Done'
 
+# If git diff returns a file that is in the skip list, the file may be checked anyway:
+# https://github.com/codespell-project/codespell/issues/1915
+# Avoiding the "./" prefix and using "/**" globs for directories appears to solve the problem
+CODESPELL_EXCLUDES=(
+    '--skip' 'tests/resources/prompts/**/*.txt'
+    '-L' 'ans' # ignore words
+)
+
+
 # Check spelling of specified files
 spell_check() {
     codespell "$@"

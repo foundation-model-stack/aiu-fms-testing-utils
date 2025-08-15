@@ -52,7 +52,7 @@ micro_model_mapping = {
     GRANITE_3p2_8B_INSTRUCT: os.path.join(
         MICRO_MODELS_HOME, "granite-3.2-8b-layers-3-step-100000"
     ),
-    # FIXME: Because this uses the same config as 3.2, re-using here, but should update
+    # FIXME: Because this uses the same config as 3.2, reusing here, but should update
     GRANITE_3p3_8B_INSTRUCT: os.path.join(
         MICRO_MODELS_HOME, "granite-3.3-8b-layers-3-step-100000"
     ),
@@ -235,7 +235,7 @@ common_shapes = list(
 # custom weight adaptation to be used in future. For instance if we would like to add some other adaptation, we can register it with this custom adapter
 # and provide it when converting from an aiu fms model's weights to a cpu fms model's weights. Currently this is only done for gptq, but may be done for other
 # formats in the future
-# note: llama already has many adapters for aiu and they are the same for all models, so just use llama. This way we don't need to re-register a new architecture / adapter step (we can just re-use)
+# note: llama already has many adapters for aiu and they are the same for all models, so just use llama. This way we don't need to re-register a new architecture / adapter step (we can just reuse)
 __custom_adapter = {"architecture": "llama", "source": "fms_aiu"}
 
 
