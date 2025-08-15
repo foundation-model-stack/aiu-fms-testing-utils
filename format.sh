@@ -57,6 +57,10 @@ YAPF_FLAGS=(
     '--parallel'
 )
 
+YAPF_EXCLUDES=(
+    '--exclude' '/tests/resources/prompts/**/*.txt'
+)
+
 # Format specified files
 format() {
     yapf --in-place "${YAPF_FLAGS[@]}" "$@"

@@ -17,7 +17,8 @@ def get_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
         "--variant",
         type=str,
         default=None,
-        help="The model variant (configuration) to benchmark (e.g., 7b, 13b, 70b).",
+        help=
+        "The model variant (configuration) to benchmark (e.g., 7b, 13b, 70b).",
     )
     args_model_loading.add_argument(
         "--model_path",
@@ -39,26 +40,21 @@ def get_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
         type=str,
         default=None,
         choices=["bf16", "fp16", "fp32"],
-        help=(
-            "If set to one of the choices, overrides the model checkpoint "
-            "weight format by setting the default pytorch format."
-        ),
+        help=("If set to one of the choices, overrides the model checkpoint "
+              "weight format by setting the default pytorch format."),
     )
     parser.add_argument(
         "--cast_bf16_to_fp16",
         action="store_true",
-        help=(
-            "If set, cast any bf16 weights in the model to fp16 for AIU compiler. "
-            "Doesn't touch fp32 or quantized."
-        ),
+        help=
+        ("If set, cast any bf16 weights in the model to fp16 for AIU compiler. "
+         "Doesn't touch fp32 or quantized."),
     )
     parser.add_argument(
         "--cast_fp16_to_bf16",
         action="store_true",
-        help=(
-            "If set, cast any fp16 weights in the model to bf16 for GPU. "
-            "Doesn't touch fp32 or quantized."
-        ),
+        help=("If set, cast any fp16 weights in the model to bf16 for GPU. "
+              "Doesn't touch fp32 or quantized."),
     )
 
     # Quantization arguments
@@ -106,19 +102,21 @@ def get_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
     args_run_settings.add_argument(
         "--deterministic",
         action="store_true",
-        help=(
-            "`deterministic` requires env variable `CUBLAS_WORKSPACE_CONFIG=:4096:8`"
-            " when running on GPU. This flag is ignored on AIU."
-        ),
+        help=
+        ("`deterministic` requires env variable `CUBLAS_WORKSPACE_CONFIG=:4096:8`"
+         " when running on GPU. This flag is ignored on AIU."),
     )
     args_run_settings.add_argument(
         "--distributed",
         action="store_true",
-        help="This is a distributed job (multiple instances run with RANK+WORLD_SIZE)",
+        help=
+        "This is a distributed job (multiple instances run with RANK+WORLD_SIZE)",
     )
-    args_run_settings.add_argument(
-        "-v", "--verbose", action="store_true", default=0, help="Enable verbose output"
-    )
+    args_run_settings.add_argument("-v",
+                                   "--verbose",
+                                   action="store_true",
+                                   default=0,
+                                   help="Enable verbose output")
 
     # Arguments for compilation
     args_compile = parser.add_argument_group("Compiler")
@@ -153,7 +151,8 @@ def get_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
     )
 
     # Arguments shared between Decoder (future support) and Encoder models
-    args_dec_enc = parser.add_argument_group("Decoders or Encoders (shared args)")
+    args_dec_enc = parser.add_argument_group(
+        "Decoders or Encoders (shared args)")
     args_dec_enc.add_argument(
         "--batch_size",
         type=int,
@@ -164,11 +163,11 @@ def get_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
         "--max_prompt_length",
         type=int,
         default=None,
-        help=(
-            "Cap the number of tokens per prompt to a maximum length prior to padding. "
-            "If None, prompts to decoder models will have no cap, while prompts to "
-            "encoder models will be capped to a default of 384 tokens (for QA task)."
-        ),
+        help=
+        ("Cap the number of tokens per prompt to a maximum length prior to padding. "
+         "If None, prompts to decoder models will have no cap, while prompts to "
+         "encoder models will be capped to a default of 384 tokens (for QA task)."
+         ),
     )
 
     # Encoder model arguments
@@ -183,7 +182,8 @@ def get_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
         "--dataset_config_name",
         type=str,
         default=None,
-        help="The configuration name of the dataset to use (via the datasets library).",
+        help=
+        "The configuration name of the dataset to use (via the datasets library).",
     )
     args_encoder.add_argument(
         "--n_best_size",
@@ -195,12 +195,11 @@ def get_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
         "--null_score_diff_threshold",
         type=float,
         default=0.0,
-        help=(
-            "The threshold used to select the null answer: if the best answer has a "
-            "score that is less than the score of the null answer minus this threshold, "
-            "the null answer is selected for this example.  Only useful when "
-            "`version_2_with_negative=True`."
-        ),
+        help=
+        ("The threshold used to select the null answer: if the best answer has a "
+         "score that is less than the score of the null answer minus this threshold, "
+         "the null answer is selected for this example.  Only useful when "
+         "`version_2_with_negative=True`."),
     )
     args_encoder.add_argument(
         "--version_2_with_negative",
@@ -212,10 +211,10 @@ def get_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
         "--max_answer_length",
         type=int,
         default=30,
-        help=(
-            "The maximum length of an answer that can be generated. This is needed "
-            "because the start and end predictions are not conditioned on one another."
-        ),
+        help=
+        ("The maximum length of an answer that can be generated. This is needed "
+         "because the start and end predictions are not conditioned on one another."
+         ),
     )
     args_encoder.add_argument(
         "--validation_file",
@@ -228,23 +227,22 @@ def get_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
         action="store_true",
         help=(
             "If passed, pad all samples to `max_seq_length`. "
-            "Otherwise, pad each batch individually to the longest sequence."
-        ),
+            "Otherwise, pad each batch individually to the longest sequence."),
     )
     args_encoder.add_argument(
         "--max_eval_samples",
         type=int,
         default=None,
-        help=(
-            "For debugging purposes or quicker training, truncate the number of "
-            "evaluation examples to this value if set."
-        ),
+        help=
+        ("For debugging purposes or quicker training, truncate the number of "
+         "evaluation examples to this value if set."),
     )
     args_encoder.add_argument(
         "--preprocessing_num_workers",
         type=int,
         default=1,
-        help="Number of workers used during preprocessing of validation set (QA only).",
+        help=
+        "Number of workers used during preprocessing of validation set (QA only).",
     )
     args_encoder.add_argument(
         "--overwrite_cache",
@@ -255,10 +253,8 @@ def get_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
         "--doc_stride",
         type=int,
         default=128,
-        help=(
-            "When splitting up a long document into chunks how much stride "
-            "to take between chunks."
-        ),
+        help=("When splitting up a long document into chunks how much stride "
+              "to take between chunks."),
     )
     args = parser.parse_args()
 

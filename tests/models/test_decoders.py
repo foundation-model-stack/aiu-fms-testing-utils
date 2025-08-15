@@ -27,9 +27,8 @@ try:
 except ImportError:
     GPTQ_ENABLED = False
 
-MICRO_MODELS_HOME = os.environ.get(
-    "FMS_TEST_SHAPES_MICRO_MODELS_HOME", "/mnt/home/models/tiny-models"
-)
+MICRO_MODELS_HOME = os.environ.get("FMS_TEST_SHAPES_MICRO_MODELS_HOME",
+                                   "/mnt/home/models/tiny-models")
 
 # Add models to test here
 LLAMA_3p1_8B_INSTRUCT = "meta-llama/Llama-3.1-8B-Instruct"
@@ -39,25 +38,21 @@ GRANITE_20B_CODE_INSTRUCT_8K = "ibm-granite/granite-20b-code-instruct-8k"
 LLAMA_3p1_70B_INSTRUCT = "meta-llama/Llama-3.1-70B-Instruct"
 
 micro_model_mapping = {
-    LLAMA_3p1_8B_INSTRUCT: os.path.join(
-        MICRO_MODELS_HOME, "llama-3.1-8b-layers-3-step-24000"
-    ),
-    GRANITE_3p2_8B_INSTRUCT: os.path.join(
-        MICRO_MODELS_HOME, "granite-3.2-8b-layers-3-step-100000"
-    ),
+    LLAMA_3p1_8B_INSTRUCT:
+    os.path.join(MICRO_MODELS_HOME, "llama-3.1-8b-layers-3-step-24000"),
+    GRANITE_3p2_8B_INSTRUCT:
+    os.path.join(MICRO_MODELS_HOME, "granite-3.2-8b-layers-3-step-100000"),
     # FIXME: Because this uses the same config as 3.2, reusing here, but should update
-    GRANITE_3p3_8B_INSTRUCT: os.path.join(
-        MICRO_MODELS_HOME, "granite-3.3-8b-layers-3-step-100000"
-    ),
-    LLAMA_3p1_70B_INSTRUCT: os.path.join(
-        MICRO_MODELS_HOME, "llama-3.1-70b-layers-3-step-24000"
-    ),
+    GRANITE_3p3_8B_INSTRUCT:
+    os.path.join(MICRO_MODELS_HOME, "granite-3.3-8b-layers-3-step-100000"),
+    LLAMA_3p1_70B_INSTRUCT:
+    os.path.join(MICRO_MODELS_HOME, "llama-3.1-70b-layers-3-step-24000"),
 }
 
-SHARE_GPT_DATASET_PATH = os.environ.get(
-    "SHARE_GPT_DATASET_PATH", os.path.expanduser("~/share_gpt.json")
-)
-USE_MICRO_MODELS = os.environ.get("FMS_TEST_SHAPES_USE_MICRO_MODELS", "1") == "1"
+SHARE_GPT_DATASET_PATH = os.environ.get("SHARE_GPT_DATASET_PATH",
+                                        os.path.expanduser("~/share_gpt.json"))
+USE_MICRO_MODELS = os.environ.get("FMS_TEST_SHAPES_USE_MICRO_MODELS",
+                                  "1") == "1"
 USE_DISTRIBUTED = os.environ.get("FMS_TEST_SHAPES_DISTRIBUTED", "0") == "1"
 TIMING = os.environ.get("TIMING", "")
 
@@ -70,13 +65,11 @@ attention_map = {
 }
 ATTN_NAME = attention_map[ATTN_TYPE]
 
-FORCE_VALIDATION_LEVEL_1 = (
-    os.environ.get("FMS_TEST_SHAPES_FORCE_VALIDATION_LEVEL_1", "0") == "1"
-)
+FORCE_VALIDATION_LEVEL_1 = (os.environ.get(
+    "FMS_TEST_SHAPES_FORCE_VALIDATION_LEVEL_1", "0") == "1")
 skip_assertions = os.environ.get("FMS_TEST_SHAPES_SKIP_ASSERTIONS", {})
-validation_info_dir = os.environ.get(
-    "FMS_TEST_SHAPES_VALIDATION_INFO_DIR", "/tmp/models/validation_info"
-)
+validation_info_dir = os.environ.get("FMS_TEST_SHAPES_VALIDATION_INFO_DIR",
+                                     "/tmp/models/validation_info")
 common_model_paths = os.environ.get(
     "FMS_TEST_SHAPES_COMMON_MODEL_PATHS",
     [
@@ -88,31 +81,30 @@ common_model_paths = os.environ.get(
     ],
 )
 model_configuration_path = os.environ.get(
-    "FMS_TEST_SHAPES_FROM_MODEL_CONFIGURATION", ""
-)
+    "FMS_TEST_SHAPES_FROM_MODEL_CONFIGURATION", "")
 model_configuration_frequency = os.environ.get(
-    "FMS_TEST_SHAPES_FROM_MODEL_CONFIGURATION_FREQUENCY", "0"
-)
+    "FMS_TEST_SHAPES_FROM_MODEL_CONFIGURATION_FREQUENCY", "0")
 
 # for validation level 1, the default is a failure rate of 1%
 # set this environment variable if you would like to relax that threshold
-failure_rate_threshold = os.environ.get("FMS_TEST_SHAPES_FAILURE_THRESHOLD", 0.01)
-default_metrics_threshold = os.environ.get(
-    "FMS_TEST_SHAPES_METRICS_THRESHOLD", (3.0, 0.001)
-)
-save_validation_info_outputs = (
-    os.environ.get("FMS_TEST_SHAPES_SAVE_VALIDATION_INFO_OUTPUTS", "0") == "1"
-)
-common_batch_sizes = os.environ.get("FMS_TEST_SHAPES_COMMON_BATCH_SIZES", [1, 2, 4, 8])
-common_seq_lengths = os.environ.get("FMS_TEST_SHAPES_COMMON_SEQ_LENGTHS", [64, 2048])
-common_max_new_tokens = os.environ.get("FMS_TEST_SHAPES_COMMON_MAX_NEW_TOKENS", [128])
+failure_rate_threshold = os.environ.get("FMS_TEST_SHAPES_FAILURE_THRESHOLD",
+                                        0.01)
+default_metrics_threshold = os.environ.get("FMS_TEST_SHAPES_METRICS_THRESHOLD",
+                                           (3.0, 0.001))
+save_validation_info_outputs = (os.environ.get(
+    "FMS_TEST_SHAPES_SAVE_VALIDATION_INFO_OUTPUTS", "0") == "1")
+common_batch_sizes = os.environ.get("FMS_TEST_SHAPES_COMMON_BATCH_SIZES",
+                                    [1, 2, 4, 8])
+common_seq_lengths = os.environ.get("FMS_TEST_SHAPES_COMMON_SEQ_LENGTHS",
+                                    [64, 2048])
+common_max_new_tokens = os.environ.get("FMS_TEST_SHAPES_COMMON_MAX_NEW_TOKENS",
+                                       [128])
 
 if USE_DISTRIBUTED:
     dist.init_process_group()
     aiu_dist_setup(dist.get_rank(), dist.get_world_size())
     save_validation_info_outputs = save_validation_info_outputs and (
-        dist.get_rank() == 0
-    )
+        dist.get_rank() == 0)
 
 if USE_MICRO_MODELS:
     validation_info_dir = os.path.join(validation_info_dir, "tiny_models")
@@ -128,8 +120,7 @@ if isinstance(failure_rate_threshold, str):
 # pass custom default metrics threshold as a comma separated str of floats <cross-entropy threshold>,<mean diff threshold>
 if isinstance(default_metrics_threshold, str):
     default_metrics_threshold = tuple(
-        [float(m) for m in default_metrics_threshold.split(",")]
-    )
+        [float(m) for m in default_metrics_threshold.split(",")])
 
 # pass custom common batch sizes as a comma separated str of ints
 if isinstance(common_batch_sizes, str):
@@ -141,7 +132,9 @@ if isinstance(common_seq_lengths, str):
 
 # pass custom common max new tokens as a comma separated str of ints
 if isinstance(common_max_new_tokens, str):
-    common_max_new_tokens = [int(mnt) for mnt in common_max_new_tokens.split(",")]
+    common_max_new_tokens = [
+        int(mnt) for mnt in common_max_new_tokens.split(",")
+    ]
 
 # pass metrics to skip as a comma separated list (ce,mean_diff)
 if isinstance(skip_assertions, str):
@@ -165,10 +158,8 @@ if compile_dynamic_sendnn:
     __largest_context = max(common_seq_lengths) + max(common_max_new_tokens)
     __supported_context_lengths = [256, 512, 1024, 2048, 4096, 8192]
     os.environ["VLLM_DT_MAX_CONTEXT_LEN"] = str(
-        __supported_context_lengths[
-            bisect.bisect_left(__supported_context_lengths, __largest_context)
-        ]
-    )
+        __supported_context_lengths[bisect.bisect_left(
+            __supported_context_lengths, __largest_context)])
     os.environ["VLLM_DT_MAX_BATCH_SIZE"] = str(max(max(common_batch_sizes), 2))
 
 # thresholds are chosen based on 1024 tokens per sequence
@@ -212,12 +203,14 @@ if model_configuration_path != "":
                 if model_config["frequency"] <= frequency:
                     common_model_paths.append(model_config["model_id"])
                     # assume fullsize models
-                    fail_thresholds[(model_config["model_id"], USE_MICRO_MODELS)] = (
-                        model_config["ce"],
-                        model_config["mean_diff"],
-                    )
+                    fail_thresholds[(model_config["model_id"],
+                                     USE_MICRO_MODELS)] = (
+                                         model_config["ce"],
+                                         model_config["mean_diff"],
+                                     )
             except json.JSONDecodeError:
-                print(f"config contained an improper json line: {line.strip()}")
+                print(
+                    f"config contained an improper json line: {line.strip()}")
 
 common_shapes = list(
     itertools.product(
@@ -225,8 +218,7 @@ common_shapes = list(
         common_batch_sizes,
         common_seq_lengths,
         common_max_new_tokens,
-    )
-)
+    ))
 
 # custom weight adaptation to be used in future. For instance if we would like to add some other adaptation, we can register it with this custom adapter
 # and provide it when converting from an aiu fms model's weights to a cpu fms model's weights. Currently this is only done for gptq, but may be done for other
@@ -253,10 +245,8 @@ def __maybe_get_gptq_kwargs(model_path):
     if GPTQ_ENABLED:
         # TODO: hf_configured/hf_pretrained options in get_model should be inferring the linear_config based on the hf quantization_config attribute
         config = AutoConfig.from_pretrained(model_path)
-        if (
-            hasattr(config, "quantization_config")
-            and config.quantization_config["quant_method"] == "gptq"
-        ):
+        if (hasattr(config, "quantization_config")
+                and config.quantization_config["quant_method"] == "gptq"):
             gptq_adapter_step.append("gptq_qweights_transpose_aiu")
             group_size = config.quantization_config["group_size"]
             desc_act = config.quantization_config["desc_act"]
@@ -266,27 +256,35 @@ def __maybe_get_gptq_kwargs(model_path):
                 micro_cpu_kwargs = {"nlayers": 3}
             else:
                 # TODO: infer the source based on the device for get_model when using gptq
-                micro_aiu_kwargs = {"model_path": model_path, "source": "hf_gptq_aiu"}
+                micro_aiu_kwargs = {
+                    "model_path": model_path,
+                    "source": "hf_gptq_aiu"
+                }
                 micro_cpu_kwargs = {"model_path": model_path, "source": "hf"}
 
             # TODO: infer the linear_type based on the device for get_model when using gptq
             gptq_kwargs_aiu = {
-                "linear_config": {"linear_type": "gptq_aiu", **linear_config},
+                "linear_config": {
+                    "linear_type": "gptq_aiu",
+                    **linear_config
+                },
                 "architecture": "hf_configured",
                 "variant": model_path,
                 **micro_aiu_kwargs,
             }
             gptq_kwargs_cpu = {
-                "linear_config": {"linear_type": "gptq_cpu", **linear_config},
+                "linear_config": {
+                    "linear_type": "gptq_cpu",
+                    **linear_config
+                },
                 "architecture": "hf_configured",
                 "variant": model_path,
                 **micro_cpu_kwargs,
             }
     try:
         # llama already has this adapter and it is the same for all models, so just use llama
-        serialization.register_adapter(
-            **__custom_adapter, adapter_steps=gptq_adapter_step
-        )
+        serialization.register_adapter(**__custom_adapter,
+                                       adapter_steps=gptq_adapter_step)
     except KeyError:
         pass
     return gptq_kwargs_aiu, gptq_kwargs_cpu
@@ -303,13 +301,16 @@ def __prepare_inputs(batch_size, seq_length, tokenizer, seed=0):
     )
     prompt_list = []
     for prompt, _ in prompts_and_sizes:
-        prompt_list.append(tokenizer.encode(prompt, return_tensors="pt").squeeze(0))
+        prompt_list.append(
+            tokenizer.encode(prompt, return_tensors="pt").squeeze(0))
 
-    input_ids, extra_kwargs = pad_input_ids(prompt_list, min_pad_length=seq_length)
+    input_ids, extra_kwargs = pad_input_ids(prompt_list,
+                                            min_pad_length=seq_length)
     return input_ids, extra_kwargs
 
 
-def __find_eos_index(reference_tokens, eos_token_id, seq_length, max_new_tokens):
+def __find_eos_index(reference_tokens, eos_token_id, seq_length,
+                     max_new_tokens):
     result = []
     for sentence in reference_tokens:
         found_eos = False
@@ -327,29 +328,33 @@ def __filter_before_eos(metrics, filter_indexes):
     from itertools import groupby
 
     filtered_results = [
-        list(g)[: filter_indexes[k]] for k, g in groupby(metrics, key=lambda x: x[0])
+        list(g)[:filter_indexes[k]]
+        for k, g in groupby(metrics, key=lambda x: x[0])
     ]
     return [item for sublist in filtered_results for item in sublist]
 
 
-def __get_validation_info_full_path(
-    model_path, batch_size, seq_length, max_new_tokens, seed, device_type="cpu"
-):
+def __get_validation_info_full_path(model_path,
+                                    batch_size,
+                                    seq_length,
+                                    max_new_tokens,
+                                    seed,
+                                    device_type="cpu"):
     validation_file_name = f"{get_default_validation_prefix(model_path, max_new_tokens, batch_size, seq_length, 'fp16')}.{device_type}_validation_info.{seed}.out"
     full_path = os.path.join(validation_info_dir, validation_file_name)
     return full_path
 
 
-def __load_validation_info(
-    model_path, batch_size, seq_length, max_new_tokens, tokenizer, seed
-):
-    full_path = __get_validation_info_full_path(
-        model_path, batch_size, seq_length, max_new_tokens, seed
-    )
+def __load_validation_info(model_path, batch_size, seq_length, max_new_tokens,
+                           tokenizer, seed):
+    full_path = __get_validation_info_full_path(model_path, batch_size,
+                                                seq_length, max_new_tokens,
+                                                seed)
 
     if os.path.exists(full_path):
         dprint(f"cpu validation info found for seed={seed} -- loading it")
-        return load_validation_information(full_path, "logits", batch_size, tokenizer)
+        return load_validation_information(full_path, "logits", batch_size,
+                                           tokenizer)
     else:
         return None
 
@@ -373,9 +378,8 @@ class PersistentModel:
             self.__maybe_prepare_fp8_weights(model, is_fp8)
 
             model.eval()
-            model.compile(
-                backend="sendnn", options={"sendnn.dynamic": compile_dynamic_sendnn}
-            )
+            model.compile(backend="sendnn",
+                          options={"sendnn.dynamic": compile_dynamic_sendnn})
 
             if compile_dynamic_sendnn:
                 self.model = model
@@ -426,12 +430,10 @@ def persistent_model():
     return PersistentModel()
 
 
-@pytest.mark.parametrize(
-    "model_path,batch_size,seq_length,max_new_tokens", common_shapes
-)
-def test_common_shapes(
-    model_path, batch_size, seq_length, max_new_tokens, persistent_model
-):
+@pytest.mark.parametrize("model_path,batch_size,seq_length,max_new_tokens",
+                         common_shapes)
+def test_common_shapes(model_path, batch_size, seq_length, max_new_tokens,
+                       persistent_model):
     torch.manual_seed(42)
     torch.set_grad_enabled(False)
     os.environ["COMPILATION_MODE"] = "offline_decoder"
@@ -476,9 +478,8 @@ def test_common_shapes(
     tokenizer = AutoTokenizer.from_pretrained(model_path)
 
     # prepare the AIU model
-    model = persistent_model.get_or_create(
-        is_gptq, is_fp8, **gptq_kwargs_aiu, **get_model_kwargs
-    )
+    model = persistent_model.get_or_create(is_gptq, is_fp8, **gptq_kwargs_aiu,
+                                           **get_model_kwargs)
 
     # prepare the cpu model
     validation_model = get_model(
@@ -490,23 +491,23 @@ def test_common_shapes(
     )
 
     if USE_MICRO_MODELS:
-        serialization.load_state_dict_into_model(
-            validation_model, model.state_dict(), **__custom_adapter
-        )
+        serialization.load_state_dict_into_model(validation_model,
+                                                 model.state_dict(),
+                                                 **__custom_adapter)
 
     # prepare input_ids
-    input_ids, extra_kwargs = __prepare_inputs(batch_size, seq_length, tokenizer)
+    input_ids, extra_kwargs = __prepare_inputs(batch_size, seq_length,
+                                               tokenizer)
     extra_kwargs["attn_name"] = ATTN_NAME
 
     # warmup aiu model
-    warmup_model(
-        model, input_ids, max_new_tokens, compile_dynamic_sendnn, **extra_kwargs
-    )
+    warmup_model(model, input_ids, max_new_tokens, compile_dynamic_sendnn,
+                 **extra_kwargs)
 
     # generate cpu validation info
-    cpu_validation_info = __load_validation_info(
-        model_path, batch_size, seq_length, max_new_tokens, tokenizer, 0
-    )
+    cpu_validation_info = __load_validation_info(model_path, batch_size,
+                                                 seq_length, max_new_tokens,
+                                                 tokenizer, 0)
     if cpu_validation_info is None:
         cpu_validation_info = extract_validation_information(
             validation_model,
@@ -520,14 +521,11 @@ def test_common_shapes(
 
         if save_validation_info_outputs:
             cpu_validation_info.save(
-                __get_validation_info_full_path(
-                    model_path, batch_size, seq_length, max_new_tokens, 0
-                )
-            )
+                __get_validation_info_full_path(model_path, batch_size,
+                                                seq_length, max_new_tokens, 0))
     cpu_static_tokens = cpu_validation_info.get_info("tokens")
-    eos_indexes = __find_eos_index(
-        cpu_static_tokens, tokenizer.eos_token_id, seq_length, max_new_tokens
-    )
+    eos_indexes = __find_eos_index(cpu_static_tokens, tokenizer.eos_token_id,
+                                   seq_length, max_new_tokens)
     dprint(
         "cpu validation info extracted for validation level 0 and validation level 1 (iter=0)"
     )
@@ -545,9 +543,8 @@ def test_common_shapes(
     dprint("aiu validation info extracted for validation level 0")
 
     # validate level 0
-    failed_responses = validate_level_0(
-        aiu_validation_info.get_info("tokens"), cpu_static_tokens
-    )
+    failed_responses = validate_level_0(aiu_validation_info.get_info("tokens"),
+                                        cpu_static_tokens)
 
     failed_validation_level_0 = len(failed_responses) != 0
 
@@ -561,14 +558,11 @@ def test_common_shapes(
         # metric calculator based on the cross-entropy and mean diff for each decode step
         def _metric_calculator(r: torch.Tensor, t: torch.Tensor):
             cross_entropy = torch.nn.CrossEntropyLoss()(
-                r, t.softmax(dim=1).to(dtype=torch.float32)
-            )
+                r, t.softmax(dim=1).to(dtype=torch.float32))
             diff = torch.mean(
                 torch.abs(
-                    r.softmax(dim=1).to(dtype=torch.float32)
-                    - t.softmax(dim=1).to(dtype=torch.float32)
-                )
-            )
+                    r.softmax(dim=1).to(dtype=torch.float32) -
+                    t.softmax(dim=1).to(dtype=torch.float32)))
             return (cross_entropy, diff)
 
         iters = 1024 // max_new_tokens
@@ -578,13 +572,14 @@ def test_common_shapes(
         for i in range(iters):
             # for iteration 0, we have computed the cpu validation info in the prior step for seed=0, so skip
             if i != 0:
-                input_ids, extra_kwargs = __prepare_inputs(
-                    batch_size, seq_length, tokenizer, seed=i
-                )
+                input_ids, extra_kwargs = __prepare_inputs(batch_size,
+                                                           seq_length,
+                                                           tokenizer,
+                                                           seed=i)
                 extra_kwargs["attn_name"] = ATTN_NAME
                 cpu_validation_info = __load_validation_info(
-                    model_path, batch_size, seq_length, max_new_tokens, tokenizer, i
-                )
+                    model_path, batch_size, seq_length, max_new_tokens,
+                    tokenizer, i)
                 if cpu_validation_info is None:
                     cpu_validation_info = extract_validation_information(
                         validation_model,
@@ -601,9 +596,8 @@ def test_common_shapes(
                     if save_validation_info_outputs:
                         cpu_validation_info.save(
                             __get_validation_info_full_path(
-                                model_path, batch_size, seq_length, max_new_tokens, i
-                            )
-                        )
+                                model_path, batch_size, seq_length,
+                                max_new_tokens, i))
                 cpu_static_tokens = cpu_validation_info.get_info("tokens")
                 eos_indexes = __find_eos_index(
                     cpu_static_tokens,
@@ -622,13 +616,14 @@ def test_common_shapes(
                 timing=TIMING,
                 **extra_kwargs,
             )
-            dprint(f"aiu validation info extracted for validation level 1 - iter={i}")
+            dprint(
+                f"aiu validation info extracted for validation level 1 - iter={i}"
+            )
             if save_validation_info_outputs:
                 aiu_validation_info.save(
-                    __get_validation_info_full_path(
-                        model_path, batch_size, seq_length, max_new_tokens, i, "aiu"
-                    )
-                )
+                    __get_validation_info_full_path(model_path, batch_size,
+                                                    seq_length, max_new_tokens,
+                                                    i, "aiu"))
 
             # capture all level 1 metrics
             level_1_metrics = capture_level_1_metrics(
@@ -648,19 +643,16 @@ def test_common_shapes(
                 if USE_MICRO_MODELS:
                     ce_threshold, diff_threshold = fail_thresholds.get(
                         (model_path, True),
-                        fail_thresholds.get(
-                            (model_path, False), default_metrics_threshold
-                        ),
+                        fail_thresholds.get((model_path, False),
+                                            default_metrics_threshold),
                     )
                 else:
                     ce_threshold, diff_threshold = fail_thresholds.get(
-                        (model_path, False), default_metrics_threshold
-                    )
+                        (model_path, False), default_metrics_threshold)
 
             # get all failed responses for each metric
             ce_fail_responses = filter_failed_level_1_cases(
-                level_1_metrics, lambda m: m[0] >= ce_threshold
-            )
+                level_1_metrics, lambda m: m[0] >= ce_threshold)
             diff_fail_responses = filter_failed_level_1_cases(
                 level_1_metrics,
                 lambda m: m[1] >= diff_threshold,

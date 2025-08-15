@@ -26,9 +26,10 @@ def pytest_sessionstart(session):
 
 
 def pytest_addoption(parser):
-    parser.addoption(
-        "--runslow", action="store_true", default=False, help="run slow tests"
-    )
+    parser.addoption("--runslow",
+                     action="store_true",
+                     default=False,
+                     help="run slow tests")
     parser.addoption(
         "--capture_expectation",
         action="store_true",
@@ -38,7 +39,8 @@ def pytest_addoption(parser):
 
 
 def pytest_configure(config):
-    config.addinivalue_line("markers", "capture expectation: expectation was captured")
+    config.addinivalue_line("markers",
+                            "capture expectation: expectation was captured")
 
 
 def pytest_generate_tests(metafunc):

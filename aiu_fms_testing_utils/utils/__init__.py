@@ -19,8 +19,6 @@ from aiu_fms_testing_utils.utils.aiu_setup import dprint, rank, world_size
 # Third Party
 
 
-
-
 @contextlib.contextmanager
 def stagger_region(limit: int):
     """
@@ -68,7 +66,8 @@ def warmup_model(
         from fms.utils.generation import generate
 
         attention_specific_kwargs["contiguous_cache"] = True
-        attention_specific_kwargs["max_seq_len"] = input_ids.shape[1] + max_new_tokens
+        attention_specific_kwargs[
+            "max_seq_len"] = input_ids.shape[1] + max_new_tokens
 
     dprint("AIU warmup")
     pt_compile_model_time = time.time()
@@ -86,7 +85,9 @@ def warmup_model(
                 **extra_kwargs,
             )
 
-    extra_kwargs = {**_extra_kwargs, "only_last_token": "paged" not in attn_name}
+    extra_kwargs = {
+        **_extra_kwargs, "only_last_token": "paged" not in attn_name
+    }
 
     with stagger_region(stagger_update_lazyhandle):
         with torch_sendnn.warmup_mode():
@@ -127,7 +128,8 @@ def get_pad_size(prompt_len: int, pad_multiple: int = 64):
     # handle outliers and case where you cannot divide by 0
     if prompt_len <= 0 or pad_multiple == 0:
         if prompt_len < 0:
-            warnings.warn(f"{prompt_len=} which should probably be > 0", stacklevel=2)
+            warnings.warn(f"{prompt_len=} which should probably be > 0",
+                          stacklevel=2)
         return 0
     else:
         return ((prompt_len + pad_multiple - 1) // pad_multiple) * pad_multiple
@@ -200,8 +202,7 @@ def __sample_requests(
 
     # Based on min/max prompt length, one can back out the number of possible heterogeneous values
     max_heterogeneous_combinations = (prompt_length_max // pad_multiple) - (
-        (prompt_length_min - 1) // pad_multiple
-    )
+        (prompt_length_min - 1) // pad_multiple)
 
     # Filter out sequences that are too long or too short
     filtered_dataset: List[Tuple[str, int]] = []
@@ -218,8 +219,7 @@ def __sample_requests(
             )
         if len(enforce_sizes) > num_requests:
             raise ValueError(
-                f"{num_requests=} which is smaller than {len(enforce_sizes)=}"
-            )
+                f"{num_requests=} which is smaller than {len(enforce_sizes)=}")
 
     # Shuffle the dataset.
     if seed is not None:
@@ -231,18 +231,17 @@ def __sample_requests(
 
         # Tokenize the prompts and completions.
         prompt = prompt_list[i]
-        prompt_token_ids = tokenizer.encode(prompt, return_tensors="pt").squeeze(0)
+        prompt_token_ids = tokenizer.encode(prompt,
+                                            return_tensors="pt").squeeze(0)
 
         prompt_len = len(prompt_token_ids)
         if prompt_len < prompt_length_min or prompt_len > prompt_length_max:
             # Prune too short or too long sequences.
             continue
         # This section is for enforce heterogeneous
-        if (
-            enforce_heterogeneous
-            and max_heterogeneous_combinations > len(filtered_dataset)
-            and len(filtered_dataset) < num_requests
-        ):
+        if (enforce_heterogeneous
+                and max_heterogeneous_combinations > len(filtered_dataset)
+                and len(filtered_dataset) < num_requests):
             # for _, size in filtered_dataset:
             current_padded_size = get_pad_size(prompt_len, pad_multiple)
 
@@ -271,8 +270,7 @@ def __sample_requests(
         )
     if enforced_dataset:
         filtered_dataset = _merge_enforce_keep_heterogeneous(
-            enforced_dataset, filtered_dataset, num_requests
-        )
+            enforced_dataset, filtered_dataset, num_requests)
 
     return filtered_dataset
 
@@ -300,7 +298,9 @@ def sample_sharegpt_requests(
         dataset = json.load(f)
     # Filter out the conversations with less than 2 turns.
     dataset = [data for data in dataset if len(data["conversations"]) >= 2]
-    dataset: List[str] = [data["conversations"][0]["value"] for data in dataset]
+    dataset: List[str] = [
+        data["conversations"][0]["value"] for data in dataset
+    ]
 
     return __sample_requests(
         dataset,
@@ -331,7 +331,8 @@ def sample_squad_v2_qa_requests(
     if os.path.exists(dataset_path):
         ds = load_dataset(dataset_path)["train"]
     else:
-        ds = load_dataset("rajpurkar/squad_v2", cache_dir=dataset_path)["train"]
+        ds = load_dataset("rajpurkar/squad_v2",
+                          cache_dir=dataset_path)["train"]
 
     ds = [f"{data['context']}\n{data['question']}" for data in ds]
 
@@ -348,9 +349,12 @@ def sample_squad_v2_qa_requests(
     )
 
 
-def prepare_inputs(
-    batch_size, seq_length, tokenizer, ds_path, seed=0, ds_type="sharegpt"
-):
+def prepare_inputs(batch_size,
+                   seq_length,
+                   tokenizer,
+                   ds_path,
+                   seed=0,
+                   ds_type="sharegpt"):
     """
     Prepare input IDs and padding kwargs for a batch of questions.
 
@@ -385,7 +389,9 @@ def prepare_inputs(
         )
     prompt_list = []
     for prompt, _ in prompts_and_sizes:
-        prompt_list.append(tokenizer.encode(prompt, return_tensors="pt").squeeze(0))
+        prompt_list.append(
+            tokenizer.encode(prompt, return_tensors="pt").squeeze(0))
 
-    input_ids, padding_kwargs = pad_input_ids(prompt_list, min_pad_length=seq_length)
+    input_ids, padding_kwargs = pad_input_ids(prompt_list,
+                                              min_pad_length=seq_length)
     return input_ids, padding_kwargs

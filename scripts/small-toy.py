@@ -22,6 +22,7 @@ from aiu_fms_testing_utils.utils.aiu_setup import (dprint, world_rank,
 # Toy Encoder Model
 # ==============================================================
 class ToyModelFM(torch.nn.Module):
+
     def __init__(self):
         super(ToyModelFM, self).__init__()
         # Input layer size
@@ -46,17 +47,15 @@ class ToyModelFM(torch.nn.Module):
         self_parent_layer = self if par_model is None else par_model
         with torch.no_grad():
             for (seq_name, seq_layer), (self_name, self_layer) in zip(
-                seq_model.named_children(), self_parent_layer.named_children()
-            ):
+                    seq_model.named_children(),
+                    self_parent_layer.named_children()):
                 if hasattr(self_layer, "load_weights"):
-                    self_layer.load_weights(
-                        {
-                            "w1.weight": seq_layer.w1.weight,
-                            "w1.bias": seq_layer.w1.bias,
-                            "w2.weight": seq_layer.w2.weight,
-                            "w2.bias": seq_layer.w2.bias,
-                        }
-                    )
+                    self_layer.load_weights({
+                        "w1.weight": seq_layer.w1.weight,
+                        "w1.bias": seq_layer.w1.bias,
+                        "w2.weight": seq_layer.w2.weight,
+                        "w2.bias": seq_layer.w2.bias,
+                    })
                 else:
                     self.copy_weights(self_layer, seq_layer)
 
@@ -78,8 +77,7 @@ if __name__ == "__main__":
     # Command line argument parsing
     # -------------
     parser = argparse.ArgumentParser(
-        description="PyTorch Small Toy Tensor Parallel Example"
-    )
+        description="PyTorch Small Toy Tensor Parallel Example")
     parser.add_argument(
         "--backend",
         help="PyTorch Dynamo compiler backend",
@@ -96,16 +94,15 @@ if __name__ == "__main__":
     is_distributed = world_size > 1
     if is_distributed:
         # Initialize the process group
-        torch.distributed.init_process_group(
-            backend="gloo", rank=world_rank, world_size=world_size
-        )
+        torch.distributed.init_process_group(backend="gloo",
+                                             rank=world_rank,
+                                             world_size=world_size)
         # Looks like a string compare, but is actually comparing the components
         # https://github.com/pytorch/pytorch/blob/b5be4d8c053e22672719b9a33386b071daf9860d/torch/torch_version.py#L10-L16
         if torch.__version__ < "2.3.0":
             # Fix until PyTorch 2.3
             torch._C._distributed_c10d._register_process_group(
-                "default", torch.distributed.group.WORLD
-            )
+                "default", torch.distributed.group.WORLD)
 
     # -------------
     # Setup AIU specific environment variables
@@ -126,7 +123,9 @@ if __name__ == "__main__":
         if pargs.backend == "aiu":
             for peer_rank in range(world_size):
                 pcie_env_str = "AIU_WORLD_RANK_" + str(peer_rank)
-                dprint(f"PCI Addr. for Rank {peer_rank} : {os.environ[pcie_env_str]}")
+                dprint(
+                    f"PCI Addr. for Rank {peer_rank} : {os.environ[pcie_env_str]}"
+                )
         print("-" * 60)
     if is_distributed:
         torch.distributed.barrier()

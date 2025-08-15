@@ -44,6 +44,9 @@ def test_paged_equivalence():
             max_new_tokens=5,
             do_sample=False,
             use_cache=True,
-            extra_kwargs={"attn_name": "spyre_paged_attn", **padding_kwargs},
+            extra_kwargs={
+                "attn_name": "spyre_paged_attn",
+                **padding_kwargs
+            },
         )
         torch.testing.assert_close(result, result_paged)

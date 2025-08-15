@@ -14,7 +14,8 @@ logger = logging.getLogger(__name__)
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s %(message)s")
 
-parser = argparse.ArgumentParser(description="Script to get thresholds metrics")
+parser = argparse.ArgumentParser(
+    description="Script to get thresholds metrics")
 
 parser.add_argument(
     "--models",
@@ -22,7 +23,8 @@ parser.add_argument(
     default=[],
     nargs="+",
     required=True,
-    help="List of models id separated by space. Eg.: ibm-granite/granite-20b-code-instruct-8k /tmp/models/granite-20b-code-cobol-v1",
+    help=
+    "List of models id separated by space. Eg.: ibm-granite/granite-20b-code-instruct-8k /tmp/models/granite-20b-code-cobol-v1",
 )
 parser.add_argument(
     "--metrics",
@@ -30,14 +32,16 @@ parser.add_argument(
     default=[],
     nargs="+",
     required=True,
-    help="List of metrics separated by space. Eg. for full model mode: diff_mean ce | Eg. for layers mode: abs_diff cos_sim_avg cos_sim_mean",
+    help=
+    "List of metrics separated by space. Eg. for full model mode: diff_mean ce | Eg. for layers mode: abs_diff cos_sim_avg cos_sim_mean",
 )
 parser.add_argument(
     "--file_base",
     type=str,
     default="/tmp/aiu-fms-testing-utils/output",
     required=True,
-    help="Path where the thresholds output from the generate_metrics.py script were stored.",
+    help=
+    "Path where the thresholds output from the generate_metrics.py script were stored.",
 )
 parser.add_argument(
     "--layer_io",
@@ -96,7 +100,8 @@ for model in models:
         if not layer_mode:
             metric_list = []
             for metric_file in metric_files:
-                metric_list = load_metric_file(metric_file, layer_mode, metric_list)
+                metric_list = load_metric_file(metric_file, layer_mode,
+                                               metric_list)
             logger.info(f"found {len(metric_files)} metric files")
             logger.info(model, metric, np.percentile(metric_list, 99.0))
         else:
@@ -105,19 +110,18 @@ for model in models:
                 layer_dict = {}
                 metric_layer_list = []
                 layer_name = metric_file.split("--")[-1].replace(
-                    ".{}".format(metric_name), ""
-                )
+                    ".{}".format(metric_name), "")
                 layer_name = layer_name.replace(".csv", "")
-                metric_layer_list = load_metric_file(
-                    metric_file, layer_mode, metric_layer_list
-                )
+                metric_layer_list = load_metric_file(metric_file, layer_mode,
+                                                     metric_layer_list)
                 if re.search(generate_mode_pattern, layer_name):
                     layer_name = re.sub(generate_mode_pattern, "", layer_name)
                     if layer_name not in layers.keys():
                         layers[layer_name] = metric_layer_list
                     else:
                         layers[layer_name].extend(metric_layer_list)
-                    logger.debug(f"Output layer with generate mode {layer_name}")
+                    logger.debug(
+                        f"Output layer with generate mode {layer_name}")
                 else:
                     layer_dict[layer_name] = metric_layer_list
                     logger.debug(f"Output layer {layer_name}")
@@ -128,7 +132,8 @@ for model in models:
                 layer = np.nan_to_num(layer, nan=0.0)
                 if "abs_diff" in metric:
                     metric_val = abs_diff_linalg_norm(layer)
-                    logger.info(f"Layer {key} abs_diff_linalg_norm = {metric_val}")
+                    logger.info(
+                        f"Layer {key} abs_diff_linalg_norm = {metric_val}")
                     result_dict[metric][key] = metric_val
                 elif "avg" in metric:
                     metric_avg = np.average(layer)

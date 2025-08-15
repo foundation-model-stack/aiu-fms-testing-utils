@@ -30,7 +30,8 @@ def import_addons(args: argparse.Namespace) -> None:
             from fms_mo.aiu_addons.i8i8 import i8i8_aiu_linear
         dprint("Loaded `aiu_addons` functionalities")
     except ImportError:
-        raise ImportError(f"Failed to import {args.quantization} addons from FMS-MO.")
+        raise ImportError(
+            f"Failed to import {args.quantization} addons from FMS-MO.")
 
 
 def get_linear_config(args: argparse.Namespace) -> dict[str, Any]:
@@ -67,13 +68,10 @@ def get_linear_config(args: argparse.Namespace) -> dict[str, Any]:
                 desc_act = qconfig["desc_act"]
                 if desc_act:
                     raise NotImplementedError(
-                        "Activation reordering not supported at this time."
-                    )
+                        "Activation reordering not supported at this time.")
         else:
-            dprint(
-                "[WARNING] Could not locate quantization config file. "
-                "Default configuration will be used."
-            )
+            dprint("[WARNING] Could not locate quantization config file. "
+                   "Default configuration will be used.")
             group_size = 128
             desc_act = False
 
@@ -104,39 +102,37 @@ def get_linear_config(args: argparse.Namespace) -> dict[str, Any]:
         ):
             if module_name is None:
                 return "int8_aiu"
-            smoothquant_on_module = (
-                any([m in module_name for m in smoothquant_layers])
-                if smoothquant_layers is not None
-                else True
-            )
+            smoothquant_on_module = (any([
+                m in module_name for m in smoothquant_layers
+            ]) if smoothquant_layers is not None else True)
             use_smoothquant = smoothquant and smoothquant_on_module
             return "int8_smoothquant_aiu" if use_smoothquant else "int8_aiu"
 
         if args.int8_smoothquant:
             # TODO: load info from config saved during quantization
-            if any(
-                "granite" in p.lower() for p in [args.model_path, args.architecture]
-            ):
+            if any("granite" in p.lower()
+                   for p in [args.model_path, args.architecture]):
                 smoothquant_layers = ["key", "value", "w1", "wg"]
-            elif any(
-                "roberta" in p.lower() for p in [args.model_path, args.architecture]
-            ):
+            elif any("roberta" in p.lower()
+                     for p in [args.model_path, args.architecture]):
                 smoothquant_layers = ["query", "key", "value", "w1"]
             else:
                 raise NotImplementedError(
-                    "INT8 architecture does not support smoothquant."
-                )
+                    "INT8 architecture does not support smoothquant.")
         else:
             smoothquant_layers = []
 
         linear_config = {
-            "linear_type": partial(
+            "linear_type":
+            partial(
                 select_int8_module,
                 smoothquant=args.int8_smoothquant,
                 smoothquant_layers=smoothquant_layers,
             ),
-            "weight_per_channel": args.int8_weight_per_channel,
-            "activ_quant_type": args.int8_activ_quant_type,
+            "weight_per_channel":
+            args.int8_weight_per_channel,
+            "activ_quant_type":
+            args.int8_activ_quant_type,
         }
     else:
         linear_config = {"linear_type": "torch_linear"}
@@ -161,14 +157,9 @@ def validate_quantization(model: nn.Module, args: argparse.Namespace) -> None:
         if args.is_aiu_backend and has_bf16_weights and not args.cast_bf16_to_fp16:
             raise ValueError(
                 "FP8 checkpoints on AIU with bf16 weights require casting to fp16 "
-                "using --cast_bf16_to_fp16. Do not use --default_dtype!"
-            )
-        elif (
-            args.device.type == "cuda"
-            and has_fp16_weights
-            and not args.cast_fp16_to_bf16
-        ):
+                "using --cast_bf16_to_fp16. Do not use --default_dtype!")
+        elif (args.device.type == "cuda" and has_fp16_weights
+              and not args.cast_fp16_to_bf16):
             raise ValueError(
                 "FP8 checkpoints on GPU with fp16 weights require casting to bf16 "
-                "using --cast_fp16_to_bf16. Do not use --default_dtype!"
-            )
+                "using --cast_fp16_to_bf16. Do not use --default_dtype!")

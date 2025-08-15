@@ -34,8 +34,7 @@ def wrap_encoder(model: nn.Module) -> HFModelArchitecture:
     if not has_hf:
         raise ImportError(
             "MaskedLM Encoder requires transformers package but import "
-            "was unsuccessful."
-        )
+            "was unsuccessful.")
 
     model.config.linear_config.pop("linear_type", None)
     return to_hf_api(model, task_specific_params=None)
@@ -81,8 +80,7 @@ class EncoderQAInfer:
         if not getattr(args, "is_encoder", False):
             raise ValueError(
                 "Running encoder model but is_encoder argument is not set to True. "
-                "Verify your launch script."
-            )
+                "Verify your launch script.")
 
     def prepare_validation_features(
         self,
@@ -96,9 +94,8 @@ class EncoderQAInfer:
         c_col_name = self.context_column_name
         pad_on_right = self.pad_on_right
         max_prompt_length = (
-            args.max_prompt_length
-            if args.max_prompt_length is not None
-            else 384  # this default is targeted at QA task (not a model limitation)
+            args.max_prompt_length if args.max_prompt_length is not None else
+            384  # this default is targeted at QA task (not a model limitation)
         )
 
         # Some of the questions have lots of whitespace on the left, which is not useful
@@ -139,7 +136,8 @@ class EncoderQAInfer:
             # One example can give several spans, this is the index of the example
             # containing this span of text.
             sample_index = sample_mapping[i]
-            tokenized_examples["example_id"].append(examples["id"][sample_index])
+            tokenized_examples["example_id"].append(
+                examples["id"][sample_index])
 
             # Set to None the offset_mapping that are not part of the context so
             # it's easy to determine if a token position is part of the context or not.
@@ -160,7 +158,10 @@ class EncoderQAInfer:
         only if provided as boolean. A floating binary mask would not be converted.
         """
 
-        return {"x": batch["input_ids"], "mask": batch["attention_mask"].to(torch.bool)}
+        return {
+            "x": batch["input_ids"],
+            "mask": batch["attention_mask"].to(torch.bool)
+        }
 
     def process_eval_set(self) -> None:
         """Pre-process evaluation dataset for QuestionAnswering task."""
@@ -168,8 +169,7 @@ class EncoderQAInfer:
         if not has_hf:
             raise ImportError(
                 "QuestionAnswering Encoder requires transformers package but import "
-                "was unsuccessful."
-            )
+                "was unsuccessful.")
 
         args = self.args
         if args.dataset_name is not None:
@@ -187,21 +187,19 @@ class EncoderQAInfer:
             else:
                 raise ValueError(
                     "Could not determine evaluation dataset to load. Pass `dataset_name` "
-                    "or `validation_file` argument."
-                )
-            raw_datasets = load_dataset(extension, data_files=data_files, field="data")
+                    "or `validation_file` argument.")
+            raw_datasets = load_dataset(extension,
+                                        data_files=data_files,
+                                        field="data")
 
         column_names = raw_datasets["train"].column_names
 
-        self.question_column_name = (
-            "question" if "question" in column_names else column_names[0]
-        )
-        self.context_column_name = (
-            "context" if "context" in column_names else column_names[1]
-        )
-        self.answer_column_name = (
-            "answers" if "answers" in column_names else column_names[2]
-        )
+        self.question_column_name = ("question" if "question" in column_names
+                                     else column_names[0])
+        self.context_column_name = ("context" if "context" in column_names else
+                                    column_names[1])
+        self.answer_column_name = ("answers" if "answers" in column_names else
+                                   column_names[2])
 
         # Padding side determines if we do (question|context) or (context|question)
         self.pad_on_right = self.tokenizer.padding_side == "right"
@@ -211,8 +209,7 @@ class EncoderQAInfer:
             dprint(
                 f"max_prompt_length ({args.max_prompt_length}) is larger than the "
                 f"maximum length supported ({model_max_length}). "
-                f"Using max_prompt_length={model_max_length} instead."
-            )
+                f"Using max_prompt_length={model_max_length} instead.")
             self.max_prompt_length = min(
                 args.max_prompt_length,
                 model_max_length,
@@ -256,8 +253,7 @@ class EncoderQAInfer:
             )
 
         self.eval_dataset_for_model = eval_dataset.remove_columns(
-            ["example_id", "offset_mapping"]
-        )
+            ["example_id", "offset_mapping"])
         self.eval_dataloader = DataLoader(
             self.eval_dataset_for_model,
             shuffle=False,
@@ -267,8 +263,7 @@ class EncoderQAInfer:
         dprint("Dataloader initialized.")
 
         self.metric = evaluate.load(
-            "squad_v2" if args.version_2_with_negative else "squad"
-        )
+            "squad_v2" if args.version_2_with_negative else "squad")
         dprint("Evaluation metric initialized.")
 
     def postprocess_qa_predictions(
@@ -332,7 +327,8 @@ class EncoderQAInfer:
         example_id_to_index = {k: i for i, k in enumerate(examples["id"])}
         features_per_example = collections.defaultdict(list)
         for i, feature in enumerate(features):
-            features_per_example[example_id_to_index[feature["example_id"]]].append(i)
+            features_per_example[example_id_to_index[
+                feature["example_id"]]].append(i)
 
         # The dictionaries we have to fill.
         all_predictions = collections.OrderedDict()
@@ -364,15 +360,12 @@ class EncoderQAInfer:
                 # Optional `token_is_max_context`, if provided we will remove answers that do not have the maximum context
                 # available in the current feature.
                 token_is_max_context = features[feature_index].get(
-                    "token_is_max_context", None
-                )
+                    "token_is_max_context", None)
 
                 # Update minimum null prediction.
                 feature_null_score = start_logits[0] + end_logits[0]
-                if (
-                    min_null_prediction is None
-                    or min_null_prediction["score"] > feature_null_score
-                ):
+                if (min_null_prediction is None
+                        or min_null_prediction["score"] > feature_null_score):
                     min_null_prediction = {
                         "offsets": (0, 0),
                         "score": feature_null_score,
@@ -381,80 +374,70 @@ class EncoderQAInfer:
                     }
 
                 # Go through all possibilities for the `n_best_size` greater start and end logits.
-                start_indexes = np.argsort(start_logits)[
-                    -1 : -n_best_size - 1 : -1
-                ].tolist()
-                end_indexes = np.argsort(end_logits)[
-                    -1 : -n_best_size - 1 : -1
-                ].tolist()
+                start_indexes = np.argsort(start_logits)[-1:-n_best_size -
+                                                         1:-1].tolist()
+                end_indexes = np.argsort(end_logits)[-1:-n_best_size -
+                                                     1:-1].tolist()
                 for start_index in start_indexes:
                     for end_index in end_indexes:
                         # Don't consider out-of-scope answers, either because the indices are out of bounds or correspond
                         # to part of the input_ids that are not in the context.
-                        if (
-                            start_index >= len(offset_mapping)
-                            or end_index >= len(offset_mapping)
-                            or offset_mapping[start_index] is None
-                            or len(offset_mapping[start_index]) < 2
-                            or offset_mapping[end_index] is None
-                            or len(offset_mapping[end_index]) < 2
-                        ):
+                        if (start_index >= len(offset_mapping)
+                                or end_index >= len(offset_mapping)
+                                or offset_mapping[start_index] is None
+                                or len(offset_mapping[start_index]) < 2
+                                or offset_mapping[end_index] is None
+                                or len(offset_mapping[end_index]) < 2):
                             continue
                         # Don't consider answers with a length that is either < 0 or > max_answer_length.
-                        if (
-                            end_index < start_index
-                            or end_index - start_index + 1 > max_answer_length
-                        ):
+                        if (end_index < start_index
+                                or end_index - start_index + 1
+                                > max_answer_length):
                             continue
                         # Don't consider answer that don't have the maximum context available (if such information is
                         # provided).
-                        if (
-                            token_is_max_context is not None
-                            and not token_is_max_context.get(str(start_index), False)
-                        ):
+                        if (token_is_max_context is not None
+                                and not token_is_max_context.get(
+                                    str(start_index), False)):
                             continue
 
-                        prelim_predictions.append(
-                            {
-                                "offsets": (
-                                    offset_mapping[start_index][0],
-                                    offset_mapping[end_index][1],
-                                ),
-                                "score": start_logits[start_index]
-                                + end_logits[end_index],
-                                "start_logit": start_logits[start_index],
-                                "end_logit": end_logits[end_index],
-                            }
-                        )
+                        prelim_predictions.append({
+                            "offsets": (
+                                offset_mapping[start_index][0],
+                                offset_mapping[end_index][1],
+                            ),
+                            "score":
+                            start_logits[start_index] + end_logits[end_index],
+                            "start_logit":
+                            start_logits[start_index],
+                            "end_logit":
+                            end_logits[end_index],
+                        })
             if version_2_with_negative and min_null_prediction is not None:
                 # Add the minimum null prediction
                 prelim_predictions.append(min_null_prediction)
                 null_score = min_null_prediction["score"]
 
             # Only keep the best `n_best_size` predictions.
-            predictions = sorted(
-                prelim_predictions, key=lambda x: x["score"], reverse=True
-            )[:n_best_size]
+            predictions = sorted(prelim_predictions,
+                                 key=lambda x: x["score"],
+                                 reverse=True)[:n_best_size]
 
             # Add back the minimum null prediction if it was removed because of its low score.
-            if (
-                version_2_with_negative
-                and min_null_prediction is not None
-                and not any(p["offsets"] == (0, 0) for p in predictions)
-            ):
+            if (version_2_with_negative and min_null_prediction is not None
+                    and not any(p["offsets"] == (0, 0) for p in predictions)):
                 predictions.append(min_null_prediction)
 
             # Use the offsets to gather the answer text in the original context.
             context = example["context"]
             for pred in predictions:
                 offsets = pred.pop("offsets")
-                pred["text"] = context[offsets[0] : offsets[1]]
+                pred["text"] = context[offsets[0]:offsets[1]]
 
             # In the very rare edge case we have not a single non-null prediction, we create a fake prediction to avoid
             # failure.
-            if len(predictions) == 0 or (
-                len(predictions) == 1 and predictions[0]["text"] == ""
-            ):
+            if len(predictions) == 0 or (len(predictions) == 1
+                                         and predictions[0]["text"] == ""):
                 predictions.insert(
                     0,
                     {
@@ -485,31 +468,21 @@ class EncoderQAInfer:
                 best_non_null_pred = predictions[i]
 
                 # Then we compare to the null prediction using the threshold.
-                score_diff = (
-                    null_score
-                    - best_non_null_pred["start_logit"]
-                    - best_non_null_pred["end_logit"]
-                )
+                score_diff = (null_score - best_non_null_pred["start_logit"] -
+                              best_non_null_pred["end_logit"])
                 scores_diff_json[example["id"]] = float(
-                    score_diff
-                )  # To be JSON-serializable.
+                    score_diff)  # To be JSON-serializable.
                 if score_diff > null_score_diff_threshold:
                     all_predictions[example["id"]] = ""
                 else:
                     all_predictions[example["id"]] = best_non_null_pred["text"]
 
             # Make `predictions` JSON-serializable by casting np.float back to float.
-            all_nbest_json[example["id"]] = [
-                {
-                    k: (
-                        float(v)
-                        if isinstance(v, (np.float16, np.float32, np.float64))
-                        else v
-                    )
-                    for k, v in pred.items()
-                }
-                for pred in predictions
-            ]
+            all_nbest_json[example["id"]] = [{
+                k: (float(v) if isinstance(v, (np.float16, np.float32,
+                                               np.float64)) else v)
+                for k, v in pred.items()
+            } for pred in predictions]
 
         # If we have an output_dir, let's save all those dicts.
         if output_dir is not None:
@@ -518,18 +491,19 @@ class EncoderQAInfer:
 
             prediction_file = os.path.join(
                 output_dir,
-                "predictions.json" if prefix is None else f"{prefix}_predictions.json",
+                "predictions.json"
+                if prefix is None else f"{prefix}_predictions.json",
             )
             nbest_file = os.path.join(
                 output_dir,
                 "nbest_predictions.json"
-                if prefix is None
-                else f"{prefix}_nbest_predictions.json",
+                if prefix is None else f"{prefix}_nbest_predictions.json",
             )
             if version_2_with_negative:
                 null_odds_file = os.path.join(
                     output_dir,
-                    "null_odds.json" if prefix is None else f"{prefix}_null_odds.json",
+                    "null_odds.json"
+                    if prefix is None else f"{prefix}_null_odds.json",
                 )
 
             dprint(f"Saving predictions to {prediction_file}.")
@@ -570,19 +544,23 @@ class EncoderQAInfer:
 
         # Format the result to the format the metric expects.
         if args.version_2_with_negative:
-            formatted_predictions = [
-                {"id": k, "prediction_text": v, "no_answer_probability": 0.0}
-                for k, v in predictions.items()
-            ]
+            formatted_predictions = [{
+                "id": k,
+                "prediction_text": v,
+                "no_answer_probability": 0.0
+            } for k, v in predictions.items()]
         else:
-            formatted_predictions = [
-                {"id": k, "prediction_text": v} for k, v in predictions.items()
-            ]
+            formatted_predictions = [{
+                "id": k,
+                "prediction_text": v
+            } for k, v in predictions.items()]
 
-        references = [
-            {"id": ex["id"], "answers": ex[self.answer_column_name]} for ex in examples
-        ]
-        return EvalPrediction(predictions=formatted_predictions, label_ids=references)
+        references = [{
+            "id": ex["id"],
+            "answers": ex[self.answer_column_name]
+        } for ex in examples]
+        return EvalPrediction(predictions=formatted_predictions,
+                              label_ids=references)
 
     def create_and_fill_np_array(
         self,
@@ -606,9 +584,12 @@ class EncoderQAInfer:
 
         step = 0
         # create a numpy array and fill it with -100.
-        logits_concat = np.full((len(dataset), max_len), -100, dtype=np.float64)
+        logits_concat = np.full((len(dataset), max_len),
+                                -100,
+                                dtype=np.float64)
         # Now since we have create an array now we will populate it with the outputs gathered using accelerator.gather_for_metrics
-        for i, output_logit in enumerate(start_or_end_logits):  # populate columns
+        for i, output_logit in enumerate(
+                start_or_end_logits):  # populate columns
             # We have to fill it such that we have to take the whole tensor and replace it on the newly created array
             # And after every iteration we have to change the step
 
@@ -616,9 +597,10 @@ class EncoderQAInfer:
             cols = output_logit.shape[1]
 
             if step + batch_size < len(dataset):
-                logits_concat[step : step + batch_size, :cols] = output_logit
+                logits_concat[step:step + batch_size, :cols] = output_logit
             else:
-                logits_concat[step:, :cols] = output_logit[: len(dataset) - step]
+                logits_concat[step:, :cols] = output_logit[:len(dataset) -
+                                                           step]
 
             step += batch_size
 
@@ -636,10 +618,11 @@ class EncoderQAInfer:
             batch_size=1,
         )
         first_batch = self.convert_batch_to_fms_style(
-            next(iter(dataloader_for_compile))
-        )
+            next(iter(dataloader_for_compile)))
         self.model(**first_batch)
-        dprint(f"Warmup completed in {time.time() - warmup_start_time:.1f} s\n---")
+        dprint(
+            f"Warmup completed in {time.time() - warmup_start_time:.1f} s\n---"
+        )
 
     def run_evaluation(self) -> None:
         """Run QuestionAnswering evaluation."""
@@ -659,8 +642,10 @@ class EncoderQAInfer:
                 batch = self.convert_batch_to_fms_style(batch)
                 batch = move_to_device(batch, args.device)
                 start_logits, end_logits = self.model(**batch)
-                all_start_logits.append(start_logits.to(torch.float16).cpu().numpy())
-                all_end_logits.append(end_logits.to(torch.float16).cpu().numpy())
+                all_start_logits.append(
+                    start_logits.to(torch.float16).cpu().numpy())
+                all_end_logits.append(
+                    end_logits.to(torch.float16).cpu().numpy())
         eval_duration = time.time() - start_time
         dprint(
             f"Runtime: {eval_duration:.0f} s | "
@@ -668,8 +653,7 @@ class EncoderQAInfer:
             f"{eval_duration / (len(eval_dataloader) * args.batch_size):.2f}"
             " s/sample "
             f"(tot = {len(eval_dataloader) * args.batch_size}, "
-            f"bs = {args.batch_size})"
-        )
+            f"bs = {args.batch_size})")
 
         if rank == 0:
             # concatenate the numpy array
@@ -720,8 +704,7 @@ class EncoderMLMInfer:
         if not has_hf:
             raise ImportError(
                 "MaskedLM Encoder requires transformers package but import "
-                "was unsuccessful."
-            )
+                "was unsuccessful.")
 
         self.prompt = "the dog chased the cat while<mask> aggressively"
 
@@ -738,7 +721,8 @@ class EncoderMLMInfer:
             tokenizer=self.tokenizer,
         )
         output = unmasker(self.prompt)
-        dprint(f"Run completed in {time.time() - warmup_start_time:.1f} s\n---")
+        dprint(
+            f"Run completed in {time.time() - warmup_start_time:.1f} s\n---")
         if not warmup:
             dprint(f"{self.prompt}\nAnswers:")
             for ans in output:

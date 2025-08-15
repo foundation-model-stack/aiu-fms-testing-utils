@@ -34,8 +34,7 @@ def get_default_dtype(args: argparse.Namespace) -> torch.dtype | None:
     elif args.default_dtype is not None:
         raise ValueError(
             f"default_dtype (currently set to {args.default_dtype}) must be unset "
-            "when running a quantized model."
-        )
+            "when running a quantized model.")
     return default_dtype
 
 
@@ -69,17 +68,18 @@ def print_system_setup(args: argparse.Namespace) -> None:
 
     if args.verbose:
         dprint("-" * 60)
-        dprint(
-            f"Python Version  : {sys.version_info.major}."
-            f"{sys.version_info.minor}.{sys.version_info.micro}"
-        )
+        dprint(f"Python Version  : {sys.version_info.major}."
+               f"{sys.version_info.minor}.{sys.version_info.micro}")
         dprint(f"PyTorch Version : {torch.__version__}")
-        dprint(f"Dynamo Backend  : {args.device_type} -> {args.dynamo_backend}")
+        dprint(
+            f"Dynamo Backend  : {args.device_type} -> {args.dynamo_backend}")
         dprint(f"Distributed     : {args.distributed}")
         if args.device_type == "aiu":
             for peer_rank in range(aiu_setup.world_size):
                 pcie_env_str = "AIU_WORLD_RANK_" + str(peer_rank)
-                dprint(f"PCI Addr. for Rank {peer_rank} : {os.environ[pcie_env_str]}")
+                dprint(
+                    f"PCI Addr. for Rank {peer_rank} : {os.environ[pcie_env_str]}"
+                )
         dprint("-" * 60)
 
 
@@ -109,7 +109,8 @@ def get_distributed_strategy(args: argparse.Namespace) -> str | None:
     return dist_strat
 
 
-def setup_model(args: argparse.Namespace) -> tuple[str | None, torch.device, str]:
+def setup_model(
+        args: argparse.Namespace) -> tuple[str | None, torch.device, str]:
     """Entry point for model setup."""
 
     default_dtype = get_default_dtype(args)
@@ -125,24 +126,19 @@ def recast_16b(model: nn.Module, args: argparse.Namespace) -> None:
     """Cast 16-bit model parameters to selected datatype."""
 
     if args.cast_bf16_to_fp16:
-        dprint(
-            "Casting all BF16 model parameters to FP16 "
-            "(--cast_bf16_to_fp16 flag is enabled)"
-        )
+        dprint("Casting all BF16 model parameters to FP16 "
+               "(--cast_bf16_to_fp16 flag is enabled)")
         for name, param in model.named_parameters():
             if param.dtype == torch.bfloat16:
                 if param.max() > torch.finfo(torch.float16).max:
                     dprint(
                         f"[WARNING] Casting param {name} to fp16 will truncate the "
                         "tensor. This may cause accuracy loss. Ignore this warning if "
-                        "this is intended."
-                    )
+                        "this is intended.")
                 param.data = param.data.to(dtype=torch.float16)
     elif args.cast_fp16_to_bf16:
-        dprint(
-            "Casting all FP16 model parameters to BF16 "
-            "(--cast_fp16_to_bf16 flag is enabled)"
-        )
+        dprint("Casting all FP16 model parameters to BF16 "
+               "(--cast_fp16_to_bf16 flag is enabled)")
         for param in model.parameters():
             if param.dtype == torch.float16:
                 param.data = param.data.to(dtype=torch.bfloat16)
@@ -153,20 +149,15 @@ def print_model_params(model: nn.Module, args: argparse.Namespace) -> None:
 
     if args.verbose:
         dprint("=" * 60 + "\n")
-        dprint(
-            "\n"
-            + "\n".join(
-                f"{k:70} {str(list(v.size())):15} {str(v.dtype):20} {str(v.device):10} "
-                f"{v.float().min().item():12.4f} {v.float().max().item():12.4f}"
-                for k, v in model.state_dict().items()
-            )
-        )
+        dprint("\n" + "\n".join(
+            f"{k:70} {str(list(v.size())):15} {str(v.dtype):20} {str(v.device):10} "
+            f"{v.float().min().item():12.4f} {v.float().max().item():12.4f}"
+            for k, v in model.state_dict().items()))
         dprint("=" * 60 + "\n")
     if args.architecture == "llama":
         dprint(
             "[NOTE] In Llama models, it's OK for bias and rotary embeddings to be "
             "marked as unused keys because of different architectural choices between "
-            "FMS and HF models (but model output is preserved)."
-        )
+            "FMS and HF models (but model output is preserved).")
     dprint(model)
     dprint("=" * 60 + "\n")

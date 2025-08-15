@@ -31,12 +31,12 @@ def test_validation_info_round_trip(validation_type, post_iteration_hook):
     prompt_list = []
     for i in range(batch_size):
         prompt_list.append(
-            torch.randint(
-                0, model.config.src_vocab_size, (seq_length - 2 * i,), dtype=torch.long
-            )
-        )
+            torch.randint(0,
+                          model.config.src_vocab_size, (seq_length - 2 * i, ),
+                          dtype=torch.long))
 
-    input_ids, padding_kwargs = pad_input_ids(prompt_list, min_pad_length=seq_length)
+    input_ids, padding_kwargs = pad_input_ids(prompt_list,
+                                              min_pad_length=seq_length)
 
     # generate cpu validation info
     generated_validation_info = extract_validation_information(
@@ -53,14 +53,18 @@ def test_validation_info_round_trip(validation_type, post_iteration_hook):
         generated_validation_info.save(output_path)
 
         loaded_validation_info = load_validation_information(
-            output_path, validation_type, batch_size
-        )
+            output_path, validation_type, batch_size)
 
         assert len(generated_validation_info) == len(loaded_validation_info)
 
-        for gen_vi, loaded_vi in zip(generated_validation_info, loaded_validation_info):
+        for gen_vi, loaded_vi in zip(generated_validation_info,
+                                     loaded_validation_info):
             gen_vi_no_none = {k: v for k, v in gen_vi.items() if v is not None}
-            loaded_vi_no_none = {k: v for k, v in loaded_vi.items() if v is not None}
+            loaded_vi_no_none = {
+                k: v
+                for k, v in loaded_vi.items() if v is not None
+            }
             assert gen_vi_no_none.keys() == loaded_vi_no_none.keys()
             for k in gen_vi_no_none.keys():
-                torch.testing.assert_close(gen_vi_no_none[k], loaded_vi_no_none[k])
+                torch.testing.assert_close(gen_vi_no_none[k],
+                                           loaded_vi_no_none[k])
