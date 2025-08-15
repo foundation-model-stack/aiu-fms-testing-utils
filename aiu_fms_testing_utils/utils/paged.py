@@ -452,3 +452,59 @@ def generate(
     if timing != "":
         return result, times
     return result
+
+VLLM_DT_MAX_BATCH_TKV_LIMIT = 131072
+
+class ProgramCriteria:
+    def __init__(self, program_id, max_batch, max_tkv, batch_granularity, tkv_granularity):
+        self.program_id = program_id
+        self.max_batch = max_batch
+        self.max_tkv = max_tkv
+        self.batch_granularity = batch_granularity
+        self.tkv_granularity = tkv_granularity
+
+    def is_possible(self, batch_size, tkv):
+        return batch_size * tkv <= VLLM_DT_MAX_BATCH_TKV_LIMIT
+
+    def calculate_padding(self, batch_size, tkv):
+        min_batch_req = ((((batch_size - 1) // self.batch_granularity) + 1) * self.batch_granularity)
+        min_tkv_req = ((((tkv - 1) // self.tkv_granularity) + 1) * self.tkv_granularity)
+        return (min_batch_req * min_tkv_req) - (batch_size * tkv)
+    
+    def __str__(self):
+        return f"ProgramCriteria(program_id={self.program_id})"
+    
+    def __eq__(self, other):
+        if not isinstance(other, ProgramCriteria):
+            return NotImplemented
+        return self.program_id == other.program_id and self.max_batch == other.max_batch and self.max_tkv == other.max_tkv and self.batch_granularity == other.batch_granularity and self.tkv_granularity == other.tkv_granularity
+
+    def __hash__(self):
+        return hash(self.program_id) # Hash based on immutable attributes
+
+
+def get_programs_prompts(program_criteria_list, multiple, max_batch_size, max_tkv, program_cycles):
+    program_map = {}
+
+    for batch_size in range(1, max_batch_size+1):
+        for prompt_len in range(multiple, max_tkv-program_cycles, multiple):
+            possible_program_switches = ((program_cycles-1) // multiple) + 1
+            resolved_programs = [None] * possible_program_switches
+            for program_criteria in program_criteria_list:
+
+                for program_index in range(possible_program_switches):
+                    context_length = prompt_len + (multiple * program_index) + 1
+
+                    if program_criteria.is_possible(batch_size, context_length):                
+                        padding = program_criteria.calculate_padding(batch_size, context_length)
+                        if resolved_programs[program_index] is None or padding < resolved_programs[program_index][1]:
+                            resolved_programs[program_index] = (program_criteria, padding)
+            
+            if all(p is not None for p in resolved_programs):
+                key = tuple(p[0] for p in resolved_programs)
+                if key in program_map:
+                    program_map[key].append((batch_size, prompt_len))
+                else:
+                    program_map[key] = [(batch_size, prompt_len)]
+    
+    return program_map
