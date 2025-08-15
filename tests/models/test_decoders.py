@@ -20,8 +20,8 @@ from aiu_fms_testing_utils.utils import sample_sharegpt_requests, warmup_model
 from aiu_fms_testing_utils.utils.aiu_setup import aiu_dist_setup, dprint
 
 try:
-    from fms_mo.aiu_addons.gptq import (gptq_aiu_adapter,  # noqa: F401
-                                        gptq_aiu_linear)
+    from fms_mo.aiu_addons.gptq import gptq_aiu_adapter  # noqa: F401
+    from fms_mo.aiu_addons.gptq import gptq_aiu_linear
 
     GPTQ_ENABLED = True
 except ImportError:

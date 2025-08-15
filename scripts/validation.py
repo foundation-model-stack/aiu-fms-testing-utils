@@ -262,8 +262,8 @@ fused_weights = not args.unfuse_weights
 if args.quantization == "gptq":
     try:
         # validation script always loads AIU addon
-        from fms_mo.aiu_addons.gptq import (gptq_aiu_adapter,  # noqa: F401
-                                            gptq_aiu_linear)
+        from fms_mo.aiu_addons.gptq import gptq_aiu_adapter  # noqa: F401
+        from fms_mo.aiu_addons.gptq import gptq_aiu_linear
 
         print("Loaded `aiu_addons` functionalities")
 

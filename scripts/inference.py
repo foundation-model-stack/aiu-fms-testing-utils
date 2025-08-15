@@ -278,16 +278,16 @@ if "fp8" in attn_name:
 if args.quantization == "gptq":
     if "aiu" in args.device_type:
         try:
-            from fms_mo.aiu_addons.gptq import (gptq_aiu_adapter,  # noqa
-                                                gptq_aiu_linear)
+            from fms_mo.aiu_addons.gptq import gptq_aiu_adapter  # noqa
+            from fms_mo.aiu_addons.gptq import gptq_aiu_linear
 
             print("Loaded `aiu_addons` functionalities")
         except ImportError:
             raise ImportError("Failed to import GPTQ addons from fms-mo.")
 elif args.quantization == "int8":
     try:
-        from fms_mo.aiu_addons.i8i8 import (i8i8_aiu_adapter,  # noqa
-                                            i8i8_aiu_linear)
+        from fms_mo.aiu_addons.i8i8 import i8i8_aiu_adapter  # noqa
+        from fms_mo.aiu_addons.i8i8 import i8i8_aiu_linear
 
         print("Loaded `aiu_addons` functionalities")
     except ImportError:
