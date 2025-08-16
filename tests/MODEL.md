@@ -1,54 +1,77 @@
 # Model Tests
-How to run the pytest test suites at [aiu-fms-testing-utils](https://github.com/aiu-fms-testing-utils/tree/main/tests/models).
 
-1. [Generate metrics in GPU](MODEL.md#1-run-first-on-gpu)
-2. [Get Thresholds](MODEL.md#2-get-thresholds)
-3. [Apply thresholds into test_decoders](MODEL.md#3-apply-thresholds-in-aiu-test_decoders)
-4. [Run test_model_expectations](MODEL.md#4-run-test_model_expectations)
+This guide explains how to run the pytest test suites in [aiu-fms-testing-utils](https://github.com/aiu-fms-testing-utils/tree/main/tests/models) to validate models and debug issues.
+
+1. [Generate metrics in GPU](MODEL.md#1-run-on-gpu)
+2. [Get thresholds](MODEL.md#2-get-thresholds)
+3. [Apply thresholds to `test_decoders.py`](MODEL.md#3-apply-thresholds-to-test_decoderspy)
+4. [Run `test_model_expectations.py`](MODEL.md#4-run-test_model_expectationspy)
 
 ![diagram](./resources/assets/test_flow_diagram.png)
 
-## The test scripts
+## Test Scripts
 
-- **test_decoders** - this will test the decoder models (text-generation) with certain shapes. Most of this is configurable (model, batch_size, prompt_length, max_new_tokens, metrics_thresholds, failure_rate_thresholds, mini models, etc.)
+### **test_decoders.py**
+
+This test suite evaluates decoder models (i.e., for text generation) across a configurable set of shapes and parameters such as batch_size, prompt_length, max_new_tokens, metrics_thresholds, and failure_rate_thresholds.
+
 Example:
+
 ```bash
-# Note: you might need an hf_token if the model requires it (this will download)
+# Set up environment variables for the test run
 export FMS_TEST_SHAPES_COMMON_BATCH_SIZES=1
 export FMS_TEST_SHAPES_COMMON_SEQ_LENGTHS=128
-export FMS_TEST_SHAPES_COMMON_MODEL_PATHS=/local-path/granite-20b-code-cobol-v1/
+export FMS_TEST_SHAPES_COMMON_MODEL_PATHS=/ibm-granite/granite-3.3-8b-instruct/
 export FMS_TEST_SHAPES_USE_MICRO_MODELS=0
+
+# Run the decoder test
 pytest tests/models/test_decoders.py
 ```
-The above will test shapes batch_size 1, with sequence length 128 of granite-20b-code-cobol-v1. We can set `FMS_TEST_SHAPES_USE_MICRO_MODELS=0` for not using micro models. Or set it to `FMS_TEST_SHAPES_USE_MICRO_MODELS=1` and add the micro models version to the model paths.
 
-- **test_model_expectations** - this test will capture a snapshot in time of what a randomly initialized model would produce on the AIU. To add a model to this, you simply add it to either the models list or tuple_output_models list which will generate 2 expectation tests. The first time you run this test, you run it with --capture_expectation which will create a resource file with the expected output. The next time you run it, you run without the --capture_expectation and all should pass.
+This configuration runs the decoder test on `granite-3.3-8b-instruct` with batch size `1` and sequence length `128`. Set `FMS_TEST_SHAPES_USE_MICRO_MODELS` to test with micro models.
 
-### Thresholds for the tests baselines for `test_decoders`
+### **test_model_expectations**
 
-The `test_decoders.py` file contains tests written for models that have **decoder** architecture. For each model to be tested, specific metrics baselines need to be created by following the next steps in this documentation. Four different metrics are generated with top k per token as base lines for these tests; Cross entropy loss per token, probability mean, probability standard deviation and absolute diff mean.
+This test suite captures and verifies model output on model initialization.
 
-- **cross_entropy**: Cross entropy is a measure from information theory that quantifies the difference between two probability distributions. Cross entropy serves as a measure of the differences when comparing expected generated tokens and the actual output of the model. Quantifying the distance between the ground-truth distribution and the predicted distribution.
-A lower cross entropy indicates a closer match in expected versus generated. 
-- **prob_mean**: Probability Mean typically refers to the average probability assigned by the model to a sequence of words or tokens. It's a measure of how well the model understands and predicts language, with lower mean probabilities often indicating a poorer model that struggles to generate coherent or plausible text. 
-- **prob_std**: Probability standard deviation assesses how spread out or consistent the model's predictions are when it assigns probabilities to different possible outcomes. A high standard deviation indicates wide variation in the model's certainty, while a low standard deviation suggests more consistent and confident prediction
-- **diff_mean**:  The difference of the average or central tendency of a set of data points, often used to measure the model's performance. It can also refer to the intended purpose or interpretation of a text or sentence produced by the model. 
+- Add the model path to `models` or `tuple_output_models`.
+- To generate expectations, run with the `--capture_expectation` flag. This will create a resource file capturing the model's outputs.
+- On subsequent runs, omit the flag to compare live outputs against the saved expectations.
 
-They are calculated in lines [228 - 231 at generate_metrics.py](../scripts/generate_metrics.py#L253) script.
-```python
-cross_entropy = lambda r, t: torch.nn.CrossEntropyLoss()(r, t.softmax(dim=1).to(dtype=torch.float32))
-prob_mean = lambda r, t: torch.mean((r.softmax(dim=1).to(dtype=torch.float32) / t.softmax(dim=1).to(dtype=torch.float32)) - 1.0)
-prob_std = lambda r, t: torch.std(r.softmax(dim=1).to(dtype=torch.float32) / t.softmax(dim=1).to(dtype=torch.float32))
-diff_mean = lambda r, t: torch.mean(torch.abs(r.softmax(dim=1).to(dtype=torch.float32) - t.softmax(dim=1).to(dtype=torch.float32)))
-```
-More at [pytorch.org](https://pytorch.org/docs/stable/generated/torch.nn.CrossEntropyLoss.html), [Yiren,Wang](https://courses.grainger.illinois.edu/ece598pv/fa2017/Lecture13_LM_YirenWang.pdf), [Li, Wang, Shang Et al.](https://arxiv.org/abs/2412.12177#:~:text=%5B2412.12177%5D%20Model%2Ddiff:,%3E%20cs%20%3E%20arXiv:2412.12177) and [Wu,Hilton](https://arxiv.org/html/2410.13211v1).
-</br>
+## Metric Thresholds for `test_decoders.py`
 
-This metrics will be set at the [fail thresholds](./models/test_decoders.py#L146), so **cross_entropy** and **diff_mean** can be used to compare between the GPU generated text output by the same model in AIU. 
+To test each model, baseline metrics must first be generated by following the steps outlined below. During the test, the model outputs are compared against these baselines using four key metrics, calculated using the top-k probabilities per token. Their implementations can be found in the [generate_metrics.py](../scripts/generate_metrics.py) script:
 
-## 1. Run first on GPU
+### cross_entropy
 
-Set shapes:
+Cross-entropy measures the divergence between two probability distributions, e.g. the model's predicted token distribution versus the expected output. It quantifies how well the model is predicting the next token. A lower cross-entropy indicates a closer match between expected and generated output.
+
+### prob_mean
+
+The mean of the predicted probabilities across tokens. It measures the model's confidence in its predictions. A low probability mean may indicate the model is uncertain or generating incoherent outputs.
+
+### prob_std
+
+The standard deviation of the predicted probabilities measures how much the model's confidence varies across different tokens.
+A high standard deviation indicates fluctuating confidence, while a low value implies more consistent predictions.
+
+### diff_mean
+
+This metric captures the average difference between two sets of predictions to measure the model's performance. A lower diff_mean means the outputs are more consistent.
+
+This metrics will be set at the [fail thresholds](./models/test_decoders.py#L182), so **cross_entropy** and **diff_mean** can be used to compare between the GPU generated text output by the same model on AIU.
+
+### Further Reading
+
+- [CrossEntropyLoss Documentation](https://pytorch.org/docs/stable/generated/torch.nn.CrossEntropyLoss.html)
+- [Probabilistic Langauge Models](https://courses.grainger.illinois.edu/ece598pv/fa2017/Lecture13_LM_YirenWang.pdf)
+- [Model-diff](https://arxiv.org/abs/2412.12177#:~:text=%5B2412.12177%5D%20Model%2Ddiff:,%3E%20cs%20%3E%20arXiv:2412.12177)
+- [Estimating the Probabilities of Rare Outputs in Language Models](https://arxiv.org/html/2410.13211v1).
+
+## 1. Run on GPU
+
+First, configure the environment variables:
+
 ```bash
 export MODEL_PATH=/model-path/
 export MAX_NEW_TOKENS=128
@@ -58,14 +81,18 @@ export DEFAULT_TYPES="fp16"
 export DS_PATH=/resources/sharegpt/share_gpt.json
 ```
 
-Then run the command for the metrics script:
+Then, run the metrics generation script:
+
 ```bash
 python generate_metrics.py --architecture=hf_pretrained --model_path=$MODEL_PATH --tokenizer=$MODEL_PATH --unfuse_weights --output_dir=/tmp/aiu-fms-testing-utils/output/ --compile_dynamic --max_new_tokens=$MAX_NEW_TOKENS --min_pad_length=$SEQ_LENS --batch_size=$BATCH_SIZES --default_dtype=$DEFAULT_TYPES --sharegpt_path=$DS_PATH --num_test_tokens_per_sequence=1024
 ```
 
 This will generate csv files with the results of the metrics calculation. Typically, this is run with batch size 1, 8 and sequency length 64, 2048 (4 runs in total). Then, we can run [get_thresholds.py](./resources/get_thresholds.py) to summarize the results and get the single values for each metric as the following.
-<br>
-At the output path, you will see the out and csv files generated as the sample in the following lines:
+
+This will generate `.csv` files containing the results of the metrics calculations. Typically, you run this script with batch size `1` and `8` and sequence length `64` and `2048` (i.e. 4 runs in total). Then, you can use the [get_thresholds.py](./resources/get_thresholds.py)] script to summarize the results and compute a single threshold value per metric.
+
+At the specified `--output_dir path`, you will find both `.out` and `.csv` files generated:
+
 ```bash
 --tmp--aiu-fms-testing-utils--models--Mistral-7B-Instruct-v0.3_max-new-tokens-128_batch-size-8_seq-length64_dtype-fp16.ce.csv
 --tmp--aiu-fms-testing-utils--models--Mistral-7B-Instruct-v0.3_max-new-tokens-128_batch-size-8_seq-length64_dtype-fp16.cpu_validation_info.0.out
@@ -88,12 +115,17 @@ At the output path, you will see the out and csv files generated as the sample i
 --tmp--aiu-fms-testing-utils--models--Mistral-7B-Instruct-v0.3_max-new-tokens-128_batch-size-8_seq-length64_dtype-fp16.prob_mean.csv
 --tmp--aiu-fms-testing-utils--models--Mistral-7B-Instruct-v0.3_max-new-tokens-128_batch-size-8_seq-length64_dtype-fp16.prob_std.csv
 ```
-## 2. Get Thresholds
-Get the thresholds by running the [get_thresholds.py](./resources/get_thresholds.py):
+
+## 2. Get thresholds
+
+
+Once the metrics have been generated, compute the baseline thresholds using [get_thresholds.py](./resources/get_thresholds.py):
+
 ```bash
 python3 get_thresholds.py --models /tmp/aiu-fms-testing-utils/models/model-name-version-v1 --metrics diff_mean ce --file_base /tmp/aiu-fms-testing-utils/output
 ```
-After running these scripts in namespace with 1 GPU, these were the thresholds generated:
+
+After running these scripts in a namespace with 1 GPU, these were the generated thresholds:
 
 ```bash
 python3 get_thresholds.py --models /tmp/aiu-fms-testing-utils/models/Mistral-7B-Instruct-v0.3 --metrics diff_mean ce --file_base /tmp/aiu-fms-testing-utils/output
@@ -103,14 +135,14 @@ found 7 metric files
 --tmp--aiu-fms-testing-utils--models--Mistral-7B-Instruct-v0.3 ce 2.8364005851745624
 ```
 
-These can now be used for the model testing scripts at AIU.
+These values can now be used towards the model test scripts to validate their performance on AIU.
 
-## 3. Apply thresholds in AIU `test_decoders`
+## 3. Apply thresholds to `test_decoders.py`
 
-These are the variables set at the deployment:
+These are the variables set at deployment:
 
 | Name        | Value
-| ------------- | ---------------- 
+| ------------- | ----------------
 | FMS_TEST_SHAPES_COMMON_MODEL_PATHS        | mistralai/Mistral-7B-Instruct-v0.3
 | FMS_TEST_SHAPES_FORCE_VALIDATION_LEVEL_1     | 1
 | FMS_TEST_SHAPES_COMMON_BATCH_SIZES           | 1
@@ -119,15 +151,13 @@ These are the variables set at the deployment:
 | FMS_TEST_SHAPES_USE_MICRO_MODELS  | 0
 | FMS_TEST_SHAPES_METRICS_THRESHOLD | 2.8364005851745624,0.0007839603102183846
 
+- Use `FMS_TEST_SHAPES_METRICS_THRESHOLD` to apply custom metric thresholds without modifying any test code.
+- To speed up the tests for large models, set `FMS_TEST_SHAPES_VALIDATION_INFO_DIR` to the directory containing output logits saved from generating the metrics.
+- Set `FMS_TEST_SHAPES_FAILURE_THRESHOLD` if you would like to relax the threshold (default is `0.01`).
 
-> Set `FMS_TEST_SHAPES_METRICS_THRESHOLD` in case there is no need to add the model to the default ones. No code changes needed, just this environment variable set with the metrics values. Set `FMS_TEST_SHAPES_VALIDATION_INFO_DIR` to speed up the tests considerably when testing larger models by using the output logits saved from generating the metrics. Set `FMS_TEST_SHAPES_FAILURE_THRESHOLD` if you would like to relax the threshold - default is `0.01`.
+Add the newly generated numbers to the end of the `fail_thresholds` dictionary in [`test_decoders.py`](./models/test_decoders.py), e.g.:
 
-Add the new numbers at the end of the [dictionary](./models/test_decoders.py#L116):
 ```python
-# thresholds are chosen based on 1024 tokens per sequence
-# 1% error threshold rate between cpu fp32 and cuda fp16
-# if a models failure thresholds do not exist in this dict, default to the default_metrics_threshold defined above
-# threshold key is (model_id, is_tiny_model)
 fail_thresholds = {
     (LLAMA_3p1_8B_INSTRUCT, True): (
         3.7392955756187423,
@@ -164,15 +194,15 @@ fail_thresholds = {
 }
 ```
 
-The command to run is:
+Run the script using the following command, adding the `-vv` flag for verbose output:
+
 ```bash
 pytest tests/models/test_decoders.py -vv
 ```
-Add the `-vv` for verbose output.
 
-### Test Results Samples
+### Test Results Sample
 
-Here is a result sample of the test outputs:
+The following is a sample of the test outputs:
 
 ```bash
 Starting to run pytest tests/models/test_decoders.py
@@ -207,7 +237,9 @@ total          name               num avg            min
 =================== 1 passed, 1 warning in 140.35s (0:02:20) ===================
 Finished running pytests
 ```
-In case the thresholds fails:
+
+Or, in case of failure:
+
 ```bash
 [ 0/ 1]: testing model=/mnt/aiu-models-en-shared/models/hf/Mistral-7B-Instruct-v0.3, batch_size=1, seq_length=64, max_new_tokens=16, micro_model=False
 [ 0/ 1]: AIU warmup
@@ -247,18 +279,29 @@ total          name               num avg            min
 FAILED tests/models/test_decoders.py::test_common_shapes[/mnt/aiu-models-en-shared/models/hf/Mistral-7B-Instruct-v0.3-1-64-16] - AssertionError: failure rate for mean diff was too high: 0.7638888888888888
 assert 0.7638888888888888 < 0.01
 ```
-## 4. Run `test_model_expectations`
 
-- First add the desired model to the [decoder_models](./models/test_model_expectations.py#L55) variable.
-- If the models tested are too big, it is a valid option to add the micro model version for this specific test.
-- 4.1 Run `pytest tests/models/test_model_expectations.py::TestAIUDecoderModels --capture_expectation` to save the model weights.
-After that you will get an output like this:
+## 4. Run `test_model_expectations.py`
+
+### Test Case for Single Output
+
+First, add the desired model to the `decoder_models` list in [the script](./models/test_model_expectations.py). If the model(s) are too large, it's valid to add a micro model version for this test.
+
+Next, run the following command to save the model weights:
+
+```bash
+pytest tests/models/test_model_expectations.py::TestAIUDecoderModels --capture_expectation
+```
+
+You should see output similar to this:
+
 ```bash
 FAILED tests/models/test_model_expectations.py::TestAIUDecoderModels::test_model_output[/tmp/models/mistralai/Mistral-7B-Instruct-v0.3-True] - Failed: Signature file has been saved, please re-run the tests without --capture_expectation
 FAILED tests/models/test_model_expectations.py::TestAIUDecoderModels::test_model_weight_keys[/tmp/models/mistralai/Mistral-7B-Instruct-v0.3-True] - Failed: Weights Key file has been saved, please re-run the tests without --capture_expectation
 ```
-This will tell that the weights and signature have been saved, so you can run the complete suite again to get the tests results.
-- 4.2 Then running the complete suite:
+
+This indicates that the expected outputs and weights have been saved successfully, so you'll be able to run the complete suite again to get the test results.
+
+Now, re-run the tests without the `--capture_expectation` flag to validate the model against the saved references and view the actual test results:
 
 ```bash
 [1000780000@e2e-vllm-dt2-646f66647b-68dh6 aiu-fms-testing-utils]$ pytest tests/models/test_model_expectations.py::TestAIUDecoderModels -vv
@@ -293,21 +336,28 @@ total          name                                    num avg            min
 
 ```
 
-In this case, the model tested was a decoder model with a single output, the `TestAIUDecoderModels` is the most important case. In the next section, check the applicability for the [TestAIUModelsTupleOutput](./MODEL.md#case-of-multiple-output---testaiumodelstupleoutput) cases.
+In the example  above, the model tested was a decoder model with a single output, so the `TestAIUDecoderModels` is the most important test case.
 
-#### Case of multiple output - TestAIUModelsTupleOutput
+### Test Case for Multiple Outputs
 
-The case **TestAIUModelsTupleOutput** is applicable if the model being tested has output of more than one tensor. Like the model in the example default [tuple_output_models](./models/test_model_expectations.py#L76), is a RoBERTa model that can output in this different format.
+If the model produces multiple output tensors, the `TestAIUModelsTupleOutput` test case applies. For example, the default `tuple_output_models` list in [the script](./models/test_model_expectations.py) includes a RoBERTa model that returns outputs in this tuple format.
 
-- Add the model also to [tuple_output_models](./models/test_model_expectations.py#L76).
-- 4.1 Run `pytest tests/models/test_model_expectations.py::TestAIUModelsTupleOutput --capture_expectation` to save the model weights;
+To test such models, start by adding the desired model to the `tuple_output_models` list in [the script](./models/test_model_expectations.py).
 
-```bash 
-tests/models/test_model_expectations.py::TestAIUModelsTupleOutput::test_model_output[/ibm-dmf/models/watsonx/shared/granite-20b-code-cobol-v1/20240603-False] <- ../foundation-model-stack/fms/testing/_internal/model_test_suite.py PASSED [ 66%]
-tests/models/test_model_expectations.py::TestAIUModelsTupleOutput::test_model_weight_keys[/ibm-dmf/models/watsonx/shared/granite-20b-code-cobol-v1/20240603-False] <- ../foundation-model-stack/fms/testing/_internal/model_test_suite.py PASSED [ 83%]
-tests/models/test_model_expectations.py::TestAIUModelsTupleOutput::test_model_unfused[/ibm-dmf/models/watsonx/shared/granite-20b-code-cobol-v1/20240603] SKIPPED     [100%]
+Then, run the following command to save the model weights:
+
+```bash
+pytest tests/models/test_model_expectations.py::TestAIUModelsTupleOutput --capture_expectation
 ```
 
-> When adding new models expectations, please include in the PR with capture expectation tests added, the date of the image used to generate the file.
+```bash
+tests/models/test_model_expectations.py::TestAIUModelsTupleOutput::test_model_output[/ibm-granite/granite-3.3-8b-instruct/20240603-False] <- ../foundation-model-stack/fms/testing/_internal/model_test_suite.py PASSED [ 66%]
+tests/models/test_model_expectations.py::TestAIUModelsTupleOutput::test_model_weight_keys[/ibm-granite/granite-3.3-8b-instruct/20240603-False] <- ../foundation-model-stack/fms/testing/_internal/model_test_suite.py PASSED [ 83%]
+tests/models/test_model_expectations.py::TestAIUModelsTupleOutput::test_model_unfused[/ibm-granite/granite-3.3-8b-instruct/20240603] SKIPPED     [100%]
+```
 
-Check this example of a PR for adding a new model expectations' files and results [here](https://github.com/foundation-model-stack/aiu-fms-testing-utils/pull/48).
+### Adding new expectations
+
+When adding new models expectations, please include in the PR with capture expectation tests added, the date of the image used to generate the file.**
+
+Have a look at [this example](https://github.com/foundation-model-stack/aiu-fms-testing-utils/pull/48) of a PR adding a new model expectations' files and results.
