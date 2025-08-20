@@ -57,9 +57,6 @@ jobs:
       - name: Run isort
         if: always()
         run: isort . --check-only
-      - name: Run yapf
-        if: always()
-        run: yapf --diff --recursive .
       - name: Spelling check with codespell
         if: always()
         run: codespell --toml pyproject.toml

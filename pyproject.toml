@@ -88,11 +88,6 @@ ignore = [
     "UP032",
 ]
 
-[tool.yapfignore]
-ignore_patterns = [
-  "/tests/resources/prompts/**/*.txt",
-]
-
 [tool.codespell]
 ignore-words-list = "dout, te, indicies, subtile, ElementE, ans"
 skip = "./tests/resources/prompts/**/*.txt"
@@ -112,5 +107,4 @@ lint = [
     "types-pyyaml>=6.0.12.20250326",
     "types-requests>=2.32.0.20250328",
     "types-setuptools>=77.0.2.20250328",
-    "yapf==0.43.0",
 ]

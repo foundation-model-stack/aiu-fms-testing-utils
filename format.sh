@@ -7,7 +7,7 @@
 #    # Format files that differ from origin/main.
 #    bash format.sh
 
-#    # Commit changed files with message 'Run yapf and ruff'
+#    # Commit changed files with message 'Run ruff'
 #
 #
 # This script formats all changed files from the last mergebase.
@@ -28,12 +28,10 @@ check_command() {
     fi
 }
 
-check_command yapf
 check_command ruff
 check_command codespell
 check_command isort
 
-YAPF_VERSION=$(yapf --version | awk '{print $2}')
 RUFF_VERSION=$(ruff --version | awk '{print $2}')
 CODESPELL_VERSION=$(codespell --version)
 ISORT_VERSION=$(isort --vn)
@@ -47,57 +45,9 @@ tool_version_check() {
     fi
 }
 
-tool_version_check "yapf" "$YAPF_VERSION"
 tool_version_check "ruff" "$RUFF_VERSION"
 tool_version_check "isort" "$ISORT_VERSION"
 tool_version_check "codespell" "$CODESPELL_VERSION"
-
-YAPF_FLAGS=(
-    '--recursive'
-    '--parallel'
-)
-
-# Format specified files
-format() {
-    yapf --in-place "${YAPF_FLAGS[@]}" "$@"
-}
-
-# Format files that differ from main branch. Ignores dirs that are not slated
-# for autoformat yet.
-format_changed() {
-    # The `if` guard ensures that the list of filenames is not empty, which
-    # could cause yapf to receive 0 positional arguments, making it hang
-    # waiting for STDIN.
-    #
-    # `diff-filter=ACM` and $MERGEBASE is to ensure we only format files that
-    # exist on both branches.
-    MERGEBASE="$(git merge-base origin/main HEAD)"
-
-    if ! git diff --diff-filter=ACM --quiet --exit-code "$MERGEBASE" -- '*.py' '*.pyi' &>/dev/null; then
-        git diff --name-only --diff-filter=ACM "$MERGEBASE" -- '*.py' '*.pyi' | xargs -P 5 \
-             yapf --in-place "${YAPF_EXCLUDES[@]}" "${YAPF_FLAGS[@]}"
-    fi
-
-}
-
-# Format all files
-format_all() {
-    yapf --in-place "${YAPF_FLAGS[@]}" "${YAPF_EXCLUDES[@]}" .
-}
-
-## This flag formats individual files. --files *must* be the first command line
-## arg to use this option.
-if [[ "$1" == '--files' ]]; then
-   format "${@:2}"
-   # If `--all` is passed, then any further arguments are ignored and the
-   # entire python directory is formatted.
-elif [[ "$1" == '--all' ]]; then
-   format_all
-else
-   # Format only the files that changed in last commit.
-   format_changed
-fi
-echo 'AFTU yapf: Done'
 
 # Check spelling of specified files
 spell_check() {
