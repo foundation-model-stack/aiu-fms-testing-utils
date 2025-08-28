@@ -55,7 +55,7 @@ args = parser.parse_args()
 models = [model.replace("/", "--") for model in args.models]
 metrics = [metric for metric in args.metrics]
 file_base = args.file_base
-layer_mode = args.file_base if args.file_base else False
+layer_mode = args.layer_io if args.layer_io else False
 generate_mode_pattern = r"\.(iter-)([0-9]+)"
 
 
@@ -98,7 +98,9 @@ for model in models:
             for metric_file in metric_files:
                 metric_list = load_metric_file(metric_file, layer_mode, metric_list)
             logger.info(f"found {len(metric_files)} metric files")
-            logger.info(model, metric, np.percentile(metric_list, 99.0))
+            metric_val = np.percentile(metric_list, 99.0)
+            result_dict[metric] = metric_val
+            logger.info(f"{model} {metric} = {metric_val}")
         else:
             layers = {}
             for metric_file in metric_files:
