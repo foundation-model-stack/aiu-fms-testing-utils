@@ -130,8 +130,22 @@ def get_default_validation_prefix(
     seq_length: int,
     dtype: str,
     attn_type: str,
+    aftu_version: str,
 ):
-    return f"{model_id.replace('/', '--')}_max-new-tokens-{max_new_tokens}_batch-size-{batch_size}_seq-length-{seq_length}_dtype-{dtype}_attn-type-{attn_type}"
+    """
+    Args:
+        model_id (str): model name used
+        max_new_tokens (int): number of max new tokens to generate
+        batch_size (int): batch size used
+        seq_length (int):sequence length used
+        dtype (str): data type
+        attn_type (str): type of attention
+        aftu_version (str): introduced in v0.3.0 to track changed in log
+
+    Returns:
+        str: A prefix that will be prepended to the file name
+    """
+    return f"{model_id.replace('/', '--')}_max-new-tokens-{max_new_tokens}_batch-size-{batch_size}_seq-length-{seq_length}_dtype-{dtype}_attn-type-{attn_type}.{aftu_version}"
 
 
 def load_validation_information(

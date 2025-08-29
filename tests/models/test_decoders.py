@@ -23,10 +23,12 @@ from aiu_fms_testing_utils.utils import (
     warmup_model,
     sample_sharegpt_requests,
 )
+from typing import Tuple
 import json
 from transformers import AutoTokenizer
 
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, aiu_dist_setup
+from aiu_fms_testing_utils._version import version
 
 import os
 
@@ -245,6 +247,47 @@ common_shapes = list(
 __custom_adapter = {"architecture": "llama", "source": "fms_aiu"}
 
 
+def _strip_version_to_basic(version: str):
+    """
+    Given a version such as '0.0.2.dev497+gaca31a959.d20250825', return only 0.0.2
+    """
+    match = re.match(r"(\d+\.\d+\.\d+)", version)
+    if match:
+        return match.group(1)
+    return ""
+
+
+def _parse_version(version: str):
+    """Parse version from a string from form *int.int.int* to Tuple[int, int, int]
+
+    Args:
+        version (str): original version of string
+
+    Returns:
+        Tuple[int,int,int]
+    """
+    major, minor, patch = _strip_version_to_basic(version).split(".")
+    return (int(major), int(minor), int(patch))
+
+
+CURRENT_AFTU_VERSION: str = ".".join([str(_) for _ in _parse_version(version)])
+
+
+def _decrement_version(version: Tuple[int, int, int]):
+    """
+    Function designed to prevent triple nested for loop while decrementing version
+    """
+    major, minor, patch = version
+    if patch > 0:
+        return (major, minor, patch - 1)
+    elif minor > 0:
+        return (major, minor - 1, 0)
+    elif major > 0:
+        return (major - 1, 0, 0)
+    else:
+        return None
+
+
 @pytest.fixture(autouse=True)
 def reset_compiler():
     yield  # run the test
@@ -363,9 +406,10 @@ def __get_validation_info_full_path(
     max_new_tokens,
     seed,
     attn_type: str,
+    aftu_version: str = CURRENT_AFTU_VERSION,
     device_type="cpu",
 ):
-    validation_file_name = f"{get_default_validation_prefix(model_path, max_new_tokens, batch_size, seq_length, 'fp16', attn_type)}.{device_type}_validation_info.{seed}.out"
+    validation_file_name = f"{get_default_validation_prefix(model_path, max_new_tokens, batch_size, seq_length, 'fp16', attn_type, aftu_version)}.{device_type}_validation_info.{seed}.out"
     full_path = os.path.join(validation_info_dir, validation_file_name)
     return full_path
 
@@ -374,25 +418,47 @@ def __load_validation_info(
     model_path, batch_size, seq_length, max_new_tokens, tokenizer, seed, attn_type: str
 ):
     # if path doesn't exist and paged isn't in the attention name, remove `attn_type` and recheck again, warn that we will no longer in the future have paths without 'attn_type'
-    full_path = __get_validation_info_full_path(
-        model_path, batch_size, seq_length, max_new_tokens, seed, attn_type
-    )
 
-    if os.path.exists(full_path):
+    aftu_version = _parse_version(version)
+    while aftu_version is not None:
+        aftu_version = _decrement_version(aftu_version)
+        if aftu_version:
+            aftu_version_str = ".".join([str(_) for _ in aftu_version])
+            full_path = __get_validation_info_full_path(
+                model_path,
+                batch_size,
+                seq_length,
+                max_new_tokens,
+                seed,
+                attn_type,
+                aftu_version_str,
+            )
+            if os.path.exists(full_path):
+                dprint(f"cpu validation info found for seed={seed} -- loading it")
+                return load_validation_information(
+                    full_path, "logits", batch_size, tokenizer
+                )
+
+    # the replace '..' with '.' comes from new full path including .<VERSION>.
+    legacy_path = __get_validation_info_full_path(
+        model_path, batch_size, seq_length, max_new_tokens, seed, attn_type, ""
+    ).replace("..", ".")
+
+    if os.path.exists(legacy_path):
         dprint(f"cpu validation info found for seed={seed} -- loading it")
-        return load_validation_information(full_path, "logits", batch_size, tokenizer)
+        return load_validation_information(legacy_path, "logits", batch_size, tokenizer)
     elif "paged" not in attn_type:
         # This regex applies to a very specific file name format
-        modified_full_path = re.sub(r"_attn-type[^.]*", "", full_path)
+        modified_legacy_path = re.sub(r"_attn-type[^.]*", "", legacy_path)
 
-        if os.path.exists(modified_full_path):
+        if os.path.exists(modified_legacy_path):
             warnings.warn(
-                f"All future paths should contain attn_type prefix information in path name, please modify {full_path=} to {modified_full_path=}",
+                f"All future paths should contain attn_type prefix information in path name, please modify {legacy_path=} to {modified_legacy_path=}",
                 stacklevel=2,
             )
             dprint(f"cpu validation info found for seed={seed} -- loading it")
             return load_validation_information(
-                modified_full_path, "logits", batch_size, tokenizer
+                modified_legacy_path, "logits", batch_size, tokenizer
             )
     return None
 
