@@ -191,7 +191,7 @@ def _get_truncation_size(
     """
     truncation_list: List[Tuple[int, int]] = []
     sorted_sizes_in_dataset: List[int] = sorted(dataset_size_and_count.keys())
-    # sort for consistant results where user mixes order of enforce_sizes
+    # sort for consistent results where user mixes order of enforce_sizes
     enforce_sizes = sorted(enforce_sizes)
 
     for size_to_enforce in enforce_sizes:
@@ -264,7 +264,7 @@ def __sample_requests(
         prompt_length_min (int): filters out prompts shorter than this value.
         prompt_length_max (int): filters out prompts larger than this value.
         enforce_sizes (List[int]): sample request will grab a prompt with this length if available.
-        enforce_heterogeneous (bool): Pads all prompts within batch size to nearest multiple of `pad_multiple`.
+        enforce_heterogeneous (bool): Pads all prompts within batch to nearest multiple of `pad_multiple`.
             However, if enforce_sizes is not empty, it will set enforce_heteogeneous to False.
         pad_multiple (int): Used only when enforce_heterogeneous is True or enforce_sizes is not empty, asserts that prompt_length would be padded to this multiple
         List[Tuple[str, int]]: a filtered dataset
@@ -318,16 +318,7 @@ def __sample_requests(
     ):
         dataset = __cached_encoded_datasets[_cached_dataset_key]
     else:
-        # Loop to check create filtered dataset
-        for i in range(len(prompt_list)):
-            # Tokenize the prompts and completions.
-            prompt = prompt_list[i]
-            prompt_token_ids = tokenizer.encode(prompt, return_tensors="pt").squeeze(0)
-
-            prompt_len = len(prompt_token_ids)
-
-            dataset.append((prompt, prompt_len))
-
+        dataset = list(zip(prompt_list, tokenizer(prompt_list, return_length=True).length))
         dataset.sort(key=lambda tuple: tuple[1])
         __cached_encoded_datasets[_cached_dataset_key] = dataset
 
@@ -336,9 +327,11 @@ def __sample_requests(
         r for r in dataset if r[1] >= prompt_length_min and r[1] <= prompt_length_max
     ]
 
+    pad_size_dict: dict[int, int] = {}
     for _, prompt_len in dataset:
-        sample_size_counter[get_pad_size(prompt_len)] = (
-            sample_size_counter.get(get_pad_size(prompt_len), 0) + 1
+        pad_size_dict.setdefault(prompt_len, get_pad_size(prompt_len, pad_multiple))
+        sample_size_counter[pad_size_dict[prompt_len]] = (
+            sample_size_counter.get(pad_size_dict[prompt_len], 0) + 1
         )
 
     if enforce_sizes:
@@ -386,14 +379,14 @@ def __sample_requests(
             and len(filtered_dataset) < num_requests
         ):
             # for _, size in filtered_dataset:
-            current_padded_size = get_pad_size(prompt_len, pad_multiple)
+            current_padded_size = pad_size_dict[prompt_len]
 
             if current_padded_size not in seen_sizes:
                 filtered_dataset.append((prompt, prompt_len))
                 seen_sizes.append(current_padded_size)
         # Forcing search for enforce_sizes
         elif enforce_sizes or enforce_sizes_with_truncation:
-            current_padded_size = get_pad_size(prompt_len, pad_multiple)
+            current_padded_size = pad_size_dict[prompt_len]
             # if it is in the enforce_size list
             if current_padded_size in enforce_sizes:
                 enforce_sizes.remove(current_padded_size)

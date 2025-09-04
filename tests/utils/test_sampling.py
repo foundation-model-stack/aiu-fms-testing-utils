@@ -72,12 +72,8 @@ def _prepare_sub_sharegpt_dataset(prompt_length_min, prompt_length_max, tokenize
     dataset: List[str] = []
 
     # Loop to check create filtered dataset
-    for i in range(len(prompt_list)):
-        # Tokenize the prompts and completions.
-        prompt = prompt_list[i]
-        prompt_token_ids = tokenizer.encode(prompt, return_tensors="pt").squeeze(0)
-
-        prompt_len = len(prompt_token_ids)
+    batch_encoding = tokenizer(prompt_list, return_length=True)
+    for prompt, prompt_len in zip(prompt_list, batch_encoding.length):
         if prompt_len < prompt_length_min or prompt_len > prompt_length_max:
             # Prune too short or too long sequences.
             continue

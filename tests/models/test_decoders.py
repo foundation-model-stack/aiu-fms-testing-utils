@@ -381,19 +381,6 @@ def __load_validation_info(
     if os.path.exists(full_path):
         dprint(f"cpu validation info found for seed={seed} -- loading it")
         return load_validation_information(full_path, "logits", batch_size, tokenizer)
-    elif "paged" not in attn_type:
-        # This regex applies to a very specific file name format
-        modified_full_path = re.sub(r"_attn-type[^.]*", "", full_path)
-
-        if os.path.exists(modified_full_path):
-            warnings.warn(
-                f"All future paths should contain attn_type prefix information in path name, please modify {full_path=} to {modified_full_path=}",
-                stacklevel=2,
-            )
-            dprint(f"cpu validation info found for seed={seed} -- loading it")
-            return load_validation_information(
-                modified_full_path, "logits", batch_size, tokenizer
-            )
     return None
 
 
