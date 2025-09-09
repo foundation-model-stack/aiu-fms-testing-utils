@@ -35,7 +35,7 @@ def generate(
     do_sample: bool = True,
     num_beams: int = 1,
     use_cache: bool = False,
-    chunked_prefill: bool = False,
+    prefill_chunk_size: int = 0,
     eos_token_id: Optional[int] = None,
     timing: str = "",
     post_iteration_hook: Optional[
@@ -111,7 +111,7 @@ def generate(
     max_possible_context_length = input_ids.size(1) + max_new_tokens
 
     BLOCK_SIZE = 64
-    CHUNK_SIZE = 2 * BLOCK_SIZE
+    CHUNK_SIZE = prefill_chunk_size * BLOCK_SIZE
 
     # these variables are guaranteed to be set in another location (inference.py, test_decoders.py, etc.)
     # if we set these variables here, we run the risk of warming up and generating with different sizes
@@ -294,7 +294,7 @@ def generate(
 
                 only_last_token = kwargs.get("only_last_token", False)
 
-                if chunked_prefill:
+                if prefill_chunk_size > 0:
                     left_padded_prompt_mask_ij = None
                     # Chunked prefill
                     for chunk_j in range((current_tkv // CHUNK_SIZE) + 1):

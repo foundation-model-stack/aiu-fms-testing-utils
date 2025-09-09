@@ -239,9 +239,10 @@ parser.add_argument(
     help="which backend attention to use in mha",
 )
 parser.add_argument(
-    "--chunked_prefill",
-    action="store_true",
-    help="activate chunked prefill (default off)",
+    "--prefill_chunk_size",
+    type=int,
+    default=0,
+    help="if > 0, activate chunked prefill, with chunk_size=page_size*this_argument. Only works with paged attention variants",
 )
 parser.add_argument(
     "--stagger_load",
@@ -786,9 +787,7 @@ def infer(use_cache, do_sample, warmup):
         attention_specific_kwargs["contiguous_cache"] = True
         attention_specific_kwargs["max_seq_len"] = ids.shape[1] + args.max_new_tokens
     elif "paged" in attn_name:
-        attention_specific_kwargs["chunked_prefill"] = (
-            args.chunked_prefill if "paged" in attn_name else None
-        )
+        attention_specific_kwargs["prefill_chunk_size"] = args.prefill_chunk_size
 
     result = generate(
         model,
@@ -851,7 +850,7 @@ if args.compile:
                 args.compile_dynamic_sendnn,
                 use_cache=cache,
                 stagger_update_lazyhandle=args.stagger_update_lazyhandle,
-                chunked_prefill=args.chunked_prefill,
+                prefill_chunk_size=args.prefill_chunk_size,
                 **extra_generation_kwargs,
             )
         if (
