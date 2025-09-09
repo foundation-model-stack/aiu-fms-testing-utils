@@ -849,7 +849,7 @@ if args.compile:
                 args.compile_dynamic_sendnn,
                 use_cache=cache,
                 stagger_update_lazyhandle=args.stagger_update_lazyhandle,
-                chunked_prefill=args.chunked_prefill
+                chunked_prefill=args.chunked_prefill,
                 **extra_generation_kwargs,
             )
         if (

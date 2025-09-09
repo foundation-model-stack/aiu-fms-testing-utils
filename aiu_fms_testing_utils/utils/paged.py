@@ -208,8 +208,6 @@ def generate(
     # left_padded_prompt_mask - empty_slots + context_lengths
     current_tkv_mask = torch.fill(context_lengths, input_ids.shape[1])
 
-    print("DEBUG1", left_padded_prompt_mask, context_lengths_without_pads, context_lengths, current_tkv_mask)
-
     slot_mapping = []
     block_table = []
     # each sequence has the possibility of a different tkv, so loop over that
@@ -218,7 +216,7 @@ def generate(
         # pad block_table_i for the real padded length
         block_table_i = [block_table_i[0]] * ((input_ids.shape[1] - seq_tkv) // BLOCK_SIZE) + block_table_i
         slot_mapping_i = []
-        for pos_i in range(seq_tkv):
+        for pos_i in range(input_ids.shape[1] - seq_tkv, input_ids.shape[1]):
             # we may have already popped a block, so index to the proper block
             block_number = block_table_i[pos_i // BLOCK_SIZE]
             block_offset = pos_i % BLOCK_SIZE
@@ -295,7 +293,6 @@ def generate(
                 only_last_token = kwargs.get("only_last_token", False)
 
                 if chunked_prefill:
-                    print("[DEBUG] doing chunked prefill!")
                     left_padded_prompt_mask_ij = None
                     # Chunked prefill
                     for chunk_j in range((current_tkv // CHUNK_SIZE) + 1):
@@ -324,7 +321,6 @@ def generate(
                         table_length = len(block_table[seq_i])
                         block_start = -current_tkv // BLOCK_SIZE + table_length
                         block_end = chunk_end // BLOCK_SIZE + table_length
-                        print("Table info", block_table[seq_i], table_length, block_start, block_end)
                         block_table_ij = torch.tensor(block_table[seq_i][block_start:block_end], dtype=torch.int64).unsqueeze(0)
 
                         chunked_kwargs = {
@@ -339,17 +335,26 @@ def generate(
                             "slot_mapping": slot_mapping_ij,
                         }
 
-                        print(position_ids_ij, left_padded_prompt_mask_ij, current_tkv_mask_ij, block_table_ij, slot_mapping_ij)
+                        # batch dynamic
+                        torch._dynamo.mark_dynamic(input_ids_ij, 0)
+                        torch._dynamo.mark_dynamic(slot_mapping_ij, 0)
+                        torch._dynamo.mark_dynamic(position_ids_ij, 0)
+                        torch._dynamo.mark_dynamic(block_table_ij, 0)
 
-                        logits, past_key_value_states = model(input_ids_ij, **chunked_kwargs)
+                        # seq dynamic
+                        torch._dynamo.mark_dynamic(input_ids_ij, 1)
+                        torch._dynamo.mark_dynamic(slot_mapping_ij, 1)
+                        torch._dynamo.mark_dynamic(position_ids_ij, 1)
+                        torch._dynamo.mark_dynamic(block_table_ij, 1)
+
+                        logits, current_kv_cache = model(input_ids_ij, **chunked_kwargs)
 
                         if not only_last_token:
                             logits = logits[:, -1, :]
 
-                        output = (logits, past_key_value_states)
+                        output = (logits, current_kv_cache)
 
                 else:
-                    print("[DEBUG] doing regular prefill!")
                     output, current_kv_cache = model(
                         input_ids_i,
                         slot_mapping=slot_mapping_i,
@@ -403,7 +408,6 @@ def generate(
                 slot = block_table[seq_i][-1] * BLOCK_SIZE + block_offset
                 slot_mapping.append([slot])
 
-            print([block_table[0][0]], (max(2, max([len(b) for b in block_table])) - len(block_table[0])), len(block_table[0]), max([len(b) for b in block_table]), max(2, max([len(b) for b in block_table])))
             kwargs["block_table"] = torch.tensor(
                 [
                     (
