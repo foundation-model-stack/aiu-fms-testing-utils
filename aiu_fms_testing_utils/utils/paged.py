@@ -110,8 +110,8 @@ def generate(
     # this includes empty pages and max_new_tokens
     max_possible_context_length = input_ids.size(1) + max_new_tokens
 
-    BLOCK_SIZE = 16
-    CHUNK_SIZE = 2*BLOCK_SIZE
+    BLOCK_SIZE = 64
+    CHUNK_SIZE = 8*BLOCK_SIZE
 
     # these variables are guaranteed to be set in another location (inference.py, test_decoders.py, etc.)
     # if we set these variables here, we run the risk of warming up and generating with different sizes
