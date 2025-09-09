@@ -35,6 +35,7 @@ def generate(
     do_sample: bool = True,
     num_beams: int = 1,
     use_cache: bool = False,
+    chunked_prefill: bool = False,
     eos_token_id: Optional[int] = None,
     timing: str = "",
     post_iteration_hook: Optional[
@@ -109,7 +110,8 @@ def generate(
     # this includes empty pages and max_new_tokens
     max_possible_context_length = input_ids.size(1) + max_new_tokens
 
-    BLOCK_SIZE = 64
+    BLOCK_SIZE = 16
+    CHUNK_SIZE = 2*BLOCK_SIZE
 
     # these variables are guaranteed to be set in another location (inference.py, test_decoders.py, etc.)
     # if we set these variables here, we run the risk of warming up and generating with different sizes
@@ -204,18 +206,21 @@ def generate(
     )
 
     # left_padded_prompt_mask - empty_slots + context_lengths
-    current_tkv_mask = torch.fill(context_lengths, torch.max(context_lengths))
+    current_tkv_mask = torch.fill(context_lengths, input_ids.shape[1])
+
+    print("DEBUG1", left_padded_prompt_mask, context_lengths_without_pads, context_lengths, current_tkv_mask)
 
     slot_mapping = []
     block_table = []
     # each sequence has the possibility of a different tkv, so loop over that
     for seq_tkv in context_lengths:
         block_table_i = [block_numbers.pop(0) for _ in range(seq_tkv // BLOCK_SIZE)]
+        # pad block_table_i for the real padded length
+        block_table_i = [block_table_i[0]] * ((input_ids.shape[1] - seq_tkv) // BLOCK_SIZE) + block_table_i
         slot_mapping_i = []
         for pos_i in range(seq_tkv):
             # we may have already popped a block, so index to the proper block
             block_number = block_table_i[pos_i // BLOCK_SIZE]
-
             block_offset = pos_i % BLOCK_SIZE
             slot = block_number * BLOCK_SIZE + block_offset
             slot_mapping_i.append(slot)
@@ -268,7 +273,7 @@ def generate(
                     .contiguous()
                 )
 
-                # batch dynamic
+                # batch static
                 torch._dynamo.mark_static(input_ids_i, 0)
                 torch._dynamo.mark_static(slot_mapping_i, 0)
                 torch._dynamo.mark_static(position_ids_i, 0)
@@ -286,22 +291,79 @@ def generate(
                     for layer_idx, (t1, t2) in enumerate(current_kv_cache):
                         t1._scale = current_kv_scales[layer_idx][0][seq_i].reshape(-1)
                         t2._scale = current_kv_scales[layer_idx][1][seq_i].reshape(-1)
-
+                
                 only_last_token = kwargs.get("only_last_token", False)
-                output, current_kv_cache = model(
-                    input_ids_i,
-                    slot_mapping=slot_mapping_i,
-                    position_ids=position_ids_i,
-                    mask=mask_i,
-                    past_key_value_states=current_kv_cache,
-                    use_cache=kwargs["use_cache"],
-                    only_last_token=only_last_token,
-                    attn_name=kwargs["attn_name"],
-                )
 
-                # only last token must be handled here to properly stack the tensors
-                if not only_last_token:
-                    output = output[:, -1, :]
+                if chunked_prefill:
+                    print("[DEBUG] doing chunked prefill!")
+                    left_padded_prompt_mask_ij = None
+                    # Chunked prefill
+                    for chunk_j in range((current_tkv // CHUNK_SIZE) + 1):
+                        chunk_start = -current_tkv + chunk_j*CHUNK_SIZE
+                        chunk_end = -current_tkv + min((chunk_j+1)*CHUNK_SIZE, current_tkv)
+                        
+                        ids_length = input_ids[seq_i].shape[0]
+                        input_ids_ij = input_ids[seq_i][chunk_start+ids_length:chunk_end+ids_length].unsqueeze(0).clone()
+                        slots_length = len(slot_mapping[seq_i])
+                        slot_mapping_ij = (
+                            torch.tensor(slot_mapping[seq_i][chunk_start+slots_length:chunk_end+slots_length], dtype=torch.int64)
+                            .unsqueeze(0)
+                            .clone()
+                        )
+                        pids_length = kwargs["position_ids"][seq_i].shape[0]
+                        position_ids_ij = (
+                            kwargs["position_ids"][seq_i][chunk_start+pids_length:chunk_end+pids_length].unsqueeze(0).clone()
+                        )
+
+                        # This view will result in a discontiguous tensor (creates a new graph during compile)
+                        # For this reason, we must explicitly make contiguous
+                        if left_padded_prompt_mask_ij is None:
+                            left_padded_prompt_mask_ij = (position_ids_ij == 0).sum(dim=1) - 1
+                        current_tkv_mask_ij = torch.min(torch.tensor((chunk_j+1)*CHUNK_SIZE, dtype=torch.int64), current_tkv).unsqueeze(0)
+
+                        table_length = len(block_table[seq_i])
+                        block_start = -current_tkv // BLOCK_SIZE + table_length
+                        block_end = chunk_end // BLOCK_SIZE + table_length
+                        print("Table info", block_table[seq_i], table_length, block_start, block_end)
+                        block_table_ij = torch.tensor(block_table[seq_i][block_start:block_end], dtype=torch.int64).unsqueeze(0)
+
+                        chunked_kwargs = {
+                            "attn_name": kwargs["attn_name"],
+                            "only_last_token": kwargs["only_last_token"],
+                            "past_key_value_states": current_kv_cache,
+                            "use_cache": kwargs["use_cache"],
+                            "position_ids": position_ids_ij,
+                            "left_padded_prompt_mask": left_padded_prompt_mask_ij,
+                            "current_tkv_mask": current_tkv_mask_ij,
+                            "block_table": block_table_ij,
+                            "slot_mapping": slot_mapping_ij,
+                        }
+
+                        print(position_ids_ij, left_padded_prompt_mask_ij, current_tkv_mask_ij, block_table_ij, slot_mapping_ij)
+
+                        logits, past_key_value_states = model(input_ids_ij, **chunked_kwargs)
+
+                        if not only_last_token:
+                            logits = logits[:, -1, :]
+
+                        output = (logits, past_key_value_states)
+
+                else:
+                    print("[DEBUG] doing regular prefill!")
+                    output, current_kv_cache = model(
+                        input_ids_i,
+                        slot_mapping=slot_mapping_i,
+                        position_ids=position_ids_i,
+                        mask=mask_i,
+                        past_key_value_states=current_kv_cache,
+                        use_cache=kwargs["use_cache"],
+                        only_last_token=only_last_token,
+                        attn_name=kwargs["attn_name"],
+                    )
+
+                    # only last token must be handled here to properly stack the tensors
+                    if not only_last_token:
+                        output = output[:, -1, :]
 
                 # TODO: Figure out how to do this cleanly
                 if "fp8" in kwargs["attn_name"]:
@@ -341,6 +403,7 @@ def generate(
                 slot = block_table[seq_i][-1] * BLOCK_SIZE + block_offset
                 slot_mapping.append([slot])
 
+            print([block_table[0][0]], (max(2, max([len(b) for b in block_table])) - len(block_table[0])), len(block_table[0]), max([len(b) for b in block_table]), max(2, max([len(b) for b in block_table])))
             kwargs["block_table"] = torch.tensor(
                 [
                     (

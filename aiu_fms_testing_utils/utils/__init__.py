@@ -53,6 +53,7 @@ def warmup_model(
     compile_dynamic_sendnn: bool = False,
     use_cache: bool = True,
     stagger_update_lazyhandle: int = 0,
+    chunked_prefill: bool = False,
     **extra_kwargs,
 ):
     import torch_sendnn
@@ -61,6 +62,8 @@ def warmup_model(
     attn_name = extra_kwargs.get("attn_name", "sdpa")
     if "paged" in attn_name:
         from aiu_fms_testing_utils.utils.paged import generate, adjust_inputs_to_batch
+
+        attention_specific_kwargs["chunked_prefill"] = chunked_prefill
     else:
         # TODO: Add a unified generation dependent on attn_type
         from fms.utils.generation import generate
@@ -318,15 +321,17 @@ def __sample_requests(
     ):
         dataset = __cached_encoded_datasets[_cached_dataset_key]
     else:
-        # Loop to check create filtered dataset
-        for i in range(len(prompt_list)):
-            # Tokenize the prompts and completions.
-            prompt = prompt_list[i]
-            prompt_token_ids = tokenizer.encode(prompt, return_tensors="pt").squeeze(0)
+        # # Loop to check create filtered dataset
+        # for i in range(len(prompt_list)):
+        #     # Tokenize the prompts and completions.
+        #     prompt = prompt_list[i]
+        #     prompt_token_ids = tokenizer.encode(prompt, return_tensors="pt").squeeze(0)
 
-            prompt_len = len(prompt_token_ids)
+        #     prompt_len = len(prompt_token_ids)
 
-            dataset.append((prompt, prompt_len))
+        #     dataset.append((prompt, prompt_len))
+
+        dataset = list(zip(prompt_list, tokenizer(prompt_list, return_length=True).length))
 
         dataset.sort(key=lambda tuple: tuple[1])
         __cached_encoded_datasets[_cached_dataset_key] = dataset
