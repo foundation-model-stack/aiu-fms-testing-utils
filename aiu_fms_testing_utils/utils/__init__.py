@@ -331,7 +331,9 @@ def __sample_requests(
 
         #     dataset.append((prompt, prompt_len))
 
-        dataset = list(zip(prompt_list, tokenizer(prompt_list, return_length=True).length))
+        dataset = list(
+            zip(prompt_list, tokenizer(prompt_list, return_length=True).length)
+        )
 
         dataset.sort(key=lambda tuple: tuple[1])
         __cached_encoded_datasets[_cached_dataset_key] = dataset

@@ -111,7 +111,7 @@ def generate(
     max_possible_context_length = input_ids.size(1) + max_new_tokens
 
     BLOCK_SIZE = 64
-    CHUNK_SIZE = 8*BLOCK_SIZE
+    CHUNK_SIZE = 2 * BLOCK_SIZE
 
     # these variables are guaranteed to be set in another location (inference.py, test_decoders.py, etc.)
     # if we set these variables here, we run the risk of warming up and generating with different sizes
@@ -214,7 +214,9 @@ def generate(
     for seq_tkv in context_lengths:
         block_table_i = [block_numbers.pop(0) for _ in range(seq_tkv // BLOCK_SIZE)]
         # pad block_table_i for the real padded length
-        block_table_i = [block_table_i[0]] * ((input_ids.shape[1] - seq_tkv) // BLOCK_SIZE) + block_table_i
+        block_table_i = [block_table_i[0]] * (
+            (input_ids.shape[1] - seq_tkv) // BLOCK_SIZE
+        ) + block_table_i
         slot_mapping_i = []
         for pos_i in range(input_ids.shape[1] - seq_tkv, input_ids.shape[1]):
             # we may have already popped a block, so index to the proper block
@@ -289,39 +291,64 @@ def generate(
                     for layer_idx, (t1, t2) in enumerate(current_kv_cache):
                         t1._scale = current_kv_scales[layer_idx][0][seq_i].reshape(-1)
                         t2._scale = current_kv_scales[layer_idx][1][seq_i].reshape(-1)
-                
+
                 only_last_token = kwargs.get("only_last_token", False)
 
                 if chunked_prefill:
                     left_padded_prompt_mask_ij = None
                     # Chunked prefill
                     for chunk_j in range((current_tkv // CHUNK_SIZE) + 1):
-                        chunk_start = -current_tkv + chunk_j*CHUNK_SIZE
-                        chunk_end = -current_tkv + min((chunk_j+1)*CHUNK_SIZE, current_tkv)
-                        
+                        chunk_start = -current_tkv + chunk_j * CHUNK_SIZE
+                        chunk_end = -current_tkv + min(
+                            (chunk_j + 1) * CHUNK_SIZE, current_tkv
+                        )
+
                         ids_length = input_ids[seq_i].shape[0]
-                        input_ids_ij = input_ids[seq_i][chunk_start+ids_length:chunk_end+ids_length].unsqueeze(0).clone()
+                        input_ids_ij = (
+                            input_ids[seq_i][
+                                chunk_start + ids_length : chunk_end + ids_length
+                            ]
+                            .unsqueeze(0)
+                            .clone()
+                        )
                         slots_length = len(slot_mapping[seq_i])
                         slot_mapping_ij = (
-                            torch.tensor(slot_mapping[seq_i][chunk_start+slots_length:chunk_end+slots_length], dtype=torch.int64)
+                            torch.tensor(
+                                slot_mapping[seq_i][
+                                    chunk_start + slots_length : chunk_end
+                                    + slots_length
+                                ],
+                                dtype=torch.int64,
+                            )
                             .unsqueeze(0)
                             .clone()
                         )
                         pids_length = kwargs["position_ids"][seq_i].shape[0]
                         position_ids_ij = (
-                            kwargs["position_ids"][seq_i][chunk_start+pids_length:chunk_end+pids_length].unsqueeze(0).clone()
+                            kwargs["position_ids"][seq_i][
+                                chunk_start + pids_length : chunk_end + pids_length
+                            ]
+                            .unsqueeze(0)
+                            .clone()
                         )
 
                         # This view will result in a discontiguous tensor (creates a new graph during compile)
                         # For this reason, we must explicitly make contiguous
                         if left_padded_prompt_mask_ij is None:
-                            left_padded_prompt_mask_ij = (position_ids_ij == 0).sum(dim=1) - 1
-                        current_tkv_mask_ij = torch.min(torch.tensor((chunk_j+1)*CHUNK_SIZE, dtype=torch.int64), current_tkv).unsqueeze(0)
+                            left_padded_prompt_mask_ij = (position_ids_ij == 0).sum(
+                                dim=1
+                            ) - 1
+                        current_tkv_mask_ij = torch.min(
+                            torch.tensor((chunk_j + 1) * CHUNK_SIZE, dtype=torch.int64),
+                            current_tkv,
+                        ).unsqueeze(0)
 
                         table_length = len(block_table[seq_i])
                         block_start = -current_tkv // BLOCK_SIZE + table_length
                         block_end = chunk_end // BLOCK_SIZE + table_length
-                        block_table_ij = torch.tensor(block_table[seq_i][block_start:block_end], dtype=torch.int64).unsqueeze(0)
+                        block_table_ij = torch.tensor(
+                            block_table[seq_i][block_start:block_end], dtype=torch.int64
+                        ).unsqueeze(0)
 
                         chunked_kwargs = {
                             "attn_name": kwargs["attn_name"],

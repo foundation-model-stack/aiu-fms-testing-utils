@@ -786,7 +786,9 @@ def infer(use_cache, do_sample, warmup):
         attention_specific_kwargs["contiguous_cache"] = True
         attention_specific_kwargs["max_seq_len"] = ids.shape[1] + args.max_new_tokens
     elif "paged" in attn_name:
-        attention_specific_kwargs["chunked_prefill"] = args.chunked_prefill if "paged" in attn_name else None
+        attention_specific_kwargs["chunked_prefill"] = (
+            args.chunked_prefill if "paged" in attn_name else None
+        )
 
     result = generate(
         model,
