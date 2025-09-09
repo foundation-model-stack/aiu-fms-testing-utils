@@ -527,7 +527,7 @@ def sample_sharegpt_requests(
         enforce_sizes = []
 
     # Load the dataset.
-    with open(dataset_path, encoding="utf-8") as f:
+    with open(dataset_path, 'r', encoding="utf-8") as f:
         dataset = json.load(f)
     # Filter out the conversations with less than 2 turns.
     dataset = [data for data in dataset if len(data["conversations"]) >= 2]
