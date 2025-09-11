@@ -548,17 +548,13 @@ def _get_common_model_kwargs(is_gptq, model_path):
 
 # NOTE micro_model_state_dict should be None if USE_MICRO_MODELS is true
 # Otherwise it should be model.state_dict() where model is the AIU model
-def _get_cpu_model(model_path, gptq_kwargs, micro_model_state_dict=None):
-    is_gptq = len(gptq_kwargs) != 0
-    model_kwargs = _get_common_model_kwargs(is_gptq, model_path)
-
+def _get_cpu_model(model_path, is_gptq, is_fp8, micro_model_state_dict=None, **kwargs):
     # prepare the cpu model
     validation_model = get_model(
         device_type="cpu",
-        data_type=None if is_gptq else torch.float32,
+        data_type=None if is_fp8 or is_gptq else torch.float32,
         fused_weights=False,
-        **gptq_kwargs,
-        **model_kwargs,
+        **kwargs,
     )
 
     # This is a micro model, so we need to copy the state dict directly.
@@ -568,32 +564,6 @@ def _get_cpu_model(model_path, gptq_kwargs, micro_model_state_dict=None):
         )
     return validation_model
 
-
-def _get_aiu_model(model_path, gptq_kwargs, persistent_model_inst):
-    is_gptq = len(gptq_kwargs) != 0
-    is_fp8 = "fp8" in ATTN_NAME
-    model_kwargs = _get_common_model_kwargs(is_gptq, model_path)
-
-    # prepare the AIU model; use the persistent model fixure if the test has it
-    if persistent_model_inst is not None:
-        aiu_model = persistent_model_inst.get_or_create(
-            is_gptq, is_fp8, **gptq_kwargs, **model_kwargs
-        )
-    # otherwise create it directly
-    else:
-        aiu_model = get_model(
-            device_type="cpu",
-            data_type=None if is_gptq else torch.float16,
-            fused_weights=False,
-            **gptq_kwargs,
-            **model_kwargs,
-        )
-        aiu_model.eval()
-        aiu_model.compile(
-            backend="sendnn",
-            options={"sendnn.dynamic": COMPILE_DYNAMIC_SENDNN},
-        )
-    return aiu_model
 
 
 def _get_device_validation_information(
@@ -931,16 +901,22 @@ def test_common_shapes(
     # we don't currently support inferring gptq from get_model, so we must use an adapter with hf_configured
     gptq_kwargs_aiu, gptq_kwargs_cpu = __maybe_get_gptq_kwargs(model_path)
 
-    model = _get_aiu_model(
-        model_path,
-        gptq_kwargs_aiu,
-        persistent_model_inst=persistent_model,
+    is_gptq = len(gptq_kwargs_aiu) != 0
+    is_fp8 = "fp8" in ATTN_NAME
+    model_kwargs = _get_common_model_kwargs(is_gptq, model_path)
+
+    # Get the AIU model w/ the persistent model fixture
+    model = persistent_model.get_or_create(
+        is_gptq, is_fp8, **gptq_kwargs_aiu, **model_kwargs
     )
 
     validation_model = _get_cpu_model(
         model_path,
-        gptq_kwargs_cpu,
+        is_gptq,
+        is_fp8,
         micro_model_state_dict=model.state_dict() if USE_MICRO_MODELS else None,
+        **gptq_kwargs_cpu,
+        **model_kwargs,
     )
 
     _run_cpu_aiu_validation_test(
