@@ -603,8 +603,6 @@ def _get_device_validation_information(
         if cpu_validation_info is not None:
             return cpu_validation_info
 
-    # Don't save iter 0 for AIU only
-    skip_save = device == "aiu" and token_iter == 0
     # overrides for validation info that are device specific
     device_dependent_kwargs = {}
     if device == "cpu":
@@ -623,7 +621,7 @@ def _get_device_validation_information(
         **extra_kwargs,
         **device_dependent_kwargs,
     )
-    if not skip_save and SAVE_VALIDATION_INFO_OUTPUTS:
+    if SAVE_VALIDATION_INFO_OUTPUTS:
         dprint(f"saving {device} validation for - iter={token_iter}")
         validation_info.save(
             __get_validation_info_full_path(
