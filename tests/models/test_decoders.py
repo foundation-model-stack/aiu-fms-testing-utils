@@ -548,7 +548,7 @@ def _get_common_model_kwargs(is_gptq, model_path):
 
 # NOTE micro_model_state_dict should be None if USE_MICRO_MODELS is true
 # Otherwise it should be model.state_dict() where model is the AIU model
-def _get_cpu_model(model_path, is_gptq, is_fp8, micro_model_state_dict=None, **kwargs):
+def _get_cpu_model(is_gptq, is_fp8, micro_model_state_dict=None, **kwargs):
     # prepare the cpu model
     validation_model = get_model(
         device_type="cpu",
@@ -911,7 +911,6 @@ def test_common_shapes(
     )
 
     validation_model = _get_cpu_model(
-        model_path,
         is_gptq,
         is_fp8,
         micro_model_state_dict=model.state_dict() if USE_MICRO_MODELS else None,
