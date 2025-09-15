@@ -6,6 +6,8 @@ from fms.utils.generation import pad_input_ids
 import itertools
 import torch
 from torch import distributed as dist
+from torch.fx.experimental import _config as fx_config
+
 from aiu_fms_testing_utils.testing.validation import (
     extract_validation_information,
     LogitsExtractorHook,
@@ -400,6 +402,7 @@ class PersistentModel:
             self.__maybe_prepare_fp8_weights(model, is_fp8)
 
             model.eval()
+            fx_config.backed_size_oblivious = True
             model.compile(
                 backend="sendnn", options={"sendnn.dynamic": compile_dynamic_sendnn}
             )

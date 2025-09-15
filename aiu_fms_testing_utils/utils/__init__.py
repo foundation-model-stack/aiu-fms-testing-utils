@@ -77,8 +77,9 @@ def warmup_model(
     _max_new_tokens = max_new_tokens
     if compile_dynamic_sendnn:
         _max_new_tokens = 2
-        # always warmup with batch size 2 when using attn_type=paged
-        if "paged" in attn_name:
+        # When performing fp8 paged attention, we must pad to batch size 2
+        # this is fixed in torch >= 2.8
+        if attn_name == "spyre_paged_attn_fp8":
             _warmup_input_ids, _extra_kwargs = adjust_inputs_to_batch(
                 input_ids,
                 **extra_kwargs,

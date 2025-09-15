@@ -14,6 +14,8 @@ from aiu_fms_testing_utils.testing.validation import (
     top_k_loss_calculator,
 )
 from torch import distributed as dist
+from torch.fx.experimental import _config as fx_config
+
 from aiu_fms_testing_utils.utils import sample_sharegpt_requests, warmup_model
 from transformers import AutoTokenizer
 import json
@@ -263,6 +265,7 @@ model = get_model(
 )
 
 model.eval()
+fx_config.backed_size_oblivious = True
 model.compile(backend="sendnn", options={"sendnn.dynamic": True})
 
 __maybe_prepare_fp8_weights(model, is_fp8)

@@ -15,6 +15,7 @@ from aiu_fms_testing_utils.utils.aiu_setup import dprint, rank, local_rank, worl
 import numpy as np
 import torch
 from torch import distributed as dist
+from torch.fx.experimental import _config as fx_config
 from fms.models import get_model, register_model
 from fms.models.llama import LLaMAConfig, _llama_factory_factory
 from fms.utils import generation
@@ -587,6 +588,7 @@ dprint(f"loading complete, took {loading_model_time:.3f}s")
 
 if args.compile:
     dprint("compiling model")
+    fx_config.backed_size_oblivious = True
     if is_aiu_backend:
         model.compile(
             backend="sendnn", options={"sendnn.dynamic": args.compile_dynamic_sendnn}

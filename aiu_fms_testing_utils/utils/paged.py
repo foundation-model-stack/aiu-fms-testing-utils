@@ -86,13 +86,15 @@ def generate(
     if extra_kwargs is not None:
         kwargs.update(extra_kwargs)
 
+    is_fp8 = "fp8" in kwargs["attn_name"]
     if isinstance(input_ids, torch.Tensor):
         if len(input_ids.shape) == 1:
             input_ids = input_ids.unsqueeze(0)
 
         is_batch = input_ids.shape[0] > 1
-        # our model requires batch dimension
-        if not is_batch:
+        # our model requires batch dimension when running with fp8
+        # this is fixed in torch >= 2.8
+        if is_fp8 and not is_batch:
             input_ids, kwargs = adjust_inputs_to_batch(input_ids, **kwargs)
     else:
         raise TypeError("input_ids must be one of Tensor or List")
@@ -345,7 +347,7 @@ def generate(
                 [
                     (
                         [b_seq[0]]
-                        * (max(2, max([len(b) for b in block_table])) - len(b_seq))
+                        * (max(2 if is_fp8 else 1, max([len(b) for b in block_table])) - len(b_seq))
                     )
                     + b_seq
                     for b_seq in block_table
@@ -409,16 +411,18 @@ def generate(
             _logits = logits
             _next_val = next_val
             # since we cannot handle batch size 1 and mimic with batch size 2, we need to only pass in the first logits/next_val
-            if not is_batch:
+            if is_fp8 and not is_batch:
                 _logits = logits[0].unsqueeze(0)
                 _next_val = _next_val[0].unsqueeze(0)
             _next_val, kwargs = post_iteration_hook(
                 i + prompt_length, _logits, _next_val, kwargs
             )
             # we need to normalize back to batch size 2
-            if not is_batch:
+            if is_fp8 and not is_batch:
                 # we need to do an in-place copy here for the same reason we do in-place copy for injecting tokens
                 next_val.copy_(torch.cat((_next_val, _next_val), dim=0))
+            else:
+                next_val = _next_val
 
         result = torch.cat((result, next_val), dim=-1)
 
