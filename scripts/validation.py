@@ -710,7 +710,7 @@ aiu_validation_info = extract_validation_information(
     args.max_new_tokens,
     post_iteration_hook,
     eos_token_id=None if args.no_early_termination else tokenizer.eos_token_id,
-    only_last_token=True,
+    last_n_tokens=1,
     timing=args.timing,
     **padding_kwargs,
 )

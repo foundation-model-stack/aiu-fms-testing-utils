@@ -85,7 +85,7 @@ def warmup_model(
                 **extra_kwargs,
             )
 
-    extra_kwargs = {**_extra_kwargs, "only_last_token": "paged" not in attn_name}
+    extra_kwargs = {**_extra_kwargs, "last_n_tokens": 64 if "paged" in attn_name else 1}
 
     with stagger_region(stagger_update_lazyhandle):
         with torch_sendnn.warmup_mode():

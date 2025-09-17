@@ -588,7 +588,7 @@ def test_common_shapes(
         input_ids,
         max_new_tokens,
         None,
-        only_last_token="paged" not in ATTN_NAME,
+        last_n_tokens=64 if "paged" in ATTN_NAME else 1,
         timing=TIMING,
         **extra_kwargs,
     )
@@ -689,7 +689,7 @@ def test_common_shapes(
                 input_ids,
                 max_new_tokens,
                 GoldenTokenHook(cpu_static_tokens),
-                only_last_token=ATTN_TYPE != "paged",
+                last_n_tokens=64 if "paged" in ATTN_NAME else 1,
                 timing=TIMING,
                 **extra_kwargs,
             )
