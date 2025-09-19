@@ -81,6 +81,7 @@ parser.add_argument(
 parser.add_argument(
     "--program_criteria_json_path",
     type=str,
+    required=True,
     help="path to json file containing the program criteria list",
 )
 parser.add_argument(

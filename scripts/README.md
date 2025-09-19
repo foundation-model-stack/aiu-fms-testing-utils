@@ -76,3 +76,20 @@ python3 scripts/validation.py --architecture=hf_configured --model_path=/home/de
 
 To run a logits-based validation, pass `--validation_level=1` to the validation script. This will check for the logits output to match at every step of the model through cross-entropy loss. You can control the acceptable threshold with `--logits_loss_threshold`.
 
+## How to run and validate paged programs
+
+The [drive_paged_programs.py](https://github.com/foundation-model-stack/aiu-fms-testing-utils/blob/main/scripts/drive_paged_programs.py) is designed to run and validate paged programs using a specified model variant. It supports different attention types, including `paged` and `paged_fp8`, with the default set to `paged`. The supported dataset types are `sharegpt` and `rag_factoid`, with the default set to `sharegpt`. The script can run tests in a distributed environment, utilizing multiple instances for faster execution. To see the description of various command-line arguments that the script can parse, run it with `--help`. The following examples demonstrate the usage of the script.
+
+```bash
+# Run with 4K context length
+VLLM_DT_MAX_BATCH_SIZE=4 VLLM_DT_MAX_CONTEXT_LEN=4096 HF_HUB_CACHE=/home/senuser/models/huggingface_cache/hub DT_DEEPRT_VERBOSE=-1 DTLOG_LEVEL=error torchrun --nproc-per-node=4 /home/senuser/aiu-fms-testing-utils/scripts/drive_paged_programs.py --max_new_tokens=8 --model_variant=ibm-granite/granite-3.3-8b-instruct --program_criteria_json_path=/home/senuser/models/fms-tests-dpp-programs/dpp-4k.json --dataset_path=/home/senuser/models/ShareGPT_V3_unfiltered_cleaned_split.json --test_type=tokens --distributed
+
+# Run with 8K context length
+VLLM_DT_MAX_BATCH_SIZE=16 VLLM_DT_MAX_CONTEXT_LEN=8192 HF_HUB_CACHE=/home/senuser/models/huggingface_cache/hub DT_DEEPRT_VERBOSE=-1 DTLOG_LEVEL=error torchrun --nproc-per-node=4 /home/senuser/aiu-fms-testing-utils/scripts/drive_paged_programs.py --max_new_tokens=8 --model_variant=ibm-granite/granite-3.3-8b-instruct --program_criteria_json_path=/home/senuser/models/fms-tests-dpp-programs/dpp-8k-16.json --dataset_path=/home/senuser/models/ShareGPT_V3_unfiltered_cleaned_split.json --dataset_type=sharegpt --test_type=tokens --distributed
+
+# Run with 16K context length using the rag_factoid dataset type and a program with a specific batch size and prompt length
+VLLM_DT_MAX_BATCH_SIZE=4 VLLM_DT_MAX_CONTEXT_LEN=16384 HF_HUB_CACHE=/home/senuser/models/huggingface_cache/hub DT_DEEPRT_VERBOSE=-1 DTLOG_LEVEL=error torchrun --nproc-per-node=4 /home/senuser/aiu-fms-testing-utils/scripts/drive_paged_programs.py --max_new_tokens=8 --model_variant=ibm-granite/granite-3.3-8b-instruct --program_criteria_json_path=/home/senuser/models/fms-tests-dpp-programs/dpp-16k.json --dataset_path=/home/senuser/models/long_context_factoid_post_process.jsonl --dataset_type=rag_factoid --test_type=tokens --distributed --programs 0:4,16256
+
+# Run with a 32K context length using the rag_factoid dataset type and a program with any batch size and a specific prompt length
+EN_PREFILL_OPT=1 VLLM_DT_MAX_BATCH_SIZE=4 VLLM_DT_MAX_CONTEXT_LEN=32768 HF_HUB_CACHE=/home/senuser/models/huggingface_cache/hub DT_DEEPRT_VERBOSE=-1 DTLOG_LEVEL=error torchrun --nproc-per-node=4 /home/senuser/aiu-fms-testing-utils/scripts/drive_paged_programs.py --max_new_tokens=8 --model_variant=ibm-granite/granite-3.3-8b-instruct --program_criteria_json_path=/home/senuser/models/fms-tests-dpp-programs/dpp-32k.json --dataset_path=/home/senuser/models/long_context_factoid_post_process.jsonl --dataset_type=rag_factoid --test_type=tokens --distributed --programs 0:0,32640
+```
