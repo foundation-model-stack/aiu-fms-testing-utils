@@ -1,4 +1,5 @@
 import argparse
+from dataclasses import dataclass
 import datetime
 import itertools
 import json
@@ -367,6 +368,34 @@ if USE_DISTRIBUTED:
     # this is needed since otherwise we may run into a race condition
     torch.distributed.barrier()
 
+
+@dataclass
+class ProgramInfo:
+    program_id: int
+    batch_size_limit: int
+    batch_size_limit_type: str
+    prompt_length_limit: int
+    prompt_length_limit_type: str
+
+
+def parse_program_limit(limit_str: str) -> tuple[int, str]:
+    valid_limit_types = [">", "<", "==", "<=", ">="]
+
+    # Default limit to min to maintain backwards compat
+    try:
+        limit_type = ">="
+        limit_val = int(limit_str)
+    except ValueError:
+        limit_type = None
+        for valid_limit_type in valid_limit_types:
+            if valid_limit_type in limit_str:
+                limit_type = valid_limit_type
+        if limit_type is None:
+            raise ValueError("Program not well formatted, wrong limit type")
+        limit_val = int(limit_str[len(limit_type) :])
+    return limit_val, limit_type
+
+
 with open(args.program_criteria_json_path, "r") as f:
     program_criteria_json_list = json.load(f)["programs"]
     program_criteria_list = []
@@ -382,21 +411,41 @@ with open(args.program_criteria_json_path, "r") as f:
         )
 
     programs = []
+
     for program_str in args.programs:
         enforce_prompt_split = program_str.split(":")
         if len(enforce_prompt_split) == 1:
             programs.append(
-                (int(enforce_prompt_split[0]), 0, 0)
+                ProgramInfo(int(enforce_prompt_split[0]), 0, ">=", 0, ">=")
             )  # this will always satisfy
         else:
             program_id = int(enforce_prompt_split[0])
             enforce_batch_size, enforce_prompt_length = (
-                int(_) for _ in enforce_prompt_split[1].split(",")
+                _ for _ in enforce_prompt_split[1].split(",")
             )
-            programs.append((program_id, enforce_batch_size, enforce_prompt_length))
+
+            # Default limit to min to maintain backwards compat
+            enforce_batch_size_val, enforce_batch_size_type = parse_program_limit(
+                enforce_batch_size
+            )
+            enforce_prompt_length_val, enforce_prompt_length_type = parse_program_limit(
+                enforce_prompt_length
+            )
+
+            programs.append(
+                ProgramInfo(
+                    program_id,
+                    enforce_batch_size_val,
+                    enforce_batch_size_type,
+                    enforce_prompt_length_val,
+                    enforce_prompt_length_type,
+                )
+            )
 
     if len(programs) == 0:
-        programs = [(p.program_id, 0, 0) for p in program_criteria_list]
+        programs = [
+            ProgramInfo(p.program_id, 0, ">=", 0, ">=") for p in program_criteria_list
+        ]
 
 
 # FIXME: filter condition for this on prompt and batch
@@ -413,7 +462,13 @@ for v in program_map.values():
 
 # select prompts that fit the batch size criteria
 valid_prompts = []
-for program_id, min_batch_size, min_prompt_length in programs:
+for program_info in programs:
+    program_id = program_info.program_id
+    batch_size_limit = program_info.batch_size_limit
+    batch_size_limit_type = program_info.batch_size_limit_type
+    prompt_length_limit = program_info.prompt_length_limit
+    prompt_length_limit_type = program_info.prompt_length_limit_type
+
     found_valid_prompt = False
     valid_map_keys = [
         k for k in program_map.keys() if k[0] == program_criteria_list[program_id]
@@ -421,11 +476,15 @@ for program_id, min_batch_size, min_prompt_length in programs:
 
     if len(valid_map_keys) > 0:
         for valid_prompt_shape in program_map.get(valid_map_keys[0], []):
-            # make sure the criteria for min batch and min prompt is satisfied
-            if (
-                valid_prompt_shape[0] >= min_batch_size
-                and valid_prompt_shape[1] >= min_prompt_length
-            ):
+            # make sure the criteria for batch limit and prompt limit is satisfied
+            # eval is safe here because we have limited what type and limit can be before
+            batch_check = eval(
+                f"valid_prompt_shape[0] {batch_size_limit_type} {batch_size_limit}"
+            )
+            prompt_check = eval(
+                f"valid_prompt_shape[1] {prompt_length_limit_type} {prompt_length_limit}"
+            )
+            if batch_check and prompt_check:
                 valid_prompts.append((program_id, valid_prompt_shape))
                 found_valid_prompt = True
                 break
@@ -433,7 +492,7 @@ for program_id, min_batch_size, min_prompt_length in programs:
     if not found_valid_prompt:
         if local_rank == 0:
             dprint(
-                f"no valid prompt shape was found which would result in program {program_id} that satisfied min_batch={min_batch_size} and min_prompt_length={min_prompt_length}"
+                f"no valid prompt shape was found which would result in program {program_id} that satisfied batch{batch_size_limit_type}{batch_size_limit} and prompt_length{prompt_length_limit_type}{prompt_length_limit}"
             )
 
 
