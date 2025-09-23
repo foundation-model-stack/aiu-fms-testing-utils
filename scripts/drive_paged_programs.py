@@ -7,6 +7,7 @@ import os
 import random
 import time
 from itertools import dropwhile
+import re
 
 import torch
 from fms.models import get_model
@@ -379,7 +380,7 @@ class ProgramInfo:
 
 
 def parse_program_limit(limit_str: str) -> tuple[int, str]:
-    valid_limit_types = [">", "<", "==", "<=", ">="]
+    matcher = re.compile(r"^(<|>|<=|>=|==)(\d+)")
 
     # Default limit to min to maintain backwards compat
     try:
@@ -387,12 +388,11 @@ def parse_program_limit(limit_str: str) -> tuple[int, str]:
         limit_val = int(limit_str)
     except ValueError:
         limit_type = None
-        for valid_limit_type in valid_limit_types:
-            if valid_limit_type in limit_str:
-                limit_type = valid_limit_type
-        if limit_type is None:
+        match = matcher.fullmatch(limit_str)
+        if match is None:
             raise ValueError("Program not well formatted, wrong limit type")
-        limit_val = int(limit_str[len(limit_type) :])
+        limit_type = match.group(1)
+        limit_val = int(match.group(2))
     return limit_val, limit_type
 
 
