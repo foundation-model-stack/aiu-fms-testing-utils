@@ -493,7 +493,21 @@ if custom_shape:
     for program_criteria_seq, valid_prompt_shapes in program_map.items():
         for valid_prompt_shape in valid_prompt_shapes:
             if valid_prompt_shape == custom_shape:
-                valid_prompts = [(program_criteria_seq[0].program_id, custom_shape)]
+                enforce_sizes = [valid_prompt_shape[1]]
+                input_ids, extra_kwargs = __prepare_inputs(
+                    valid_prompt_shape[0],
+                    valid_prompt_shape[1],
+                    tokenizer,
+                    enforce_sizes=enforce_sizes,
+                )
+                valid_prompts = [
+                    (
+                        program_criteria_seq[0].program_id,
+                        custom_shape,
+                        input_ids,
+                        extra_kwargs,
+                    )
+                ]
                 break
         if len(valid_prompts) > 0:
             break
@@ -533,9 +547,46 @@ else:
                     f"valid_prompt_shape[1] {prompt_length_limit_type} {prompt_length_limit}"
                 )
                 if batch_check and prompt_check:
-                    valid_prompts.append((program_seq_key[0], valid_prompt_shape))
-                    used_keys.add(program_seq_key[0])
-                    break
+                    # when we enforce homogeneous prompt programs, we will cycle through all sizes between the min of a program and the valid prompt sequence length
+                    # if there does not exist enough sequence sizes between this range, we will cycle back to the beginning
+                    # in the event we don't have enough sequences that satisfy the enforce_sizes, we will repeat sequences and warn the user
+                    enforce_sizes = [valid_prompt_shape[1]]
+                    if args.enforce_homogeneous_prompt_programs:
+                        # this will get the number of bits for the sequence length and shift to get the power of 2 that is less than or equal to the sequence length
+                        tkv_cutoff = 1 << (valid_prompt_shape[1].bit_length() - 1)
+                        possible_seq_lengths = [
+                            _ for _ in range(tkv_cutoff, valid_prompt_shape[1], 64)
+                        ]
+                        # favor sequences that are close to the valid prompt length
+                        possible_seq_lengths.reverse()
+                        enforce_sizes = enforce_sizes + list(
+                            itertools.islice(
+                                itertools.cycle(possible_seq_lengths),
+                                valid_prompt_shape[0] - 1,
+                            )
+                        )
+                    try:
+                        input_ids, extra_kwargs = __prepare_inputs(
+                            valid_prompt_shape[0],
+                            valid_prompt_shape[1],
+                            tokenizer,
+                            enforce_sizes=enforce_sizes,
+                        )
+                        valid_prompts.append(
+                            (
+                                program_seq_key[0],
+                                valid_prompt_shape,
+                                input_ids,
+                                extra_kwargs,
+                            )
+                        )
+                        used_keys.add(program_seq_key[0])
+                        break
+                    except ValueError:
+                        dprint(
+                            f"No valid sample exists in dataset for this input shape {valid_prompt_shape}"
+                        )
+
         if len(used_keys) == 0 and local_rank == 0:
             dprint(
                 f"no valid prompt shape was found which would result in program {program_id} that satisfied batch{batch_size_limit_type}{batch_size_limit} and prompt_length{prompt_length_limit_type}{prompt_length_limit}"
@@ -558,24 +609,7 @@ def __metric_calculator(r: torch.Tensor, t: torch.Tensor):
 
 failed_cases = []
 # for each program and valid prompt (batch size, sequence length)
-for program_id, valid_prompt in valid_prompts:
-    # when we enforce homogeneous prompt programs, we will cycle through all sizes between the min of a program and the valid prompt sequence length
-    # if there does not exist enough sequence sizes between this range, we will cycle back to the beginning
-    # in the event we don't have enough sequences that satisfy the enforce_sizes, we will repeat sequences and warn the user
-    enforce_sizes = [valid_prompt[1]]
-    if args.enforce_homogeneous_prompt_programs:
-        # this will get the number of bits for the sequence length and shift to get the power of 2 that is less than or equal to the sequence length
-        tkv_cutoff = 1 << (valid_prompt[1].bit_length() - 1)
-        possible_seq_lengths = [_ for _ in range(tkv_cutoff, valid_prompt[1], 64)]
-        # favor sequences that are close to the valid prompt length
-        possible_seq_lengths.reverse()
-        enforce_sizes = enforce_sizes + list(
-            itertools.islice(itertools.cycle(possible_seq_lengths), valid_prompt[0] - 1)
-        )
-
-    input_ids, extra_kwargs = __prepare_inputs(
-        valid_prompt[0], valid_prompt[1], tokenizer, enforce_sizes=enforce_sizes
-    )
+for program_id, valid_prompt, input_ids, extra_kwargs in valid_prompts:
     extra_kwargs["attn_name"] = ATTN_NAME
     if (
         "granite-3.3-8b-instruct" in model_variant
