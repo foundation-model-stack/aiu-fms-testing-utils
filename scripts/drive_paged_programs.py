@@ -245,7 +245,7 @@ max_tkv = int(os.environ["VLLM_DT_MAX_CONTEXT_LEN"])
 
 def __prepare_inputs(batch_size, seq_length, tokenizer, enforce_sizes=[], seed=0):
     start = time.time()
-    prompts_and_sizes = sampler(
+    prompts_and_sizes, sample_key = sampler(
         DATASET_PATH,
         batch_size,
         tokenizer,
@@ -254,6 +254,7 @@ def __prepare_inputs(batch_size, seq_length, tokenizer, enforce_sizes=[], seed=0
         seed,
         enforce_sizes=enforce_sizes,
         truncation=allow_truncation,
+        return_key=True,
     )
     end = time.time()
     if local_rank == 0:
@@ -274,7 +275,7 @@ def __prepare_inputs(batch_size, seq_length, tokenizer, enforce_sizes=[], seed=0
 
     input_ids, extra_kwargs = pad_input_ids(prompt_list, min_pad_length=seq_length)
     extra_kwargs["mask"] = extra_kwargs["mask"].to(torch.float16)
-    return input_ids, extra_kwargs
+    return input_ids, extra_kwargs, sample_key
 
 
 def __maybe_prepare_fp8_weights(model_in, is_fp8):
@@ -367,13 +368,14 @@ if not args.skip_validation:
 
 # warmup with any input so compiler produces criteria json
 # TODO: Swap this with __prepare_inputs once fix for shape_id is available
-# input_ids, extra_kwargs = __prepare_inputs(2, max_tkv, tokenizer)
+# input_ids, extra_kwargs, sample_key = __prepare_inputs(2, max_tkv, tokenizer)
 prompt_list = [torch.arange(0, 64, dtype=torch.int64)]
 # matching vllm warmup to pad to 2 on fp8, and no pad for fp16
 if is_fp8:
     prompt_list = prompt_list * 2
 input_ids, extra_kwargs = pad_input_ids(prompt_list, min_pad_length=64)
 extra_kwargs["mask"] = extra_kwargs["mask"].to(torch.float16)
+
 extra_kwargs["attn_name"] = ATTN_NAME
 if (
     "granite-3.3-8b-instruct" in model_variant
@@ -657,6 +659,7 @@ for program_id, valid_prompt, input_ids, extra_kwargs in valid_prompts:
                         0,
                         ATTN_NAME,
                         dtype=CPU_DTYPE,
+                        sample_key=sample_key,
                     )
                 )
 
