@@ -425,7 +425,7 @@ def get_validation_info_path(
     return full_path
 
 
-def __decrement_version(version: Tuple[int, int, int]):
+def __decrement_version(version: Tuple[int, int, int], max_minor=25, max_patch=25):
     """
     Function designed to prevent triple nested for loop while decrementing version
     """
@@ -433,9 +433,9 @@ def __decrement_version(version: Tuple[int, int, int]):
     if patch > 0:
         return (major, minor, patch - 1)
     elif minor > 0:
-        return (major, minor - 1, 0)
+        return (major, minor - 1, max_patch)
     elif major > 0:
-        return (major - 1, 0, 0)
+        return (major - 1, max_minor, max_patch)
     else:
         return None
 

@@ -7,6 +7,7 @@ from aiu_fms_testing_utils.testing.validation import (
     load_validation_information,
     get_validation_info_path,
     find_validation_info_path,
+    __decrement_version,
 )
 from aiu_fms_testing_utils._version import version_tuple
 from fms.models import get_model
@@ -210,3 +211,30 @@ def test_find_validation_info_path(
         match = re.search(r"(\d+)\.(\d+)\.(\d+)", found_path)
         found_version = (int(match.group(1)), int(match.group(2)), int(match.group(3)))
         assert found_version == expected_version
+
+
+@pytest.mark.parametrize(
+    "max_minor,max_patch,current_version",
+    [
+        [9, 9, (2, 2, 1)],
+        [5, 4, (2, 2, 1)],
+        [9, 9, (1, 2, 3)],
+        [6, 3, (1, 2, 3)],
+        [9, 9, (0, 3, 0)],
+    ],
+)
+def test_decrement_version(max_minor, max_patch, current_version):
+    major, minor, patch = current_version
+    counter = 0
+    while current_version is not None:
+        current_version = __decrement_version(
+            current_version, max_minor=max_minor, max_patch=max_patch
+        )
+        counter += 1
+    assert (
+        counter
+        == major * (max_minor + 1) * (max_patch + 1)
+        + minor * (max_patch + 1)
+        + patch
+        + 1
+    )
