@@ -1,3 +1,5 @@
+import json
+import re
 import pytest
 import os
 from subprocess import Popen, PIPE
@@ -144,6 +146,7 @@ def test_inference_script(
     for common_assert in asserts:
         assert common_assert in result_text
 
+
 program_possibilities = [None, "*:0,==256", "?:2,>=256", "?:==2,<=256"]
 max_new_tokens = [8, 128]
 dataset_type = ["sharegpt", "custom"]
@@ -153,20 +156,31 @@ prioritize_large_batch_sizes = [True, False]
 enforce_homogeneous_prompt_programs = [True, False]
 attn_types = ["paged", "paged_fp8"]
 
+
 @pytest.fixture(scope="session")
 def shared_tmp_path(tmp_path_factory):
     return tmp_path_factory.mktemp("shared_data")
 
+
 def execute_dpp(
-    attn_type, programs, max_new_tokens, dataset_type, test_type, skip_validation, enforce_homogeneous_prompt_programs, shared_tmp_path
+    attn_type,
+    programs,
+    max_new_tokens,
+    dataset_type,
+    test_type,
+    skip_validation,
+    enforce_homogeneous_prompt_programs,
+    shared_tmp_path,
 ):
     current_env["VLLM_DT_MAX_BATCH_TKV_LIMIT"] = "1024"
     current_env["VLLM_DT_MAX_CONTEXT_LEN"] = "512"
     current_env["VLLM_DT_MAX_BATCH_SIZE"] = "2"
     Path(os.path.join(shared_tmp_path, "sendnn_cache")).mkdir(exist_ok=True)
-    current_env["TORCH_SENDNN_CACHE_DIR"] = os.path.join(shared_tmp_path, "sendnn_cache")
+    os.environ.setdefault(
+        "TORCH_SENDNN_CACHE_DIR", os.path.join(shared_tmp_path, "sendnn_cache")
+    )
     current_env["TORCH_SENDNN_CACHE_ENABLE"] = "1"
-    
+
     command_list = [
         "python3",
         f"{DPP_FILE_PATH}",
@@ -177,27 +191,31 @@ def execute_dpp(
 
     # add model variant
     if attn_type == "paged":
-        command_list += [f"--model_variant=ibm-granite/granite-3.3-8b-instruct"]
+        command_list += ["--model_variant=ibm-granite/granite-3.3-8b-instruct"]
     else:
         # FIXME: added fp8 paged
         pass
 
     # add programs
     if programs is not None:
-        command_list += [f"--programs", programs]
+        command_list += ["--programs", programs]
 
     # add max_new_tokens
     command_list += [f"--max_new_tokens={max_new_tokens}"]
-    
+
     # add dataset_path and dataset_type
     if dataset_type == "sharegpt":
-        dataset_path = os.path.join(SHARED_DIR, "ShareGPT_V3_unfiltered_cleaned_split.json")
+        dataset_path = os.path.join(
+            SHARED_DIR, "ShareGPT_V3_unfiltered_cleaned_split.json"
+        )
     elif dataset_type == "custom":
         dataset_path = os.path.join(shared_tmp_path, "custom_text.txt")
-        with open(dataset_path, 'w') as file:
+        with open(dataset_path, "w") as file:
             file.write("This is the first line:")
             file.write("This is the second line:")
-            file.write("This is the third line, it should have more tokens than the first 2:")
+            file.write(
+                "This is the third line, it should have more tokens than the first 2:"
+            )
     else:
         pytest.fail("please provide a valid dataset_type")
     command_list += [f"--dataset_type={dataset_type}", f"--dataset_path={dataset_path}"]
@@ -205,7 +223,7 @@ def execute_dpp(
     # add test_type
     if test_type is not None:
         command_list += [f"--test_type={test_type}"]
-    
+
     if skip_validation:
         command_list += ["--skip_validation"]
 
@@ -213,61 +231,47 @@ def execute_dpp(
         command_list += ["--enforce_homogeneous_prompt_programs"]
 
     # add program criteria path
-    program_criteria_path = os.path.join(shared_tmp_path, "program_critera.json")
-    command_list += [f"--program_criteria_json_path={program_criteria_path}"]
-    
+    command_list += [
+        f"--program_criteria_json_path={os.environ['DT_PROG_CRITERIA_FILEPATH']}"
+    ]
+
     return execute_script(command_list)
 
-dpp_possibilities = []
-dpp_possibilities.append(("paged", None, 8, "sharegpt", "metrics", False, False)) # metrics and run all programs
-dpp_possibilities.append(("paged", "*:0,==256", 65, "sharegpt", "tokens", False, False)) # tokens and run all programs that satisfy 256 sequence length
-dpp_possibilities.append(("paged", "*:>=2,0", 65, "sharegpt", None, True, True)) # metrics and run all programs that have >=2 batch size
-dpp_possibilities.append(("paged", None, 8, "custom", "tokens", False, False)) # tokens running with specific custom dataset
 
-"""
-{
-  "programs" : [
-    {
-      "max_batch" : 2,
-      "max_tkv" : 512,
-      "batch_granularity" : 2,
-      "tkv_granularity" : 512
-    },
-    {
-      "max_batch" : 1,
-      "max_tkv" : 512,
-      "batch_granularity" : 1,
-      "tkv_granularity" : 512
-    },
-    {
-      "max_batch" : 2,
-      "max_tkv" : 256,
-      "batch_granularity" : 2,
-      "tkv_granularity" : 256
-    },
-    {
-      "max_batch" : 1,
-      "max_tkv" : 256,
-      "batch_granularity" : 1,
-      "tkv_granularity" : 256
-    }
-  ]
-}
-"""
-asserts = [
-    [
-        # program assertions
-        [0, 1, 2, 3],
-        # program shape assertions
-        (">=0", "==256")
-        # max_new_tokens assertions
-    ]
-]
-#r"program id: ProgramCriteria\(program_id=\d+\), valid prompt: \(2, 384\), input shape: torch.Size([2, 384])"
-# test type asserion
-# r"For Program ProgramCriteria\(program_id=\d+\) in sentence 1: the metric for token 3 is",
-@pytest.mark.parametrize("attn_type,programs,max_new_tokens,dataset_type,test_type,skip_validation,enforce_homogeneous_prompt_programs", dpp_possibilities)
-def test_dpp_script(attn_type, programs, max_new_tokens, dataset_type, test_type, skip_validation, enforce_homogeneous_prompt_programs, shared_tmp_path):
+dpp_possibilities = []
+dpp_possibilities.append(
+    ("paged", None, 8, "sharegpt", "metrics", False, False)
+)  # metrics and run all programs
+dpp_possibilities.append(
+    ("paged", "*:0,==256", 65, "sharegpt", "tokens", False, False)
+)  # tokens and run all programs that satisfy 256 sequence length
+dpp_possibilities.append(
+    ("paged", "*:>=2,0", 65, "sharegpt", None, True, True)
+)  # metrics and run all programs that have >=2 batch size
+dpp_possibilities.append(
+    ("paged", None, 8, "custom", "tokens", False, False)
+)  # tokens running with specific custom dataset
+
+
+@pytest.mark.parametrize(
+    "attn_type,programs,max_new_tokens,dataset_type,test_type,skip_validation,enforce_homogeneous_prompt_programs",
+    dpp_possibilities,
+)
+def test_dpp_script(
+    attn_type,
+    programs,
+    max_new_tokens,
+    dataset_type,
+    test_type,
+    skip_validation,
+    enforce_homogeneous_prompt_programs,
+    shared_tmp_path,
+):
+    os.environ.setdefault(
+        "DT_PROG_CRITERIA_FILEPATH",
+        os.path.join(shared_tmp_path, "program_critera.json"),
+    )
+
     result_text = execute_dpp(
         attn_type,
         programs,
@@ -276,16 +280,75 @@ def test_dpp_script(attn_type, programs, max_new_tokens, dataset_type, test_type
         test_type,
         skip_validation,
         enforce_homogeneous_prompt_programs,
-        shared_tmp_path
+        shared_tmp_path,
     )
-    # assert that we find all programs
+    print(result_text)
+    with open(os.environ["DT_PROG_CRITERIA_FILEPATH"], "r") as f:
+        program_criteria_list = json.load(f)["programs"]
+
     if programs is None:
-        program_assertions = [0, 1, 2, 3]
+        program_assertions = [i for i in range(len(program_criteria_list))]
         shape_assertions = [">=0", ">=0"]
     else:
-        program_assertions = 
-    
-    if 
+        programs_split = programs.split(":")
+        program_ids_str = programs_split[0]
+        shape_assertions = [
+            f">={_}" if _.isnumeric() else _ for _ in programs_split[1].split(",")
+        ]
+        match_number = r"\d+"
+        valid_program_assertions = [
+            f">={re.search(match_number, _).group()}" for _ in shape_assertions
+        ]
+        # need to add 1 for tkv as that is the first decode
+        program_assertions = [
+            i
+            for i, p in enumerate(program_criteria_list)
+            if eval(f"p['max_batch']{valid_program_assertions[0]}")
+            and eval(f"p['max_tkv']{valid_program_assertions[1]}+1")
+        ]
+        if program_ids_str == "?":
+            program_assertions = program_assertions[:1]
+        elif program_ids_str.isnumeric():
+            program_assertions = [program_assertions[int(program_ids_str)]]
+        elif program_ids_str == "*":
+            pass
+        else:
+            raise ValueError("program_id must be one of numeric, ?, or *")
 
-    print(result_text)
+    # only test that we find the correct programs if not doing custom prompt
+    if not dataset_type == "custom":
+        # assert that we find all programs
+        for program_asserion_id in program_assertions:
+            assert (
+                f"*** testing program ProgramCriteria(program_id={program_asserion_id})"
+                in result_text
+            )
 
+        # assert that we don't find any extra programs
+        for nf_program_assertion_id in [
+            i for i in range(len(program_criteria_list)) if i not in program_assertions
+        ]:
+            assert (
+                f"*** testing program ProgramCriteria(program_id={nf_program_assertion_id})"
+                not in result_text
+            )
+
+    # assert on the shapes
+    shape_pattern = r"program id: ProgramCriteria\(program_id=\d+\), valid prompt: \(\d+, \d+\), input shape: torch.Size\(\[\d+, \d+\]\)"
+    all_program_ids = re.findall(shape_pattern, result_text)
+    for x in all_program_ids:
+        numbers = [int(x) for x in re.findall(r"\d+", x)]  # noqa: F841
+        # assert batch
+        assert eval(f"numbers[1]{shape_assertions[0]}")
+        assert eval(f"numbers[3]{shape_assertions[0]}")
+        # assert seq
+        assert eval(f"numbers[2]{shape_assertions[1]}")
+        assert eval(f"numbers[4]{shape_assertions[1]}")
+
+    if skip_validation:
+        assert "CPU tokens:" not in result_text
+        assert "the metric for token 0 is (tensor(" not in result_text
+    elif test_type == "tokens":
+        assert "CPU tokens:" in result_text
+    else:
+        assert "the metric for token 0 is (tensor(" not in result_text
