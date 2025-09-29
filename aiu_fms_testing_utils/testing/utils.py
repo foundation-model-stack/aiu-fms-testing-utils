@@ -2,6 +2,9 @@ from collections.abc import Iterable
 
 
 def format_kwargs_to_string(**kwargs):
+    """
+    Turns kwargs into a str with variable names using `-`, variables separated by `_` and iterable separated by `,`
+    """
     formatted_pairs = []
     for key, value in sorted(kwargs.items()):
         formatted_value = None

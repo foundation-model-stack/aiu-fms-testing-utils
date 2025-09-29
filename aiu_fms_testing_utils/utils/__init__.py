@@ -508,20 +508,20 @@ def sample_rag_factoid_requests(
         _cached_dataset_key=dataset_path,
     )
 
-    sample_key: str = format_kwargs_to_string(
-        dataset="rag_factoid",
-        num_requests=num_requests,
-        tokenizer=tokenizer.name_or_path.replace("/", "--"),
-        prompt_length_min=prompt_length_min,
-        prompt_length_max=prompt_length_max,
-        seed=seed,
-        enforce_heterogeneous=enforce_heterogeneous,
-        enforce_sizes=enforce_sizes,
-        truncate=truncation,
-        pad_multiple=pad_multiple,
-    )
-
     if return_key:
+        sample_key: str = format_kwargs_to_string(
+            dataset="rag_factoid",
+            num_requests=num_requests,
+            tokenizer=tokenizer.name_or_path.replace("/", "--"),
+            prompt_length_min=prompt_length_min,
+            prompt_length_max=prompt_length_max,
+            seed=seed,
+            enforce_heterogeneous=enforce_heterogeneous,
+            enforce_sizes=enforce_sizes,
+            truncate=truncation,
+            pad_multiple=pad_multiple,
+        )
+
         return sample_request, sample_key
     else:
         return sample_request
@@ -578,20 +578,19 @@ def sample_sharegpt_requests(
         _cached_dataset_key=dataset_path,
     )
 
-    sample_key: str = format_kwargs_to_string(
-        dataset="sharegpt",
-        num_requests=num_requests,
-        tokenizer=tokenizer.name_or_path.replace("/", "--"),
-        prompt_length_min=prompt_length_min,
-        prompt_length_max=prompt_length_max,
-        seed=seed,
-        enforce_heterogeneous=enforce_heterogeneous,
-        enforce_sizes=enforce_sizes,
-        truncate=truncation,
-        pad_multiple=pad_multiple,
-    )
-
     if return_key:
+        sample_key: str = format_kwargs_to_string(
+            dataset="sharegpt",
+            num_requests=num_requests,
+            tokenizer=tokenizer.name_or_path.replace("/", "--"),
+            prompt_length_min=prompt_length_min,
+            prompt_length_max=prompt_length_max,
+            seed=seed,
+            enforce_heterogeneous=enforce_heterogeneous,
+            enforce_sizes=enforce_sizes,
+            truncate=truncation,
+            pad_multiple=pad_multiple,
+        )
         return sample_request, sample_key
     else:
         return sample_request
@@ -608,6 +607,7 @@ def sample_squad_v2_qa_requests(
     enforce_sizes: List[int] | None = None,
     truncation: bool = False,
     pad_multiple: int = 64,
+    return_key: bool = False,
 ) -> List[Tuple[str, int]]:
     from datasets import load_dataset
 
@@ -621,7 +621,7 @@ def sample_squad_v2_qa_requests(
 
     ds = [f"{data['context']}\n{data['question']}" for data in ds]
 
-    return __sample_requests(
+    sample_request = __sample_requests(
         ds,
         num_requests,
         tokenizer,
@@ -633,6 +633,23 @@ def sample_squad_v2_qa_requests(
         truncation,
         pad_multiple,
     )
+
+    if return_key:
+        sample_key: str = format_kwargs_to_string(
+            dataset="squad_v2",
+            num_requests=num_requests,
+            tokenizer=tokenizer.name_or_path.replace("/", "--"),
+            prompt_length_min=prompt_length_min,
+            prompt_length_max=prompt_length_max,
+            seed=seed,
+            enforce_heterogeneous=enforce_heterogeneous,
+            enforce_sizes=enforce_sizes,
+            truncate=truncation,
+            pad_multiple=pad_multiple,
+        )
+        return sample_request, sample_key
+    else:
+        return sample_request
 
 
 def prepare_inputs(
