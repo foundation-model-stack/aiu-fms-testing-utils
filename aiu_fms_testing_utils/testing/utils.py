@@ -17,6 +17,8 @@ def format_kwargs_to_string(**kwargs):
         # only append if formatted_value exists
         if formatted_value:
             # Keep previous convention of variable names with `-` instead of `_`
-            formatted_pairs.append(f"{key.replace('_', '-')}-{formatted_value}")
+            formatted_pairs.append(
+                f"{key.replace('_', '-')}-{formatted_value.replace('/', '--')}"
+            )
 
     return "_".join(formatted_pairs)
