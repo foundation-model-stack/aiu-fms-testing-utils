@@ -468,6 +468,7 @@ def find_validation_info_path(
     Find the validation info path if it exists, otherwise return None
     """
     enforce_sizes = kwargs.get("enforce_sizes", None)
+    sample_key = kwargs.get("sample_key", None)
 
     if aftu_version is None:
         loc_version_tuple = version_tuple[:3]
@@ -489,6 +490,7 @@ def find_validation_info_path(
             device_type,
             dtype,
             enforce_sizes=enforce_sizes,
+            sample_key=sample_key,
         )
         # if the path is found, we are done searching and can return
         if os.path.exists(full_path):

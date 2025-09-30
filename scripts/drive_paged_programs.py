@@ -297,7 +297,9 @@ def __load_validation_info(
     tokenizer,
     seed,
     attn_type: str,
+    **kwargs,
 ):
+    sample_key = kwargs.get("sample_key", None)
     full_path = find_validation_info_path(
         args.validation_info_outputs_dir,
         model_variant,
@@ -308,6 +310,7 @@ def __load_validation_info(
         attn_type,
         version_allow_decrement=True,
         dtype=CPU_DTYPE,
+        sample_key=sample_key,
     )
     if full_path is not None:
         dprint(f"cpu validation info found for seed={seed} -- loading it")
@@ -496,7 +499,7 @@ if custom_shape:
         for valid_prompt_shape in valid_prompt_shapes:
             if valid_prompt_shape == custom_shape:
                 enforce_sizes = [valid_prompt_shape[1]]
-                input_ids, extra_kwargs = __prepare_inputs(
+                input_ids, extra_kwargs, sample_key = __prepare_inputs(
                     valid_prompt_shape[0],
                     valid_prompt_shape[1],
                     tokenizer,
@@ -508,6 +511,7 @@ if custom_shape:
                         custom_shape,
                         input_ids,
                         extra_kwargs,
+                        sample_key,
                     )
                 ]
                 break
@@ -568,7 +572,7 @@ else:
                             )
                         )
                     try:
-                        input_ids, extra_kwargs = __prepare_inputs(
+                        input_ids, extra_kwargs, sample_key = __prepare_inputs(
                             valid_prompt_shape[0],
                             valid_prompt_shape[1],
                             tokenizer,
@@ -580,6 +584,7 @@ else:
                                 valid_prompt_shape,
                                 input_ids,
                                 extra_kwargs,
+                                sample_key,
                             )
                         )
                         used_keys.add(program_seq_key[0])
@@ -611,7 +616,7 @@ def __metric_calculator(r: torch.Tensor, t: torch.Tensor):
 
 failed_cases = []
 # for each program and valid prompt (batch size, sequence length)
-for program_id, valid_prompt, input_ids, extra_kwargs in valid_prompts:
+for program_id, valid_prompt, input_ids, extra_kwargs, sample_key in valid_prompts:
     extra_kwargs["attn_name"] = ATTN_NAME
     if (
         "granite-3.3-8b-instruct" in model_variant
@@ -636,6 +641,7 @@ for program_id, valid_prompt, input_ids, extra_kwargs in valid_prompts:
             tokenizer,
             seed=0,
             attn_type=ATTN_NAME,
+            sample_key=sample_key,
         )
         # if the cpu validation info is not yet computed, compute it
         if cpu_validation_info is None:

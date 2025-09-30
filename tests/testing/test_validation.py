@@ -99,6 +99,20 @@ def test_get_validation_info_path(tmp_path):
         == f"{tmp_path}/ibm-granite--granite-3.3-8b-instruct_max-new-tokens-128_batch-size-4_seq-length-64_dtype-fp16_attn-type-sdpa.1.2.3.cpu_validation_info.0.out"
     )
 
+    # Check that it is accepting kwargs and handling sample_key
+    dummy_sample_key = "dataset-sharegpt_num-requests-4_pad-multiple-64_prompt-length-max-128_prompt-length-min-32_tokenizer-ibm-granite--granite-3.3-8b-Instruct"
+    assert "sample_key" and "dataset" in get_validation_info_path(
+        tmp_path,
+        "ibm-granite/granite-3.3-8b-instruct",
+        4,
+        64,
+        128,
+        0,
+        "sdpa",
+        aftu_version=(1, 2, 3),
+        sample_key=dummy_sample_key,
+    )
+
 
 @pytest.mark.parametrize(
     "current_version,save_version,expected_version,version_allow_decrement",
@@ -244,6 +258,8 @@ def test_decrement_version(max_minor, max_patch, current_version):
         + patch
         + 1
     )
+
+
 def test_format_kwargs_to_string():
     kwargs = {
         "enforce_sizes": [1, 32, 4, 8],
