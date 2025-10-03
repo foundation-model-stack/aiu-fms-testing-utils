@@ -364,7 +364,13 @@ def __filter_before_eos(metrics, filter_indexes):
 
 
 def __load_validation_info(
-    model_path, batch_size, seq_length, max_new_tokens, tokenizer, seed, attn_type: str
+    model_path,
+    batch_size,
+    seq_length,
+    max_new_tokens,
+    tokenizer,
+    seed,
+    attn_type: str,
 ):
     # if path doesn't exist and paged isn't in the attention name, remove `attn_type` and recheck again, warn that we will no longer in the future have paths without 'attn_type'
     full_path = find_validation_info_path(

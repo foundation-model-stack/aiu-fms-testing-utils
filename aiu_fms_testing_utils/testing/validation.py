@@ -5,6 +5,9 @@ import torch
 from aiu_fms_testing_utils.utils.aiu_setup import dprint
 from aiu_fms_testing_utils._version import version_tuple
 import os
+from aiu_fms_testing_utils.testing.utils import format_kwargs_to_string
+
+import hashlib
 
 
 class LogitsExtractorHook(
@@ -132,6 +135,7 @@ def get_default_validation_prefix(
     dtype: str,
     attn_type: str,
     aftu_version: str,
+    **kwargs,
 ):
     """
     Args:
@@ -144,9 +148,17 @@ def get_default_validation_prefix(
         aftu_version (str): introduced in v0.3.0 to track changed in log
 
     Returns:
-        str: A prefix that will be prepended to the file name
+        str: A hashed prefix that will be prepended to the file name
     """
-    return f"{model_id.replace('/', '--')}_max-new-tokens-{max_new_tokens}_batch-size-{batch_size}_seq-length-{seq_length}_dtype-{dtype}_attn-type-{attn_type}.{aftu_version}"
+    kwargs_str = format_kwargs_to_string(**kwargs)
+
+    if kwargs_str == "":
+        filename = f"{model_id.replace('/', '--')}_max-new-tokens-{max_new_tokens}_batch-size-{batch_size}_seq-length-{seq_length}_dtype-{dtype}_attn-type-{attn_type}"
+    else:
+        filename = f"{model_id.replace('/', '--')}_max-new-tokens-{max_new_tokens}_batch-size-{batch_size}_seq-length-{seq_length}_dtype-{dtype}_attn-type-{attn_type}_{kwargs_str}"
+    hash_object = hashlib.sha256(filename.encode("utf-8"))
+    hex_digest = hash_object.hexdigest()
+    return f"{hex_digest}_{aftu_version}"
 
 
 def load_validation_information(
@@ -416,11 +428,14 @@ def get_validation_info_path(
     aftu_version: Optional[Tuple[int, int, int]] = None,
     device_type: str = "cpu",
     dtype: str = "fp16",
+    **kwargs,
 ):
     if aftu_version is None:
         aftu_version = version_tuple
 
-    validation_file_name = f"{get_default_validation_prefix(model_variant, max_new_tokens, batch_size, seq_length, dtype, attn_type, '.'.join([str(_) for _ in aftu_version[:3]]))}.{device_type}_validation_info.{seed}.out"
+    sample_key = kwargs.get("sample_key", None)
+
+    validation_file_name = f"{get_default_validation_prefix(model_variant, max_new_tokens, batch_size, seq_length, dtype, attn_type, '.'.join([str(_) for _ in aftu_version[:3]]), sample_key=sample_key)}.{device_type}_validation_info.{seed}.out"
     full_path = os.path.join(validation_info_dir, validation_file_name)
     return full_path
 
@@ -452,10 +467,12 @@ def find_validation_info_path(
     version_allow_decrement: bool = False,
     device_type: str = "cpu",
     dtype: str = "fp16",
+    **kwargs,
 ):
     """
     Find the validation info path if it exists, otherwise return None
     """
+    sample_key = kwargs.get("sample_key", None)
 
     if aftu_version is None:
         loc_version_tuple = version_tuple[:3]
@@ -476,6 +493,7 @@ def find_validation_info_path(
             loc_version_tuple,
             device_type,
             dtype,
+            sample_key=sample_key,
         )
         # if the path is found, we are done searching and can return
         if os.path.exists(full_path):
