@@ -10,6 +10,7 @@ from aiu_fms_testing_utils.testing.validation import (
     __decrement_version,
     get_default_validation_prefix,
 )
+import hashlib
 import os
 from aiu_fms_testing_utils.testing.utils import format_kwargs_to_string
 from aiu_fms_testing_utils.utils import sample_sharegpt_requests
@@ -79,12 +80,21 @@ def test_validation_info_round_trip(validation_type, post_iteration_hook):
 
 
 def test_get_validation_info_path(tmp_path):
+    check_pathname = "ibm-granite--granite-3.3-8b-instruct_max-new-tokens-128_batch-size-4_seq-length-64_dtype-fp16_attn-type-sdpa"
+    hash_object = hashlib.sha256(check_pathname.encode("utf-8"))
+    hex_digest = hash_object.hexdigest()
+
     assert (
         get_validation_info_path(
             tmp_path, "ibm-granite/granite-3.3-8b-instruct", 4, 64, 128, 0, "sdpa"
         )
-        == f"{tmp_path}/ibm-granite--granite-3.3-8b-instruct_max-new-tokens-128_batch-size-4_seq-length-64_dtype-fp16_attn-type-sdpa.{'.'.join([str(_) for _ in version_tuple[:3]])}.cpu_validation_info.0.out"
+        == f"{tmp_path}/{hex_digest}_{'.'.join([str(_) for _ in version_tuple[:3]])}.cpu_validation_info.0.out"
     )
+
+    check_pathname = "ibm-granite--granite-3.3-8b-instruct_max-new-tokens-128_batch-size-4_seq-length-64_dtype-fp16_attn-type-sdpa"
+    hash_object = hashlib.sha256(check_pathname.encode("utf-8"))
+    hex_digest = hash_object.hexdigest()
+
     assert (
         get_validation_info_path(
             tmp_path,
@@ -96,21 +106,7 @@ def test_get_validation_info_path(tmp_path):
             "sdpa",
             aftu_version=(1, 2, 3),
         )
-        == f"{tmp_path}/ibm-granite--granite-3.3-8b-instruct_max-new-tokens-128_batch-size-4_seq-length-64_dtype-fp16_attn-type-sdpa.1.2.3.cpu_validation_info.0.out"
-    )
-
-    # Check that it is accepting kwargs and handling sample_key
-    dummy_sample_key = "dataset-sharegpt_num-requests-4_pad-multiple-64_prompt-length-max-128_prompt-length-min-32_tokenizer-ibm-granite--granite-3.3-8b-Instruct"
-    assert "sample_key" and "dataset" in get_validation_info_path(
-        tmp_path,
-        "ibm-granite/granite-3.3-8b-instruct",
-        4,
-        64,
-        128,
-        0,
-        "sdpa",
-        aftu_version=(1, 2, 3),
-        sample_key=dummy_sample_key,
+        == f"{tmp_path}/{hex_digest}_1.2.3.cpu_validation_info.0.out"
     )
 
 
@@ -299,12 +295,12 @@ def test_get_default_validation_prefix(
 
     sample_key = None
     # get_default_validation_prefix with sample_key set to None
+    check_prefix_sample_key_none = f"{model_variant}_max-new-tokens-{max_new_tokens}_batch-size-{batch_size}_seq-length-{seq_length}_dtype-{dtype}_attn-type-{attn_type}"
+    hash_object = hashlib.sha256(check_prefix_sample_key_none.encode("utf-8"))
+    hex_digest = hash_object.hexdigest()
     prefix_sample_key_none = f"{get_default_validation_prefix(model_variant, max_new_tokens, batch_size, seq_length, dtype, attn_type, '.'.join([str(_) for _ in aftu_version[:3]]), sample_key=sample_key)}.{device_type}_validation_info.{seed}.out"
 
-    assert (
-        prefix_sample_key_none
-        == f"{model_variant}_max-new-tokens-{max_new_tokens}_batch-size-{batch_size}_seq-length-{seq_length}_dtype-{dtype}_attn-type-{attn_type}.1.2.3.cpu_validation_info.0.out"
-    )
+    assert prefix_sample_key_none == f"{hex_digest}_1.2.3.cpu_validation_info.0.out"
 
     # get_default_validation_prefix with no kwargs using legacy case
     legacy_prefix = f"{get_default_validation_prefix(model_variant, max_new_tokens, batch_size, seq_length, dtype, attn_type, '.'.join([str(_) for _ in aftu_version[:3]]))}.{device_type}_validation_info.{seed}.out"
@@ -325,8 +321,6 @@ def test_get_default_validation_prefix(
 
     # Check sample key sorted by parameter name
     assert sample_key.split("_") == sorted(sample_key.split("_"))
-    # Check sample key included in name as expected
-    assert "sample-key-" + sample_key in prefix_with_sample_key
 
     dataset_2 = sample_sharegpt_requests(
         DATASET_PATH,

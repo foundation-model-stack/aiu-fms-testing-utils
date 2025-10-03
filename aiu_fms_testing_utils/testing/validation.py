@@ -7,6 +7,8 @@ from aiu_fms_testing_utils._version import version_tuple
 import os
 from aiu_fms_testing_utils.testing.utils import format_kwargs_to_string
 
+import hashlib
+
 
 class LogitsExtractorHook(
     Callable[
@@ -146,14 +148,17 @@ def get_default_validation_prefix(
         aftu_version (str): introduced in v0.3.0 to track changed in log
 
     Returns:
-        str: A prefix that will be prepended to the file name
+        str: A hashed prefix that will be prepended to the file name
     """
     kwargs_str = format_kwargs_to_string(**kwargs)
 
     if kwargs_str == "":
-        return f"{model_id.replace('/', '--')}_max-new-tokens-{max_new_tokens}_batch-size-{batch_size}_seq-length-{seq_length}_dtype-{dtype}_attn-type-{attn_type}.{aftu_version}"
+        filename = f"{model_id.replace('/', '--')}_max-new-tokens-{max_new_tokens}_batch-size-{batch_size}_seq-length-{seq_length}_dtype-{dtype}_attn-type-{attn_type}"
     else:
-        return f"{model_id.replace('/', '--')}_max-new-tokens-{max_new_tokens}_batch-size-{batch_size}_seq-length-{seq_length}_dtype-{dtype}_attn-type-{attn_type}_{kwargs_str}.{aftu_version}"
+        filename = f"{model_id.replace('/', '--')}_max-new-tokens-{max_new_tokens}_batch-size-{batch_size}_seq-length-{seq_length}_dtype-{dtype}_attn-type-{attn_type}_{kwargs_str}"
+    hash_object = hashlib.sha256(filename.encode("utf-8"))
+    hex_digest = hash_object.hexdigest()
+    return f"{hex_digest}_{aftu_version}"
 
 
 def load_validation_information(
