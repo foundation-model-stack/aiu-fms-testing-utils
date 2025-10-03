@@ -134,11 +134,11 @@ for a in args.extra_get_model_kwargs:
 
 # this follows the same pattern of naming in test_shapes. This way we can save and re-use for quicker shape testing.
 prefix = get_default_validation_prefix(
-    args.variant,
-    args.max_new_tokens,
-    args.batch_size,
-    args.min_pad_length,
-    args.default_dtype,
+    model_id=args.variant,
+    max_new_tokens=args.max_new_tokens,
+    batch_size=args.batch_size,
+    seq_len=args.min_pad_length,
+    dtype=args.default_dtype,
 )
 if os.path.exists(os.path.join(args.output_dir, f"{prefix}.prob_mean.csv")):
     print("skipping metric generation as it has already been done")

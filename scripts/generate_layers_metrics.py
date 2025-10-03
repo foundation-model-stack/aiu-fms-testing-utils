@@ -473,7 +473,11 @@ def generate_layers_metrics(model_path, batch_size, seq_length, max_new_tokens):
                 cos_sim = tensor_cos_sim(tensor_cpu_out, cuda_output)
 
             prefix = get_default_validation_prefix(
-                model_path, max_new_token, batch_size, seq_length, "float16"
+                model_id=model_path,
+                max_new_tokens=max_new_token,
+                batch_size=batch_size,
+                seq_length=seq_length,
+                dtype="float16",
             )
             layer_name = str(layer_key).replace("[", "").replace("]", "")
 
