@@ -317,7 +317,6 @@ def test_get_default_validation_prefix(
         enforce_sizes=[],
         return_key=True,
     )
-    prefix_with_sample_key = f"{get_default_validation_prefix(model_variant, max_new_tokens, batch_size, seq_length, dtype, attn_type, '.'.join([str(_) for _ in aftu_version[:3]]), sample_key=sample_key)}.{device_type}_validation_info.{seed}.out"
 
     # Check sample key sorted by parameter name
     assert sample_key.split("_") == sorted(sample_key.split("_"))
