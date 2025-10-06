@@ -125,7 +125,7 @@ COMMON_MAX_NEW_TOKENS = os.environ.get("FMS_TEST_SHAPES_COMMON_MAX_NEW_TOKENS", 
 if USE_DISTRIBUTED:
     dist.init_process_group()
     aiu_dist_setup(dist.get_rank(), dist.get_world_size())
-    save_validation_info_outputs = save_validation_info_outputs and (
+    SAVE_VALIDATION_INFO_OUTPUTS = SAVE_VALIDATION_INFO_OUTPUTS and (
         dist.get_rank() == 0
     )
 
