@@ -387,6 +387,7 @@ def generate(
                         logits, current_kv_cache = model(input_ids_ij, **chunked_kwargs)
 
                         # only last token must be handled here to properly stack the tensors
+                        logits = logits[:, -1, :]
 
                         output = (logits, current_kv_cache)
 
