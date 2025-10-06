@@ -15,6 +15,7 @@ from aiu_fms_testing_utils.utils.aiu_setup import dprint, rank, local_rank, worl
 import numpy as np
 import torch
 from torch import distributed as dist
+from torch.fx.experimental import _config as fx_config
 from fms.models import get_model, register_model
 from fms.models.llama import LLaMAConfig, _llama_factory_factory
 from fms.utils import generation
@@ -593,6 +594,7 @@ dprint(f"loading complete, took {loading_model_time:.3f}s")
 
 if args.compile:
     dprint("compiling model")
+    fx_config.backed_size_oblivious = "paged" in attn_name
     if is_aiu_backend:
         model.compile(
             backend="sendnn", options={"sendnn.dynamic": args.compile_dynamic_sendnn}
@@ -775,7 +777,7 @@ def infer(use_cache, do_sample, warmup):
     global extra_generation_kwargs
     if extra_generation_kwargs is None:
         extra_generation_kwargs = {}
-    extra_generation_kwargs["only_last_token"] = "paged" not in attn_name
+    extra_generation_kwargs["last_n_tokens"] = 64 if "paged" in attn_name else 1
 
     if not args.no_early_termination and not warmup:
         eos_token_id = tokenizer.eos_token_id

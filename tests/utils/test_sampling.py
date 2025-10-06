@@ -13,6 +13,7 @@ import json
 
 BATCH_SIZES = [0, 1, 2, 3, 4, 8]
 ENFORCE_HETEROGENEOUS = [True, False]
+LEN_ENFORCE_SIZES = [0, 1, 2, 3, 4]
 TRUNCATION = [True, False]
 ENFORCE_TRUNCATION_SIZE = [
     [],
@@ -56,6 +57,39 @@ PAD_SIZES = [0, 64, 128, 256]
 PROMPT_MAX_LENGTH = 8192
 PROMPT_MIN_LENGTH = 6144
 TOKENIZER = AutoTokenizer.from_pretrained("ibm-granite/granite-3.3-8b-instruct")
+
+
+def _replace_begin_mid_end(
+    prompt_list: list[str], target_count: int = 1, target_length: int = 128
+):
+    """Replaces slots in the list with new of target length:
+        - First `target_count` slots
+        - Middle `target_count` slots
+        - Last `target_count` slots
+
+    Args:
+        prompt_list (list[str]): a list of dummy strings.
+        target_count (int, optional): how many slots to replace. Defaults to 1.
+        target_length (int, optional): how long the string will be.
+    """
+
+    replacement_block = ["enforce" * target_length] * target_count
+
+    if target_count >= 1:
+        beginning = replacement_block + prompt_list[target_count:]
+        mid = len(prompt_list) // 2
+        pointer = max(0, mid - target_count // 2)
+        middle = (
+            prompt_list[:pointer]
+            + replacement_block
+            + prompt_list[pointer + target_count :]
+        )
+        end = prompt_list[:-target_count] + replacement_block
+    else:
+        beginning = prompt_list
+        middle = prompt_list
+        end = prompt_list
+    return (beginning, middle, end)
 
 
 def _prepare_sub_sharegpt_dataset(prompt_length_min, prompt_length_max, tokenizer):
@@ -247,3 +281,64 @@ def test_get_truncation(enforce_truncation_size, available_sizes):
         assert "size_to_enforce" in f"{e}"
     except Exception as e:
         pytest.fail(f"Unexpeced exception: {e}")
+
+
+ENFORCE_SIZES_COMBO = list(product(BATCH_SIZES, LEN_ENFORCE_SIZES))
+
+
+@pytest.mark.parametrize("batch_size, target_count", ENFORCE_SIZES_COMBO)
+def test_enforce_sizes(batch_size, target_count):
+    print(f"{batch_size=}, {target_count=}")
+    base_text = "base"
+    basic_seq_len = 64
+    prompt_list = [base_text * basic_seq_len] * batch_size
+    enforce_len = 128
+    list_of_prompt_list = _replace_begin_mid_end(prompt_list, target_count, enforce_len)
+    print(list_of_prompt_list)
+    reference = None
+    for prompt_list in list_of_prompt_list:
+        try:
+            prompts_and_sizes = __sample_requests(
+                prompt_list,
+                batch_size,
+                TOKENIZER,
+                32,
+                enforce_len,
+                None,
+                False,
+                [enforce_len] * target_count,
+                False,
+            )
+        except ValueError as e:
+            assert "is smaller than" in f"{e}"
+            continue
+
+        # Given this test case final batch size should equal returned prompts_and_sizes
+        assert len(prompts_and_sizes) == batch_size
+        if reference is None:
+            reference = prompts_and_sizes.copy()
+        # all different prompts should yield the same result (without seed it should be sorted)
+        assert prompts_and_sizes == reference
+        num_found = 0
+        for _, sizes in prompts_and_sizes:
+            if sizes == 128:
+                num_found += 1
+        # Verify that all inserted enforceable_sizes are found
+        assert num_found == target_count
+
+        try:
+            half_batch_prompts_and_sizes = __sample_requests(
+                prompt_list,
+                batch_size // 2,
+                TOKENIZER,
+                32,
+                enforce_len,
+                None,
+                False,
+                [enforce_len] * target_count,
+                False,
+            )
+        except ValueError as e:
+            assert "is smaller than" in f"{e}"
+            continue
+        assert len(half_batch_prompts_and_sizes) == batch_size // 2

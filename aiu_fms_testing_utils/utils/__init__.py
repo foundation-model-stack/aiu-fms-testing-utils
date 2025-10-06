@@ -80,14 +80,15 @@ def warmup_model(
     _max_new_tokens = max_new_tokens
     if compile_dynamic_sendnn:
         _max_new_tokens = 2
-        # always warmup with batch size 2 when using attn_type=paged
-        if "paged" in attn_name:
+        # When performing fp8 paged attention, we must pad to batch size 2
+        # this is fixed in torch >= 2.8
+        if attn_name == "spyre_paged_attn_fp8":
             _warmup_input_ids, _extra_kwargs = adjust_inputs_to_batch(
                 input_ids,
                 **extra_kwargs,
             )
 
-    extra_kwargs = {**_extra_kwargs, "only_last_token": "paged" not in attn_name}
+    extra_kwargs = {**_extra_kwargs, "last_n_tokens": 64 if "paged" in attn_name else 1}
 
     with stagger_region(stagger_update_lazyhandle):
         with torch_sendnn.warmup_mode():
@@ -381,7 +382,10 @@ def __sample_requests(
         random.Random(seed).shuffle(dataset)
 
     for prompt, prompt_len in dataset:
-        if len(filtered_dataset) == num_requests and not enforce_sizes:
+        if (
+            len(filtered_dataset) + len(enforced_dataset) == num_requests
+            and not enforce_sizes
+        ):
             break
 
         # NOTE: This section is for enforce heterogeneous, does not work with enforce_sizes
@@ -390,7 +394,6 @@ def __sample_requests(
             and max_heterogeneous_combinations > len(filtered_dataset)
             and len(filtered_dataset) < num_requests
         ):
-            # for _, size in filtered_dataset:
             current_padded_size = pad_size_dict[prompt_len]
 
             if current_padded_size not in seen_sizes:
@@ -406,6 +409,7 @@ def __sample_requests(
             # NOTE: this should not be `elif` despite enforce_sizes and enforce_sizes_with_truncation
             # are mutually exclusive because we allow same prompt to be used in enforce_sizes_with_truncation
             # even if it is taken from enforce_sizes
+            truncation_found = None
             if enforce_sizes_with_truncation:
                 truncation_found: Tuple[int, int] = next(
                     (
@@ -420,11 +424,24 @@ def __sample_requests(
                     prompt_token_ids = tokenizer.encode(
                         prompt, add_special_tokens=False
                     )
+                    # If we don't set clean_up_tokenization_spaces=False, encoding then decoding text might result in different lengths which would break expected results from the sampler
                     truncated_prompt = tokenizer.decode(
-                        prompt_token_ids[:truncate_to_size], skip_special_tokens=True
+                        prompt_token_ids[:truncate_to_size],
+                        skip_special_tokens=True,
+                        clean_up_tokenization_spaces=False,
                     )
                     enforced_dataset.append((truncated_prompt, truncate_to_size))
                     enforce_sizes_with_truncation.remove(truncation_found)
+            # This condition allows adding prompts to the final dataset as long as there is
+            # sufficient space allocated for sizes that need to be enforced.
+            if (
+                not truncation_found
+                and current_padded_size not in enforce_sizes
+                and len(filtered_dataset) + len(enforced_dataset)
+                < num_requests
+                - (len(enforce_sizes) + len(enforce_sizes_with_truncation))
+            ):
+                filtered_dataset.append((prompt, prompt_len))
 
         # when not enforcing heterogeneous or when exhausted all possible prompt_lengths
         else:
@@ -444,15 +461,53 @@ def __sample_requests(
         print(
             f"There may be prompt size repeats because {num_requests=} while {max_heterogeneous_combinations=}"
         )
-    if enforced_dataset:
+    if enforced_dataset and enforce_heterogeneous:
         filtered_dataset = _merge_enforce_keep_heterogeneous(
             enforced_dataset, filtered_dataset, num_requests
         )
+    elif enforced_dataset:
+        filtered_dataset = enforced_dataset + filtered_dataset
 
     if len(filtered_dataset) != num_requests:
         warnings.warn("Returning dataset not equal to number requested", stacklevel=2)
 
     return filtered_dataset
+
+
+def sample_rag_factoid_requests(
+    dataset_path: str,
+    num_requests: int,
+    tokenizer: PreTrainedTokenizerBase,
+    prompt_length_min: int = 32,
+    prompt_length_max: int = 65536,
+    seed: Optional[int] = None,
+    enforce_heterogeneous: bool = False,
+    enforce_sizes: List[int] = [],
+    truncation: bool = False,
+    pad_multiple: int = 64,
+) -> List[Tuple[str, int]]:
+    if not os.path.exists(dataset_path):
+        print("error dataset does not exist")
+
+    dataset = []
+    # Load the dataset.
+    with open(dataset_path, "r", encoding="utf-8") as f:
+        for line in f:
+            dataset.append(line)
+
+    return __sample_requests(
+        dataset,
+        num_requests,
+        tokenizer,
+        prompt_length_min,
+        prompt_length_max,
+        seed,
+        enforce_heterogeneous,
+        enforce_sizes,
+        truncation,
+        pad_multiple,
+        _cached_dataset_key=dataset_path,
+    )
 
 
 def sample_sharegpt_requests(
@@ -469,16 +524,23 @@ def sample_sharegpt_requests(
 ) -> List[Tuple[str, int]]:
     if not os.path.exists(dataset_path):
         print("downloading share-gpt dataset as it does not exist")
-        __download_file(
-            "https://huggingface.co/datasets/anon8231489123/ShareGPT_Vicuna_unfiltered/resolve/main/ShareGPT_V3_unfiltered_cleaned_split.json",
-            dataset_path,
-        )
+        is_distributed_initialized = torch.distributed.is_initialized()
+        if not is_distributed_initialized or rank < 1:
+            __download_file(
+                "https://huggingface.co/datasets/anon8231489123/ShareGPT_Vicuna_unfiltered/resolve/main/ShareGPT_V3_unfiltered_cleaned_split.json",
+                dataset_path,
+            )
+        else:
+            print("waiting for rank0 to complete download")
+
+        if is_distributed_initialized:
+            torch.distributed.barrier()
 
     if enforce_sizes is None:
         enforce_sizes = []
 
     # Load the dataset.
-    with open(dataset_path, encoding="utf-8") as f:
+    with open(dataset_path, "r", encoding="utf-8") as f:
         dataset = json.load(f)
     # Filter out the conversations with less than 2 turns.
     dataset = [data for data in dataset if len(data["conversations"]) >= 2]

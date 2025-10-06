@@ -38,7 +38,7 @@ dependencies = [
 "fms-model-optimizer[fp8]>=0.5.0,<1.0",
 "sentencepiece>=0.2.0,<0.3.0",
 "numpy>=1.26.4,<2.3.0",
-"transformers>=4.45,<=4.55",
+"transformers>=4.45,<=4.55.2",
 "torch==2.7.1",
 ]
 

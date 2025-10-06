@@ -256,7 +256,7 @@ def extract_validation_information(
     post_iteration_hook,
     attn_algorithm=None,
     eos_token_id=None,
-    only_last_token=False,
+    last_n_tokens=0,
     timing="",
     **extra_kwargs,
 ):
@@ -270,10 +270,10 @@ def extract_validation_information(
         attention_specific_kwargs["contiguous_cache"] = True
         attention_specific_kwargs["max_seq_len"] = input_ids.shape[1] + max_new_tokens
 
-    # Add only_last_token optimization
+    # Add last_n_tokens optimization
     extra_generation_kwargs = {**extra_kwargs}
-    if only_last_token:
-        extra_generation_kwargs["only_last_token"] = only_last_token
+    if last_n_tokens != 0:
+        extra_generation_kwargs["last_n_tokens"] = last_n_tokens
     if attn_algorithm is not None:
         extra_generation_kwargs["attn_algorithm"] = attn_algorithm
 
@@ -425,7 +425,7 @@ def get_validation_info_path(
     return full_path
 
 
-def __decrement_version(version: Tuple[int, int, int]):
+def __decrement_version(version: Tuple[int, int, int], max_minor=25, max_patch=25):
     """
     Function designed to prevent triple nested for loop while decrementing version
     """
@@ -433,9 +433,9 @@ def __decrement_version(version: Tuple[int, int, int]):
     if patch > 0:
         return (major, minor, patch - 1)
     elif minor > 0:
-        return (major, minor - 1, 0)
+        return (major, minor - 1, max_patch)
     elif major > 0:
-        return (major - 1, 0, 0)
+        return (major - 1, max_minor, max_patch)
     else:
         return None
 

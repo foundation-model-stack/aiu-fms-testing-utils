@@ -50,7 +50,7 @@ prompt = template.format("Provide a list of instructions for preparing chicken s
 input_ids = tokenizer.encode(prompt, return_tensors="pt")
 input_ids, extra_generation_kwargs = pad_input_ids([input_ids.squeeze(0)], min_pad_length=math.ceil(input_ids.size(1)/64) * 64)
 # only_last_token optimization
-extra_generation_kwargs["only_last_token"] = True
+extra_generation_kwargs["last_n_tokens"] = 1
 # Set a desired number
 max_new_tokens = 16
 ```

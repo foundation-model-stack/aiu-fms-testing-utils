@@ -6,6 +6,8 @@ from fms.utils.generation import pad_input_ids
 import itertools
 import torch
 from torch import distributed as dist
+from torch.fx.experimental import _config as fx_config
+
 from aiu_fms_testing_utils.testing.validation import (
     extract_validation_information,
     LogitsExtractorHook,
@@ -22,6 +24,7 @@ from aiu_fms_testing_utils.utils import (
     warmup_model,
     sample_sharegpt_requests,
 )
+from aiu_fms_testing_utils.utils.paged import KVCACHE_NUM_BLOCKS_HINT
 import json
 from transformers import AutoTokenizer
 
@@ -69,7 +72,9 @@ SHARE_GPT_DATASET_PATH = os.environ.get(
 USE_MICRO_MODELS = os.environ.get("FMS_TEST_SHAPES_USE_MICRO_MODELS", "1") == "1"
 USE_DISTRIBUTED = os.environ.get("FMS_TEST_SHAPES_DISTRIBUTED", "0") == "1"
 TIMING = os.environ.get("TIMING", "")
-
+CUMULATIVE_TEST_TOKENS_PER_SEQUENCE = int(
+    os.environ.get("FMS_TEST_SHAPES_CUMULATIVE_TEST_TOKENS_PER_SEQUENCE", "1024")
+)
 ATTN_TYPE = os.environ.get("FMS_TEST_SHAPES_ATTN_TYPE", "sdpa")
 attention_map = {
     "sdpa": "sdpa_causal",
@@ -181,6 +186,7 @@ if compile_dynamic_sendnn:
         ]
     )
     os.environ["VLLM_DT_MAX_BATCH_SIZE"] = str(max(max(common_batch_sizes), 2))
+    fx_config.backed_size_oblivious = True
 
 # thresholds are chosen based on 1024 tokens per sequence
 # 1% error threshold rate between cpu fp32 and cuda fp16
@@ -527,6 +533,13 @@ def test_common_shapes(
     # prepare input_ids
     input_ids, extra_kwargs = __prepare_inputs(batch_size, seq_length, tokenizer)
     extra_kwargs["attn_name"] = ATTN_NAME
+    if (
+        "paged" in ATTN_NAME
+        and "ibm-granite/granite-3.3-8b-instruct" in model_path
+        and USE_DISTRIBUTED
+        and dist.get_world_size() == 4
+    ):
+        extra_kwargs["_kvcache_num_blocks_hint"] = KVCACHE_NUM_BLOCKS_HINT
 
     # warmup aiu model
     warmup_model(
@@ -575,7 +588,7 @@ def test_common_shapes(
         input_ids,
         max_new_tokens,
         None,
-        only_last_token="paged" not in ATTN_NAME,
+        last_n_tokens=64 if "paged" in ATTN_NAME else 1,
         timing=TIMING,
         **extra_kwargs,
     )
@@ -608,7 +621,7 @@ def test_common_shapes(
             )
             return (cross_entropy, diff)
 
-        iters = 1024 // max_new_tokens
+        iters = int(CUMULATIVE_TEST_TOKENS_PER_SEQUENCE) // max_new_tokens
         ce_fail_responses_list = []
         diff_fail_responses_list = []
         total_tokens = 0
@@ -619,6 +632,14 @@ def test_common_shapes(
                     batch_size, seq_length, tokenizer, seed=i
                 )
                 extra_kwargs["attn_name"] = ATTN_NAME
+                if (
+                    "paged" in ATTN_NAME
+                    and "ibm-granite/granite-3.3-8b-instruct" in model_path
+                    and USE_DISTRIBUTED
+                    and dist.get_world_size() == 4
+                ):
+                    extra_kwargs["_kvcache_num_blocks_hint"] = KVCACHE_NUM_BLOCKS_HINT
+
                 cpu_validation_info = __load_validation_info(
                     model_path,
                     batch_size,
@@ -668,7 +689,7 @@ def test_common_shapes(
                 input_ids,
                 max_new_tokens,
                 GoldenTokenHook(cpu_static_tokens),
-                only_last_token=ATTN_TYPE != "paged",
+                last_n_tokens=64 if "paged" in ATTN_NAME else 1,
                 timing=TIMING,
                 **extra_kwargs,
             )
