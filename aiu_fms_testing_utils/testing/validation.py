@@ -258,6 +258,7 @@ def extract_validation_information(
     eos_token_id=None,
     last_n_tokens=0,
     timing="",
+    prefill_chunk_size=0,
     **extra_kwargs,
 ):
     attention_specific_kwargs = {}
@@ -269,6 +270,7 @@ def extract_validation_information(
 
         attention_specific_kwargs["contiguous_cache"] = True
         attention_specific_kwargs["max_seq_len"] = input_ids.shape[1] + max_new_tokens
+        attention_specific_kwargs["prefill_chunk_size"] = prefill_chunk_size
 
     # Add last_n_tokens optimization
     extra_generation_kwargs = {**extra_kwargs}

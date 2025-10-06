@@ -128,6 +128,12 @@ parser.add_argument(
     help="The attention type to use",
 )
 parser.add_argument(
+    "--prefill_chunk_size",
+    type=int,
+    default=0,
+    help="if > 0, activate chunked prefill, with chunk_size=page_size*this_argument. Only works with paged attention variants",
+)
+parser.add_argument(
     "--stagger_load",
     type=int,
     default=0,
@@ -387,6 +393,7 @@ warmup_model(
     max_new_tokens=max_new_tokens,
     compile_dynamic_sendnn=True,
     stagger_update_lazyhandle=args.stagger_update_lazyhandle,
+    prefill_chunk_size=args.prefill_chunk_size,
     **extra_kwargs,
 )
 
@@ -668,6 +675,7 @@ for program_id, valid_prompt, input_ids, extra_kwargs in valid_prompts:
                 GoldenTokenHook(cpu_validation_info.get_info("tokens")),
                 last_n_tokens=64,
                 timing=TIMING,
+                prefill_chunk_size=args.prefill_chunk_size,
                 **extra_kwargs,
             )
 
@@ -712,6 +720,7 @@ for program_id, valid_prompt, input_ids, extra_kwargs in valid_prompts:
                 None,
                 last_n_tokens=64,
                 timing=TIMING,
+                prefill_chunk_size=args.prefill_chunk_size,
                 **extra_kwargs,
             )
 
@@ -754,6 +763,7 @@ for program_id, valid_prompt, input_ids, extra_kwargs in valid_prompts:
             None,
             last_n_tokens=64,
             timing=TIMING,
+            prefill_chunk_size=args.prefill_chunk_size,
             **extra_kwargs,
         )
 
