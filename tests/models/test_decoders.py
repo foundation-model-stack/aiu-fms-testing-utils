@@ -215,6 +215,10 @@ fail_thresholds = {
     ),
 }
 
+print(
+        "STATEMENT FOR TESTING bot:test"
+    )
+
 if model_configuration_path != "":
     print(
         "ignoring FMS_TEST_SHAPES_COMMON_MODEL_PATHS, FMS_TEST_SHAPES_USE_MICRO_MODELS as configuration will be set by FMS_TEST_SHAPES_FROM_MODEL_CONFIGURATION"
