@@ -264,13 +264,13 @@ def extract_validation_information(
     attention_specific_kwargs = {}
     if "paged" in extra_kwargs.get("attn_name", "sdpa"):
         from aiu_fms_testing_utils.utils.paged import generate
+        attention_specific_kwargs["prefill_chunk_size"] = prefill_chunk_size
     else:
         # TODO: Add a unified generation dependent on attn_type
         from fms.utils.generation import generate
 
         attention_specific_kwargs["contiguous_cache"] = True
         attention_specific_kwargs["max_seq_len"] = input_ids.shape[1] + max_new_tokens
-        attention_specific_kwargs["prefill_chunk_size"] = prefill_chunk_size
 
     # Add last_n_tokens optimization
     extra_generation_kwargs = {**extra_kwargs}
