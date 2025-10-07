@@ -372,11 +372,11 @@ def generate(
                             "slot_mapping": slot_mapping_ij,
                         }
 
-                        # batch dynamic
-                        torch._dynamo.mark_dynamic(input_ids_ij, 0)
-                        torch._dynamo.mark_dynamic(slot_mapping_ij, 0)
-                        torch._dynamo.mark_dynamic(position_ids_ij, 0)
-                        torch._dynamo.mark_dynamic(block_table_ij, 0)
+                        # batch static
+                        torch._dynamo.mark_static(input_ids_ij, 0)
+                        torch._dynamo.mark_static(slot_mapping_ij, 0)
+                        torch._dynamo.mark_static(position_ids_ij, 0)
+                        torch._dynamo.mark_static(block_table_ij, 0)
 
                         # seq dynamic
                         torch._dynamo.mark_dynamic(input_ids_ij, 1)
