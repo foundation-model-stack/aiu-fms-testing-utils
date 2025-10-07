@@ -40,6 +40,7 @@ from aiu_fms_testing_utils.utils.paged import (
     get_programs_prompts,
     KVCACHE_NUM_BLOCKS_HINT,
 )
+from aiu_fms_testing_utils.testing.utils import format_kwargs_to_string
 
 parser = argparse.ArgumentParser(
     description="Script which will drive paged programs for debugging"
@@ -195,6 +196,10 @@ if args.dataset_type == "custom":
     custom_shape = (len(result), max([_[1] for _ in result]))
 
     def __custom_line_sampler(*args, **kwargs):
+        return_key = kwargs.get("return_key", False)
+        sample_key = format_kwargs_to_string(**kwargs)
+        if return_key:
+            return result, sample_key
         return result
 
     sampler = __custom_line_sampler
