@@ -1,3 +1,4 @@
+import math
 import os
 import random
 import time
@@ -307,7 +308,7 @@ def generate(
                 if prefill_chunk_size > 0:
                     left_padded_prompt_mask_ij = None
                     # Chunked prefill
-                    for chunk_j in range((current_tkv // CHUNK_SIZE) + 1):
+                    for chunk_j in range(math.ceil(current_tkv / CHUNK_SIZE)):
                         chunk_start = -current_tkv + chunk_j * CHUNK_SIZE
                         chunk_end = -current_tkv + min(
                             (chunk_j + 1) * CHUNK_SIZE, current_tkv
