@@ -132,7 +132,7 @@ if USE_DISTRIBUTED:
 if USE_MICRO_MODELS:
     VALIDATION_INFO_DIR = os.path.join(VALIDATION_INFO_DIR, "tiny_models")
 
-# pass custom model path list for eg: EXPORT FMS_TESTING_COMMON_MODEL_PATHS="/tmp/models/granite-3-8b-base,/tmp/models/granite-7b-base"
+# pass custom model path list for eg: EXPORT FMS_TEST_SHAPES_COMMON_MODEL_PATHS="/tmp/models/granite-3-8b-base,/tmp/models/granite-7b-base"
 if isinstance(COMMON_MODEL_PATHS, str):
     COMMON_MODEL_PATHS = COMMON_MODEL_PATHS.split(",")
 
@@ -185,7 +185,7 @@ if COMPILE_DYNAMIC_SENDNN:
         ]
     )
     os.environ["VLLM_DT_MAX_BATCH_SIZE"] = str(max(max(COMMON_BATCH_SIZES), 2))
-
+    fx_config.backed_size_oblivious = True
 
 # thresholds are chosen based on 1024 tokens per sequence
 # 1% error threshold rate between cpu fp32 and cuda fp16
@@ -220,22 +220,22 @@ if MODEL_CONFIGURATION_PATH != "":
     )
     USE_MICRO_MODELS = False
     COMMON_MODEL_PATHS = []
-    frequency = int(MODEL_CONFIGURATION_FREQUENCY)
+    FREQUENCY = int(MODEL_CONFIGURATION_FREQUENCY)
     with open(MODEL_CONFIGURATION_PATH, "r") as f:
         for line in f:
             try:
-                model_config = json.loads(line)
-                if model_config["frequency"] <= frequency:
-                    COMMON_MODEL_PATHS.append(model_config["model_id"])
+                MODEL_CONFIG = json.loads(line)
+                if MODEL_CONFIG["frequency"] <= FREQUENCY:
+                    COMMON_MODEL_PATHS.append(MODEL_CONFIG["model_id"])
                     # assume fullsize models
-                    FAIL_THRESHOLDS[(model_config["model_id"], USE_MICRO_MODELS)] = (
-                        model_config["ce"],
-                        model_config["mean_diff"],
+                    FAIL_THRESHOLDS[(MODEL_CONFIG["model_id"], USE_MICRO_MODELS)] = (
+                        MODEL_CONFIG["ce"],
+                        MODEL_CONFIG["mean_diff"],
                     )
             except json.JSONDecodeError:
                 print(f"config contained an improper json line: {line.strip()}")
 
-common_shapes = list(
+COMMON_SHAPES = list(
     itertools.product(
         COMMON_MODEL_PATHS,
         COMMON_BATCH_SIZES,
@@ -308,7 +308,7 @@ def __maybe_get_gptq_kwargs(model_path):
     return gptq_kwargs_aiu, gptq_kwargs_cpu
 
 
-def __prepare_inputs(batch_size, seq_length, tokenizer, seed=0):
+def __prepare_inputs(batch_size, seq_length, tokenizer, model_path, seed=0):
     if "paged" in ATTN_NAME:
         prompts_and_sizes = sample_sharegpt_requests(
             SHARE_GPT_DATASET_PATH,
@@ -486,7 +486,10 @@ def _metric_calculator(r: torch.Tensor, t: torch.Tensor):
 
 
 def _check_failure_thresholds(
-    diff_fail_responses_list, ce_fail_responses_list, total_tokens
+    diff_fail_responses_list,
+    ce_fail_responses_list,
+    total_tokens,
+    record_property=None,
 ):
     # test the failure rates for across all tokens
     diff_failure_rate = len(diff_fail_responses_list) / total_tokens
@@ -494,9 +497,10 @@ def _check_failure_thresholds(
     dprint(f"mean diff failure rate: {diff_failure_rate}")
     dprint(f"cross entropy loss failure rate: {ce_failure_rate}")
 
-    # Add failure rates to xml report
-    record_property("mean_diff_failure_rate", diff_failure_rate)
-    record_property("cross_entropy_loss_failure_rate", ce_failure_rate)
+    if record_property is not None:
+        # Add failure rates to xml report
+        record_property("mean_diff_failure_rate", diff_failure_rate)
+        record_property("cross_entropy_loss_failure_rate", ce_failure_rate)
 
     if "mean_diff" not in SKIP_ASSERTIONS:
         assert diff_failure_rate < FAILURE_RATE_THRESHOLD, (
@@ -565,7 +569,6 @@ def _get_cpu_model(is_gptq, is_fp8, micro_model_state_dict=None, **kwargs):
     return validation_model
 
 
-
 def _get_device_validation_information(
     model_path,
     batch_size,
@@ -578,7 +581,6 @@ def _get_device_validation_information(
     token_iter,
     device="aiu",
     tokenizer=None,
-    only_last_token=None,
 ):
     # For CPU, we try to load it from disk first if it exists
     if device == "cpu":
@@ -589,7 +591,7 @@ def _get_device_validation_information(
             max_new_tokens,
             tokenizer,
             token_iter,
-            ATTN_NAME, # TODO checkme
+            ATTN_NAME,
         )
 
         if cpu_validation_info is not None:
@@ -600,8 +602,7 @@ def _get_device_validation_information(
     if device == "cpu":
         device_dependent_kwargs["attn_algorithm"] = "math"
 
-    if device == "aiu" and only_last_token is not None:
-        device_dependent_kwargs["only_last_token"] = only_last_token
+    if device == "aiu":
         device_dependent_kwargs["last_n_tokens"] = 64 if "paged" in ATTN_NAME else 1
 
     # Otherwise we need to get the AIU / CPU validation info
@@ -623,7 +624,7 @@ def _get_device_validation_information(
 
         validation_info.save(
             get_validation_info_path(
-                validation_info_dir,
+                VALIDATION_INFO_DIR,
                 model_path,
                 batch_size,
                 seq_length,
@@ -703,7 +704,6 @@ def _run_validation_level_0(
         token_iter=0,
         device="aiu",
         tokenizer=tokenizer,
-        only_last_token="paged" not in ATTN_NAME,
     )
     dprint("aiu validation info extracted for validation level 0")
 
@@ -733,6 +733,7 @@ def _run_validation_level_1(
     model,
     micro_model_path,
     validation_zero_info,
+    record_property,
 ):
     iters = int(CUMULATIVE_TEST_TOKENS_PER_SEQUENCE) // max_new_tokens
     ce_fail_responses_list = []
@@ -781,7 +782,6 @@ def _run_validation_level_1(
             token_iter=i,
             device="aiu",
             tokenizer=tokenizer,
-            only_last_token=ATTN_TYPE != "paged",
         )
         dprint(f"aiu validation info extracted for validation level 1 - iter={i}")
 
@@ -810,7 +810,10 @@ def _run_validation_level_1(
         total_tokens += len(level_1_metrics)
 
     _check_failure_thresholds(
-        diff_fail_responses_list, ce_fail_responses_list, total_tokens
+        diff_fail_responses_list,
+        ce_fail_responses_list,
+        total_tokens,
+        record_property,
     )
 
 
@@ -823,12 +826,15 @@ def _run_cpu_aiu_validation_test(
     cpu_model,
     aiu_model,
     micro_model_path,
+    record_property,
 ):
     # Get the tokenizer and AIU / CPU models to compare
     tokenizer = AutoTokenizer.from_pretrained(model_path)
 
     # prepare input_ids
-    input_ids, extra_kwargs = __prepare_inputs(batch_size, seq_length, tokenizer)
+    input_ids, extra_kwargs = __prepare_inputs(
+        batch_size, seq_length, tokenizer, model_path
+    )
 
     extra_kwargs["attn_name"] = ATTN_NAME
     if (
@@ -875,11 +881,12 @@ def _run_cpu_aiu_validation_test(
             aiu_model,
             micro_model_path,
             validation_zero_info,
+            record_property,
         )
 
 
 @pytest.mark.parametrize(
-    "model_path,batch_size,seq_length,max_new_tokens", common_shapes
+    "model_path,batch_size,seq_length,max_new_tokens", COMMON_SHAPES
 )
 def test_common_shapes(
     model_path,
@@ -900,7 +907,6 @@ def test_common_shapes(
 
     # we don't currently support inferring gptq from get_model, so we must use an adapter with hf_configured
     gptq_kwargs_aiu, gptq_kwargs_cpu = __maybe_get_gptq_kwargs(model_path)
-
     is_gptq = len(gptq_kwargs_aiu) != 0
     is_fp8 = "fp8" in ATTN_NAME
     model_kwargs = _get_common_model_kwargs(is_gptq, model_path)
@@ -926,4 +932,5 @@ def test_common_shapes(
         validation_model,
         model,
         micro_model_path,
+        record_property,
     )
