@@ -742,6 +742,9 @@ def _run_validation_level_1(
     for i in range(iters):
         # for iteration 0, we have computed the cpu validation info in the prior step for seed=0, so skip
         if i != 0:
+            input_ids, extra_kwargs = __prepare_inputs(
+                batch_size, seq_length, tokenizer, model_path, seed=i
+            )
             cpu_validation_info = _get_device_validation_information(
                 model_path=model_path,
                 batch_size=batch_size,
