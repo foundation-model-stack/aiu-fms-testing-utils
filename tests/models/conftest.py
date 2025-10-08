@@ -25,7 +25,7 @@ def pytest_sessionstart(session):
 
     # NOTE: we should configure the cachedir before importing torchsendnn's
     # graph cache to prevent it from being initialized in the wrong place.
-    os.environ["TORCH_SENDNN_CACHE_DIR"] = os.path.join(os.getcwd(), ".cache")
+    os.environ.setdefault("TORCH_SENDNN_CACHE_DIR", os.path.join(os.getcwd(), ".cache"))
 
 
 def pytest_addoption(parser):
