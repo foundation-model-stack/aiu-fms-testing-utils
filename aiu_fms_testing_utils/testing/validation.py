@@ -128,13 +128,6 @@ class ValidationInfo:
 
 
 def get_default_validation_prefix(
-    model_id: str,
-    max_new_tokens: int,
-    batch_size: int,
-    seq_length: int,
-    dtype: str,
-    attn_type: str,
-    aftu_version: str,
     **kwargs,
 ):
     """
@@ -150,12 +143,12 @@ def get_default_validation_prefix(
     Returns:
         str: A hashed prefix that will be prepended to the file name
     """
+    aftu_version = kwargs.pop(
+        "aftu_version", ".".join([str(_) for _ in version_tuple[:3]])
+    )
     kwargs_str = format_kwargs_to_string(**kwargs)
 
-    if kwargs_str == "":
-        filename = f"{model_id.replace('/', '--')}_max-new-tokens-{max_new_tokens}_batch-size-{batch_size}_seq-length-{seq_length}_dtype-{dtype}_attn-type-{attn_type}"
-    else:
-        filename = f"{model_id.replace('/', '--')}_max-new-tokens-{max_new_tokens}_batch-size-{batch_size}_seq-length-{seq_length}_dtype-{dtype}_attn-type-{attn_type}_{kwargs_str}"
+    filename = f"{kwargs_str}"
     hash_object = hashlib.sha256(filename.encode("utf-8"))
     hex_digest = hash_object.hexdigest()
     return f"{hex_digest}_{aftu_version}"
@@ -435,7 +428,7 @@ def get_validation_info_path(
 
     sample_key = kwargs.get("sample_key", None)
 
-    validation_file_name = f"{get_default_validation_prefix(model_variant, max_new_tokens, batch_size, seq_length, dtype, attn_type, '.'.join([str(_) for _ in aftu_version[:3]]), sample_key=sample_key)}.{device_type}_validation_info.{seed}.out"
+    validation_file_name = f"{get_default_validation_prefix(aftu_version='.'.join([str(_) for _ in aftu_version[:3]]), model_id=model_variant, max_new_tokens=max_new_tokens, batch_size=batch_size, seq_length=seq_length, dtype=dtype, attn_type=attn_type, sample_key=sample_key)}.{device_type}_validation_info.{seed}.out"
     full_path = os.path.join(validation_info_dir, validation_file_name)
     return full_path
 

@@ -80,7 +80,7 @@ def test_validation_info_round_trip(validation_type, post_iteration_hook):
 
 
 def test_get_validation_info_path(tmp_path):
-    check_pathname = "ibm-granite--granite-3.3-8b-instruct_max-new-tokens-128_batch-size-4_seq-length-64_dtype-fp16_attn-type-sdpa"
+    check_pathname = "attn-type-sdpa_batch-size-4_dtype-fp16_max-new-tokens-128_model-id-ibm-granite--granite-3.3-8b-instruct_seq-length-64"
     hash_object = hashlib.sha256(check_pathname.encode("utf-8"))
     hex_digest = hash_object.hexdigest()
 
@@ -91,7 +91,7 @@ def test_get_validation_info_path(tmp_path):
         == f"{tmp_path}/{hex_digest}_{'.'.join([str(_) for _ in version_tuple[:3]])}.cpu_validation_info.0.out"
     )
 
-    check_pathname = "ibm-granite--granite-3.3-8b-instruct_max-new-tokens-128_batch-size-4_seq-length-64_dtype-fp16_attn-type-sdpa"
+    check_pathname = "attn-type-sdpa_batch-size-4_dtype-fp16_max-new-tokens-128_model-id-ibm-granite--granite-3.3-8b-instruct_seq-length-64"
     hash_object = hashlib.sha256(check_pathname.encode("utf-8"))
     hex_digest = hash_object.hexdigest()
 
@@ -295,15 +295,15 @@ def test_get_default_validation_prefix(
 
     sample_key = None
     # get_default_validation_prefix with sample_key set to None
-    check_prefix_sample_key_none = f"{model_variant}_max-new-tokens-{max_new_tokens}_batch-size-{batch_size}_seq-length-{seq_length}_dtype-{dtype}_attn-type-{attn_type}"
+    check_prefix_sample_key_none = f"attn-type-{attn_type}_batch-size-{batch_size}_dtype-{dtype}_max-new-tokens-{max_new_tokens}_model-id-{model_variant}_seq-length-{seq_length}"
     hash_object = hashlib.sha256(check_prefix_sample_key_none.encode("utf-8"))
     hex_digest = hash_object.hexdigest()
-    prefix_sample_key_none = f"{get_default_validation_prefix(model_variant, max_new_tokens, batch_size, seq_length, dtype, attn_type, '.'.join([str(_) for _ in aftu_version[:3]]), sample_key=sample_key)}.{device_type}_validation_info.{seed}.out"
+    prefix_sample_key_none = f"{get_default_validation_prefix(model_id=model_variant, max_new_tokens=max_new_tokens, batch_size=batch_size, seq_length=seq_length, dtype=dtype, attn_type=attn_type, aftu_version='.'.join([str(_) for _ in aftu_version[:3]]), sample_key=sample_key)}.{device_type}_validation_info.{seed}.out"
 
     assert prefix_sample_key_none == f"{hex_digest}_1.2.3.cpu_validation_info.0.out"
 
     # get_default_validation_prefix with no kwargs using legacy case
-    legacy_prefix = f"{get_default_validation_prefix(model_variant, max_new_tokens, batch_size, seq_length, dtype, attn_type, '.'.join([str(_) for _ in aftu_version[:3]]))}.{device_type}_validation_info.{seed}.out"
+    legacy_prefix = f"{get_default_validation_prefix(model_id=model_variant, max_new_tokens=max_new_tokens, batch_size=batch_size, seq_length=seq_length, dtype=dtype, attn_type=attn_type, aftu_version='.'.join([str(_) for _ in aftu_version[:3]]))}.{device_type}_validation_info.{seed}.out"
     assert prefix_sample_key_none == legacy_prefix
 
     # retrieve a sample_key with return_key is True
