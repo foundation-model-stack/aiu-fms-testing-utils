@@ -153,7 +153,9 @@ def generate(
         raise ValueError("model must have a distributed_strategy")
 
     kvheads = kvheads // tensor_parallel_size if kvheads > 1 else kvheads
-    head_size = model.config.emb_dim // nheads
+    head_size = getattr(
+        model.config, "head_dim", model.config.emb_dim // model.config.nheads
+    )
     if "fp8" in kwargs["attn_name"]:
         from fms_mo.aiu_addons.fp8.fp8_utils import ScaledTensor
 
