@@ -944,7 +944,7 @@ def use_cached_model(persistent_model, record_property, tmp_path):
     micro_model_path = MICRO_MODEL_MAPPING.get(model_path, None)
 
     def verify_cache_miss():
-        cache_dir = os.environ.get("TORCH_SENDNN_CACHE_DIR")
+        cache_dir = str(tmp_path)
         updated_cache_len = (
             len(os.listdir(cache_dir)) if os.path.isdir(cache_dir) else 0
         )
@@ -1048,7 +1048,7 @@ def test_cache(use_cached_model, persistent_model, record_property, tmp_path):
     micro_model_path = MICRO_MODEL_MAPPING.get(model_path, None)
 
     def verify_cache_hit():
-        cache_dir = os.environ.get("TORCH_SENDNN_CACHE_DIR")
+        cache_dir = str(tmp_path)
         updated_cache_len = (
             len(os.listdir(cache_dir)) if os.path.isdir(cache_dir) else 0
         )
