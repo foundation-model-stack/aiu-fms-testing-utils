@@ -836,6 +836,7 @@ def _run_cpu_aiu_validation_test(
     micro_model_path,
     record_property,
     verify_cache_state=None,
+    warmup_only=False,
 ):
     # Get the tokenizer and AIU / CPU models to compare
     tokenizer = AutoTokenizer.from_pretrained(model_path)
@@ -859,6 +860,16 @@ def _run_cpu_aiu_validation_test(
         aiu_model, input_ids, max_new_tokens, COMPILE_DYNAMIC_SENDNN, **extra_kwargs
     )
 
+    # Used only for cache tests; this is a nonparametric closure that
+    # should assert the cache for torch sendnn is in the correct state
+    # for this test
+    if verify_cache_state is not None:
+        verify_cache_state()
+
+    # For some tests, e.g., cache checks, we only need to run the warmup
+    if warmup_only:
+        return
+
     # Run validation level 0
     failed_validation_level_0, validation_zero_info = _run_validation_level_0(
         model_path,
@@ -871,12 +882,6 @@ def _run_cpu_aiu_validation_test(
         extra_kwargs,
         aiu_model,
     )
-
-    # Used only for cache tests; this is a nonparametric closure that
-    # should assert the cache for torch sendnn is in the correct state
-    # for this test
-    if verify_cache_state is not None:
-        verify_cache_state()
 
     # if level 0 fails validation, validate level 1
     if FORCE_VALIDATION_LEVEL_1 or failed_validation_level_0:
