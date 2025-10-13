@@ -936,7 +936,7 @@ def _reset_cache_settings(purge_cache_dir, cache_dir=None):
 
 
 @pytest.fixture
-def use_cached_model(persistent_model, record_property, tmp_path):
+def use_cached_model(request, persistent_model, record_property, tmp_path):
     """Configures the torchsendnn cache and runs the AIU model prior to test execution;
     this is computationally expensive and should only be used in situations like testing
     cache hit correctness;
@@ -990,7 +990,9 @@ def use_cached_model(persistent_model, record_property, tmp_path):
         micro_model_path,
         record_property,
         verify_cache_state=verify_cache_miss,
+        warmup_only=True,
     )
+    return request.param
 
 
 @pytest.mark.parametrize(
@@ -1044,12 +1046,19 @@ def test_common_shapes(
     )
 
 
+@pytest.mark.parametrize(
+    "use_cached_model",
+    COMMON_SHAPES,
+    indirect=True,
+)
 def test_cache(use_cached_model, persistent_model, record_property, tmp_path):
     torch.manual_seed(42)
     torch.set_grad_enabled(False)
     _reset_cache_settings(purge_cache_dir=False, cache_dir=tmp_path)
 
-    model_path, batch_size, seq_length, max_new_tokens = _get_cache_test_params()
+    # use_cached_model is an indirectly parametrized fixture, and the returned
+    # value is an expanded tuple from COMMON_SHAPES, so we unpack it here
+    model_path, batch_size, seq_length, max_new_tokens = use_cached_model
     micro_model_path = MICRO_MODEL_MAPPING.get(model_path, None)
 
     def verify_cache_hit():
@@ -1094,4 +1103,5 @@ def test_cache(use_cached_model, persistent_model, record_property, tmp_path):
         micro_model_path,
         record_property,
         verify_cache_state=verify_cache_hit,
+        warmup_only=True,
     )
