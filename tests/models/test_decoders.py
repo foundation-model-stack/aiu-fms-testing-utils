@@ -910,29 +910,35 @@ def _get_cache_test_params():
     return [model_path, batch_size, seq_length, max_new_tokens]
 
 
-def _reset_cache_settings(purge_cache_dir):
+def _reset_cache_settings(purge_cache_dir, cache_dir=None):
     os.environ["TORCH_SENDNN_CACHE_ENABLE"] = "1"
     os.environ["COMPILATION_MODE"] = "offline_decoder"
-    cache_dir = os.environ["TORCH_SENDNN_CACHE_DIR"]
+    if cache_dir is not None:
+        # Might be a posixpath
+        cache_dir = str(cache_dir)
+        os.environ["TORCH_SENDNN_CACHE_DIR"] = cache_dir
 
     # Ensure we start in clean state
     if purge_cache_dir and os.path.isdir(cache_dir):
         shutil.rmtree(cache_dir)
         os.mkdir(cache_dir)
 
+        # NOTE: currently, the cache dir is pulled from
+        # TORCH_SENDNN_CACHE_DIR at initialization time,
+        # so this should correctly use the cache_dir
         _get_global_state().use_aiu_cache = True
         _get_global_state().spyre_graph_cache = SpyreGraphCache()
 
 
 @pytest.fixture
-def use_cached_model(persistent_model, record_property):
+def use_cached_model(persistent_model, record_property, tmp_path):
     """Configures the torchsendnn cache and runs the AIU model prior to test execution;
     this is computationally expensive and should only be used in situations like testing
     cache hit correctness;
     """
     torch.manual_seed(42)
     torch.set_grad_enabled(False)
-    _reset_cache_settings(purge_cache_dir=True)
+    _reset_cache_settings(purge_cache_dir=True, cache_dir=tmp_path)
 
     model_path, batch_size, seq_length, max_new_tokens = _get_cache_test_params()
     micro_model_path = MICRO_MODEL_MAPPING.get(model_path, None)
@@ -1033,10 +1039,10 @@ def test_common_shapes(
     )
 
 
-def test_cache(use_cached_model, persistent_model, record_property):
+def test_cache(use_cached_model, persistent_model, record_property, tmp_path):
     torch.manual_seed(42)
     torch.set_grad_enabled(False)
-    _reset_cache_settings(purge_cache_dir=False)
+    _reset_cache_settings(purge_cache_dir=False, cache_dir=tmp_path)
 
     model_path, batch_size, seq_length, max_new_tokens = _get_cache_test_params()
     micro_model_path = MICRO_MODEL_MAPPING.get(model_path, None)
