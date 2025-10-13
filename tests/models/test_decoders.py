@@ -905,16 +905,6 @@ def _run_cpu_aiu_validation_test(
         )
 
 
-def _get_cache_test_params():
-    # NOTE - currently we always use granite 3.3 for the cache test,
-    # TODO make this configurable as tests are refactored
-    model_path = GRANITE_3p3_8B_INSTRUCT
-    batch_size = COMMON_BATCH_SIZES[0]
-    seq_length = COMMON_SEQ_LENGTHS[0]
-    max_new_tokens = COMMON_MAX_NEW_TOKENS[0]
-    return [model_path, batch_size, seq_length, max_new_tokens]
-
-
 def _reset_cache_settings(purge_cache_dir, cache_dir=None):
     os.environ["TORCH_SENDNN_CACHE_ENABLE"] = "1"
     os.environ["COMPILATION_MODE"] = "offline_decoder"
@@ -937,15 +927,15 @@ def _reset_cache_settings(purge_cache_dir, cache_dir=None):
 
 @pytest.fixture
 def use_cached_model(request, persistent_model, record_property, tmp_path):
-    """Configures the torchsendnn cache and runs the AIU model prior to test execution;
-    this is computationally expensive and should only be used in situations like testing
-    cache hit correctness;
+    """Configures the torchsendnn cache and runs the AIU model (warmup)
+    prior to test execution; this is computationally expensive and should
+    only be used in situations like testing cache hit correctness.
     """
     torch.manual_seed(42)
     torch.set_grad_enabled(False)
     _reset_cache_settings(purge_cache_dir=True, cache_dir=tmp_path)
 
-    model_path, batch_size, seq_length, max_new_tokens = _get_cache_test_params()
+    model_path, batch_size, seq_length, max_new_tokens = request.param
     micro_model_path = MICRO_MODEL_MAPPING.get(model_path, None)
 
     def verify_cache_miss():
