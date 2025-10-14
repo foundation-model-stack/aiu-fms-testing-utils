@@ -119,7 +119,9 @@ def generate(
     max_possible_context_length = input_ids.size(1) + max_new_tokens
 
     BLOCK_SIZE = 64
-    CHUNK_SIZE = prefill_chunk_size * BLOCK_SIZE
+    if prefill_chunk_size > 0:
+        assert prefill_chunk_size % BLOCK_SIZE == 0, "Chunk size must be a multiple of the page size"
+    CHUNK_SIZE = prefill_chunk_size
 
     # these variables are guaranteed to be set in another location (inference.py, test_decoders.py, etc.)
     # if we set these variables here, we run the risk of warming up and generating with different sizes

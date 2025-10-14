@@ -132,7 +132,7 @@ parser.add_argument(
     "--prefill_chunk_size",
     type=int,
     default=0,
-    help="if > 0, activate chunked prefill, with chunk_size=page_size*this_argument. Only works with paged attention variants",
+    help="if > 0, activate chunked prefill, with chunk_size=this_argument. Only works with paged attention variants.",
 )
 parser.add_argument(
     "--stagger_load",
