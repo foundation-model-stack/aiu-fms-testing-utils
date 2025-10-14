@@ -8,7 +8,14 @@ from aiu_fms_testing_utils.testing.validation import (
     get_validation_info_path,
     find_validation_info_path,
     __decrement_version,
+    get_default_validation_prefix,
 )
+import hashlib
+import os
+from aiu_fms_testing_utils.testing.utils import format_kwargs_to_string
+from aiu_fms_testing_utils.utils import sample_sharegpt_requests
+from transformers import AutoTokenizer
+
 from aiu_fms_testing_utils._version import version_tuple
 from fms.models import get_model
 from fms.utils.generation import pad_input_ids
@@ -73,12 +80,21 @@ def test_validation_info_round_trip(validation_type, post_iteration_hook):
 
 
 def test_get_validation_info_path(tmp_path):
+    check_pathname = "attn-type-sdpa_batch-size-4_dtype-fp16_max-new-tokens-128_model-id-ibm-granite--granite-3.3-8b-instruct_seq-length-64"
+    hash_object = hashlib.sha256(check_pathname.encode("utf-8"))
+    hex_digest = hash_object.hexdigest()
+
     assert (
         get_validation_info_path(
             tmp_path, "ibm-granite/granite-3.3-8b-instruct", 4, 64, 128, 0, "sdpa"
         )
-        == f"{tmp_path}/ibm-granite--granite-3.3-8b-instruct_max-new-tokens-128_batch-size-4_seq-length-64_dtype-fp16_attn-type-sdpa.{'.'.join([str(_) for _ in version_tuple[:3]])}.cpu_validation_info.0.out"
+        == f"{tmp_path}/{hex_digest}_{'.'.join([str(_) for _ in version_tuple[:3]])}.cpu_validation_info.0.out"
     )
+
+    check_pathname = "attn-type-sdpa_batch-size-4_dtype-fp16_max-new-tokens-128_model-id-ibm-granite--granite-3.3-8b-instruct_seq-length-64"
+    hash_object = hashlib.sha256(check_pathname.encode("utf-8"))
+    hex_digest = hash_object.hexdigest()
+
     assert (
         get_validation_info_path(
             tmp_path,
@@ -90,7 +106,7 @@ def test_get_validation_info_path(tmp_path):
             "sdpa",
             aftu_version=(1, 2, 3),
         )
-        == f"{tmp_path}/ibm-granite--granite-3.3-8b-instruct_max-new-tokens-128_batch-size-4_seq-length-64_dtype-fp16_attn-type-sdpa.1.2.3.cpu_validation_info.0.out"
+        == f"{tmp_path}/{hex_digest}_1.2.3.cpu_validation_info.0.out"
     )
 
 
@@ -238,3 +254,81 @@ def test_decrement_version(max_minor, max_patch, current_version):
         + patch
         + 1
     )
+
+
+def test_format_kwargs_to_string():
+    kwargs = {
+        "enforce_sizes": [1, 32, 4, 8],
+        "batch_size": 1,
+        "model_id": "granite-3.3-8b",
+        "seq_len": 64,
+    }
+    kwargs_str = format_kwargs_to_string(**kwargs)
+    assert (
+        kwargs_str
+        == "batch-size-1_enforce-sizes-1,32,4,8_model-id-granite-3.3-8b_seq-len-64"
+    )
+
+
+DATASET_PATH = os.getenv(
+    "DATASET_PATH", "/mnt/home/models/ShareGPT_V3_unfiltered_cleaned_split.json"
+)
+TOKENIZER = os.getenv("TOKENIZER", "ibm-granite/granite-3.3-8b-Instruct")
+
+
+@pytest.mark.parametrize(
+    "model_variant,max_new_tokens,batch_size,seq_length,dtype,attn_type,device_type,seed,aftu_version",
+    [("granite-3.3-8b", 64, 2, 64, "fp16", "spda", "cpu", 0, (1, 2, 3))],
+)
+def test_get_default_validation_prefix(
+    model_variant,
+    max_new_tokens,
+    batch_size,
+    seq_length,
+    dtype,
+    attn_type,
+    device_type,
+    seed,
+    aftu_version,
+):
+    tokenizer = AutoTokenizer.from_pretrained(TOKENIZER)
+
+    sample_key = None
+    # get_default_validation_prefix with sample_key set to None
+    check_prefix_sample_key_none = f"attn-type-{attn_type}_batch-size-{batch_size}_dtype-{dtype}_max-new-tokens-{max_new_tokens}_model-id-{model_variant}_seq-length-{seq_length}"
+    hash_object = hashlib.sha256(check_prefix_sample_key_none.encode("utf-8"))
+    hex_digest = hash_object.hexdigest()
+    prefix_sample_key_none = f"{get_default_validation_prefix(model_id=model_variant, max_new_tokens=max_new_tokens, batch_size=batch_size, seq_length=seq_length, dtype=dtype, attn_type=attn_type, aftu_version='.'.join([str(_) for _ in aftu_version[:3]]), sample_key=sample_key)}.{device_type}_validation_info.{seed}.out"
+
+    assert prefix_sample_key_none == f"{hex_digest}_1.2.3.cpu_validation_info.0.out"
+
+    # get_default_validation_prefix with no kwargs using legacy case
+    legacy_prefix = f"{get_default_validation_prefix(model_id=model_variant, max_new_tokens=max_new_tokens, batch_size=batch_size, seq_length=seq_length, dtype=dtype, attn_type=attn_type, aftu_version='.'.join([str(_) for _ in aftu_version[:3]]))}.{device_type}_validation_info.{seed}.out"
+    assert prefix_sample_key_none == legacy_prefix
+
+    # retrieve a sample_key with return_key is True
+    dataset_1, sample_key = sample_sharegpt_requests(
+        DATASET_PATH,
+        batch_size,
+        tokenizer,
+        32,
+        seq_length * 2,
+        seed=seed,
+        enforce_sizes=[],
+        return_key=True,
+    )
+
+    # Check sample key sorted by parameter name
+    assert sample_key.split("_") == sorted(sample_key.split("_"))
+
+    dataset_2 = sample_sharegpt_requests(
+        DATASET_PATH,
+        batch_size,
+        tokenizer,
+        32,
+        seq_length * 2,
+        seed=seed,
+        enforce_sizes=[],
+    )
+
+    assert dataset_1 == dataset_2

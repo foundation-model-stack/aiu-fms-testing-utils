@@ -6,6 +6,7 @@ from subprocess import Popen, PIPE
 from pathlib import Path
 import itertools
 import math
+from aiu_fms_testing_utils.utils.paged import get_programs_prompts, ProgramCriteria
 
 FMS_DIR = Path(__file__).parent
 AIU_FMS_DIR = os.path.join(FMS_DIR, "../../../aiu-fms-testing-utils/")
@@ -291,28 +292,48 @@ def test_dpp_script(
     )
     print(result_text)
     with open(os.environ["DT_PROG_CRITERIA_FILEPATH"], "r") as f:
-        program_criteria_list = json.load(f)["programs"]
+        program_criteria_json_list = json.load(f)["programs"]
+        program_criteria_list = []
+        for i, d in enumerate(program_criteria_json_list):
+            program_criteria_list.append(
+                ProgramCriteria(
+                    i,
+                    d["max_batch"],
+                    d["max_tkv"],
+                    d["batch_granularity"],
+                    d["tkv_granularity"],
+                )
+            )
 
     if programs is None:
         program_assertions = [i for i in range(len(program_criteria_list))]
         shape_assertions = [">=0", ">=0"]
     else:
+        program_map = get_programs_prompts(
+            program_criteria_list,
+            multiple=64,
+            max_batch_size=2,
+            max_tkv=512,
+            program_cycles=max_new_tokens,
+        )
         programs_split = programs.split(":")
         program_ids_str = programs_split[0]
         shape_assertions = [
             f">={_}" if _.isnumeric() else _ for _ in programs_split[1].split(",")
         ]
-        match_number = r"\d+"
-        valid_program_assertions = [
-            f">={re.search(match_number, _).group()}" for _ in shape_assertions
-        ]
-        # need to add 1 for tkv as that is the first decode
-        program_assertions = [
-            i
-            for i, p in enumerate(program_criteria_list)
-            if eval(f"p['max_batch']{valid_program_assertions[0]}")
-            and eval(f"p['max_tkv']{valid_program_assertions[1]}+1")
-        ]
+
+        program_assertions = []
+        for program_id_seq, shapes in program_map.items():
+            if any(
+                (
+                    eval(
+                        f"shape[0]{shape_assertions[0]} and shape[1]{shape_assertions[1]}"
+                    )
+                    for shape in shapes
+                )
+            ):
+                program_assertions.append(program_id_seq[0].program_id)
+
         if program_ids_str == "?":
             program_assertions = program_assertions[:1]
         elif program_ids_str.isnumeric():

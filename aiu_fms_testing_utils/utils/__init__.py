@@ -11,6 +11,7 @@ import bisect
 
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, rank, world_size
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
+from aiu_fms_testing_utils.testing.utils import format_kwargs_to_string
 
 from fms.utils.generation import pad_input_ids
 import torch
@@ -485,6 +486,7 @@ def sample_rag_factoid_requests(
     enforce_sizes: List[int] = [],
     truncation: bool = False,
     pad_multiple: int = 64,
+    return_key: bool = False,
 ) -> List[Tuple[str, int]]:
     if not os.path.exists(dataset_path):
         print("error dataset does not exist")
@@ -495,7 +497,7 @@ def sample_rag_factoid_requests(
         for line in f:
             dataset.append(line)
 
-    return __sample_requests(
+    sample_request = __sample_requests(
         dataset,
         num_requests,
         tokenizer,
@@ -509,6 +511,24 @@ def sample_rag_factoid_requests(
         _cached_dataset_key=dataset_path,
     )
 
+    if return_key:
+        sample_key: str = format_kwargs_to_string(
+            dataset="rag_factoid",
+            num_requests=num_requests,
+            tokenizer=tokenizer.name_or_path.replace("/", "--"),
+            prompt_length_min=prompt_length_min,
+            prompt_length_max=prompt_length_max,
+            seed=seed,
+            enforce_heterogeneous=enforce_heterogeneous,
+            enforce_sizes=enforce_sizes,
+            truncate=truncation,
+            pad_multiple=pad_multiple,
+        )
+
+        return sample_request, sample_key
+    else:
+        return sample_request
+
 
 def sample_sharegpt_requests(
     dataset_path: str,
@@ -521,6 +541,7 @@ def sample_sharegpt_requests(
     enforce_sizes: List[int] | None = None,
     truncation: bool = False,
     pad_multiple: int = 64,
+    return_key: bool = False,
 ) -> List[Tuple[str, int]]:
     if not os.path.exists(dataset_path):
         print("downloading share-gpt dataset as it does not exist")
@@ -546,7 +567,7 @@ def sample_sharegpt_requests(
     dataset = [data for data in dataset if len(data["conversations"]) >= 2]
     dataset: List[str] = [data["conversations"][0]["value"] for data in dataset]
 
-    return __sample_requests(
+    sample_request = __sample_requests(
         dataset,
         num_requests,
         tokenizer,
@@ -560,6 +581,23 @@ def sample_sharegpt_requests(
         _cached_dataset_key=dataset_path,
     )
 
+    if return_key:
+        sample_key: str = format_kwargs_to_string(
+            dataset="sharegpt",
+            num_requests=num_requests,
+            tokenizer=tokenizer.name_or_path.replace("/", "--"),
+            prompt_length_min=prompt_length_min,
+            prompt_length_max=prompt_length_max,
+            seed=seed,
+            enforce_heterogeneous=enforce_heterogeneous,
+            enforce_sizes=enforce_sizes,
+            truncate=truncation,
+            pad_multiple=pad_multiple,
+        )
+        return sample_request, sample_key
+    else:
+        return sample_request
+
 
 def sample_squad_v2_qa_requests(
     dataset_path: str,
@@ -572,6 +610,7 @@ def sample_squad_v2_qa_requests(
     enforce_sizes: List[int] | None = None,
     truncation: bool = False,
     pad_multiple: int = 64,
+    return_key: bool = False,
 ) -> List[Tuple[str, int]]:
     from datasets import load_dataset
 
@@ -585,7 +624,7 @@ def sample_squad_v2_qa_requests(
 
     ds = [f"{data['context']}\n{data['question']}" for data in ds]
 
-    return __sample_requests(
+    sample_request = __sample_requests(
         ds,
         num_requests,
         tokenizer,
@@ -597,6 +636,23 @@ def sample_squad_v2_qa_requests(
         truncation,
         pad_multiple,
     )
+
+    if return_key:
+        sample_key: str = format_kwargs_to_string(
+            dataset="squad_v2",
+            num_requests=num_requests,
+            tokenizer=tokenizer.name_or_path.replace("/", "--"),
+            prompt_length_min=prompt_length_min,
+            prompt_length_max=prompt_length_max,
+            seed=seed,
+            enforce_heterogeneous=enforce_heterogeneous,
+            enforce_sizes=enforce_sizes,
+            truncate=truncation,
+            pad_multiple=pad_multiple,
+        )
+        return sample_request, sample_key
+    else:
+        return sample_request
 
 
 def prepare_inputs(
