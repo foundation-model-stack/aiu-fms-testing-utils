@@ -120,8 +120,9 @@ def generate(
 
     BLOCK_SIZE = 64
     if prefill_chunk_size > 0:
-        assert prefill_chunk_size % BLOCK_SIZE == 0, "Chunk size must be a multiple of the page size"
-    CHUNK_SIZE = prefill_chunk_size
+        assert prefill_chunk_size % BLOCK_SIZE == 0, (
+            "Chunk size must be a multiple of the page size"
+        )
 
     # these variables are guaranteed to be set in another location (inference.py, test_decoders.py, etc.)
     # if we set these variables here, we run the risk of warming up and generating with different sizes
@@ -268,36 +269,36 @@ def generate(
                 # remove extra pads from the input_ids, slot_mapping, position_ids, mask to account for empty pages
                 # each input should be padded to its smallest multiple of BLOCK_SIZE (64)
                 # we need to clone these tensors to ensure the pointer offset is 0
-                input_ids_i = input_ids[seq_i][-current_tkv:].unsqueeze(0).clone()
-                slot_mapping_i = (
+                input_ids_seq = input_ids[seq_i][-current_tkv:].unsqueeze(0).clone()
+                slot_mapping_seq = (
                     torch.tensor(slot_mapping[seq_i][-current_tkv:], dtype=torch.int64)
                     .unsqueeze(0)
                     .clone()
                 )
-                position_ids_i = (
+                position_ids_seq = (
                     kwargs["position_ids"][seq_i][-current_tkv:].unsqueeze(0).clone()
                 )
 
                 # This view will result in a discontiguous tensor (creates a new graph during compile)
                 # For this reason, we must explicitly make contiguous
-                mask_i = (
+                mask_seq = (
                     kwargs["mask"][seq_i][:, -current_tkv:, -current_tkv:]
                     .unsqueeze(0)
                     .contiguous()
                 )
 
                 # batch static
-                torch._dynamo.mark_static(input_ids_i, 0)
-                torch._dynamo.mark_static(slot_mapping_i, 0)
-                torch._dynamo.mark_static(position_ids_i, 0)
-                torch._dynamo.mark_static(mask_i, 0)
+                torch._dynamo.mark_static(input_ids_seq, 0)
+                torch._dynamo.mark_static(slot_mapping_seq, 0)
+                torch._dynamo.mark_static(position_ids_seq, 0)
+                torch._dynamo.mark_static(mask_seq, 0)
 
                 # seq dynamic
-                torch._dynamo.mark_dynamic(input_ids_i, 1)
-                torch._dynamo.mark_dynamic(slot_mapping_i, 1)
-                torch._dynamo.mark_dynamic(position_ids_i, 1)
-                torch._dynamo.mark_dynamic(mask_i, 2)
-                torch._dynamo.mark_dynamic(mask_i, 3)
+                torch._dynamo.mark_dynamic(input_ids_seq, 1)
+                torch._dynamo.mark_dynamic(slot_mapping_seq, 1)
+                torch._dynamo.mark_dynamic(position_ids_seq, 1)
+                torch._dynamo.mark_dynamic(mask_seq, 2)
+                torch._dynamo.mark_dynamic(mask_seq, 3)
 
                 # FP8 per-sentence scale handling
                 if "fp8" in kwargs["attn_name"]:
@@ -308,16 +309,16 @@ def generate(
                 last_n_tokens = kwargs.get("last_n_tokens", 0)
 
                 if prefill_chunk_size > 0:
-                    left_padded_prompt_mask_ij = None
+                    left_padded_prompt_mask_seq_chunk = None
                     # Chunked prefill
-                    for chunk_j in range(math.ceil(current_tkv / CHUNK_SIZE)):
-                        chunk_start = -current_tkv + chunk_j * CHUNK_SIZE
+                    for chunk_j in range(math.ceil(current_tkv / prefill_chunk_size)):
+                        chunk_start = -current_tkv + chunk_j * prefill_chunk_size
                         chunk_end = -current_tkv + min(
-                            (chunk_j + 1) * CHUNK_SIZE, current_tkv
+                            (chunk_j + 1) * prefill_chunk_size, current_tkv
                         )
 
                         ids_length = input_ids[seq_i].shape[0]
-                        input_ids_ij = (
+                        input_ids_seq_chunk = (
                             input_ids[seq_i][
                                 chunk_start + ids_length : chunk_end + ids_length
                             ]
@@ -325,7 +326,7 @@ def generate(
                             .clone()
                         )
                         slots_length = len(slot_mapping[seq_i])
-                        slot_mapping_ij = (
+                        slot_mapping_seq_chunk = (
                             torch.tensor(
                                 slot_mapping[seq_i][
                                     chunk_start + slots_length : chunk_end
@@ -337,7 +338,7 @@ def generate(
                             .clone()
                         )
                         pids_length = kwargs["position_ids"][seq_i].shape[0]
-                        position_ids_ij = (
+                        position_ids_seq_chunk = (
                             kwargs["position_ids"][seq_i][
                                 chunk_start + pids_length : chunk_end + pids_length
                             ]
@@ -347,19 +348,21 @@ def generate(
 
                         # This view will result in a discontiguous tensor (creates a new graph during compile)
                         # For this reason, we must explicitly make contiguous
-                        if left_padded_prompt_mask_ij is None:
-                            left_padded_prompt_mask_ij = (position_ids_ij == 0).sum(
-                                dim=1
-                            ) - 1
-                        current_tkv_mask_ij = torch.min(
-                            torch.tensor((chunk_j + 1) * CHUNK_SIZE, dtype=torch.int64),
+                        if left_padded_prompt_mask_seq_chunk is None:
+                            left_padded_prompt_mask_seq_chunk = (
+                                position_ids_seq_chunk == 0
+                            ).sum(dim=1) - 1
+                        current_tkv_mask_seq_chunk = torch.min(
+                            torch.tensor(
+                                (chunk_j + 1) * prefill_chunk_size, dtype=torch.int64
+                            ),
                             current_tkv,
                         ).unsqueeze(0)
 
                         table_length = len(block_table[seq_i])
                         block_start = -current_tkv // BLOCK_SIZE + table_length
                         block_end = chunk_end // BLOCK_SIZE + table_length
-                        block_table_ij = torch.tensor(
+                        block_table_seq_chunk = torch.tensor(
                             block_table[seq_i][block_start:block_end], dtype=torch.int64
                         ).unsqueeze(0)
 
@@ -368,26 +371,28 @@ def generate(
                             "last_n_tokens": kwargs["last_n_tokens"],
                             "past_key_value_states": current_kv_cache,
                             "use_cache": kwargs["use_cache"],
-                            "position_ids": position_ids_ij,
-                            "left_padded_prompt_mask": left_padded_prompt_mask_ij,
-                            "current_tkv_mask": current_tkv_mask_ij,
-                            "block_table": block_table_ij,
-                            "slot_mapping": slot_mapping_ij,
+                            "position_ids": position_ids_seq_chunk,
+                            "left_padded_prompt_mask": left_padded_prompt_mask_seq_chunk,
+                            "current_tkv_mask": current_tkv_mask_seq_chunk,
+                            "block_table": block_table_seq_chunk,
+                            "slot_mapping": slot_mapping_seq_chunk,
                         }
 
                         # batch static
-                        torch._dynamo.mark_static(input_ids_ij, 0)
-                        torch._dynamo.mark_static(slot_mapping_ij, 0)
-                        torch._dynamo.mark_static(position_ids_ij, 0)
-                        torch._dynamo.mark_static(block_table_ij, 0)
+                        torch._dynamo.mark_static(input_ids_seq_chunk, 0)
+                        torch._dynamo.mark_static(slot_mapping_seq_chunk, 0)
+                        torch._dynamo.mark_static(position_ids_seq_chunk, 0)
+                        torch._dynamo.mark_static(block_table_seq_chunk, 0)
 
                         # seq dynamic
-                        torch._dynamo.mark_dynamic(input_ids_ij, 1)
-                        torch._dynamo.mark_dynamic(slot_mapping_ij, 1)
-                        torch._dynamo.mark_dynamic(position_ids_ij, 1)
-                        torch._dynamo.mark_dynamic(block_table_ij, 1)
+                        torch._dynamo.mark_dynamic(input_ids_seq_chunk, 1)
+                        torch._dynamo.mark_dynamic(slot_mapping_seq_chunk, 1)
+                        torch._dynamo.mark_dynamic(position_ids_seq_chunk, 1)
+                        torch._dynamo.mark_dynamic(block_table_seq_chunk, 1)
 
-                        logits, current_kv_cache = model(input_ids_ij, **chunked_kwargs)
+                        logits, current_kv_cache = model(
+                            input_ids_seq_chunk, **chunked_kwargs
+                        )
 
                         # only last token must be handled here to properly stack the tensors
                         logits = logits[:, -1, :]
@@ -396,10 +401,10 @@ def generate(
 
                 else:
                     output, current_kv_cache = model(
-                        input_ids_i,
-                        slot_mapping=slot_mapping_i,
-                        position_ids=position_ids_i,
-                        mask=mask_i,
+                        input_ids_seq,
+                        slot_mapping=slot_mapping_seq,
+                        position_ids=position_ids_seq,
+                        mask=mask_seq,
                         past_key_value_states=current_kv_cache,
                         use_cache=kwargs["use_cache"],
                         last_n_tokens=last_n_tokens,
@@ -408,7 +413,6 @@ def generate(
 
                     # only last token must be handled here to properly stack the tensors
                     output = output[:, -1, :]
-
 
                 # TODO: Figure out how to do this cleanly
                 if "fp8" in kwargs["attn_name"]:

@@ -269,6 +269,7 @@ def extract_validation_information(
     attention_specific_kwargs = {}
     if "paged" in extra_kwargs.get("attn_name", "sdpa"):
         from aiu_fms_testing_utils.utils.paged import generate
+
         attention_specific_kwargs["prefill_chunk_size"] = prefill_chunk_size
     else:
         # TODO: Add a unified generation dependent on attn_type
