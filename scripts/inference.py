@@ -20,6 +20,7 @@ from fms.models import get_model, register_model
 from fms.models.llama import LLaMAConfig, _llama_factory_factory
 from fms.utils import generation
 from fms.utils.generation import pad_input_ids
+from fms.utils import serialization
 
 from transformers import AutoTokenizer
 
@@ -257,6 +258,15 @@ parser.add_argument(
     default=0,
     help="Timeout to use for messaging in minutes. Default set by PyTorch dist.init_process_group",
 )
+
+parser.add_argument(
+    "--head_dim",
+    type=int,
+    default=None,
+    help="Override the head_dim in the model config",
+)
+
+
 args = parser.parse_args()
 
 attention_map = {
@@ -504,6 +514,12 @@ dprint(f"{fused_weights=}")
 dprint(f"data_type={default_dtype}")
 dprint("=" * 60 + "\n")
 
+if args.device_type == "aiu" and args.head_dim is not None:
+    serialization.extend_adapter(
+        "granite", "hf", ["weight_expansion_for_mismatched_head_dim"]
+    )
+
+
 with stagger_region(args.stagger_load):
     model = get_model(
         args.architecture,
@@ -516,6 +532,10 @@ with stagger_region(args.stagger_load):
         group=dist.group.WORLD,
         linear_config=linear_config,
         fused_weights=fused_weights,
+        override_hf_pretrained_config=True
+        if args.device_type == "aiu" and args.head_dim is not None
+        else False,
+        head_dim=args.head_dim,
     )
 
 ### Quantization
