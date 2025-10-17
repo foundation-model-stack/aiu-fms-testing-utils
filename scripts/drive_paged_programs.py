@@ -15,6 +15,7 @@ from fms.utils.generation import pad_input_ids
 from torch import distributed as dist
 from torch.fx.experimental import _config as fx_config
 from transformers import AutoTokenizer
+import numpy as np
 
 from aiu_fms_testing_utils.testing.validation import (
     GoldenTokenHook,
@@ -172,6 +173,12 @@ parser.add_argument(
     action="store_true",
     help="set to true ensure that all prompts hit the same prompt program for a given test",
 )
+parser.add_argument(
+    "--generate_metrics_path",
+    type=str,
+    default=None,
+    help="if set, will bypass AIU model processing and generate cross-entropy loss thresholds used for testing, and save the metrics to the given path",
+)
 
 args = parser.parse_args()
 
@@ -180,6 +187,7 @@ max_new_tokens = args.max_new_tokens
 model_variant = args.model_variant
 DATASET_PATH = args.dataset_path
 save_validation_info_outputs = args.save_validation_info_outputs
+generate_metrics = args.generate_metrics_path is not None
 tokenizer = AutoTokenizer.from_pretrained(model_variant)
 custom_shape = None
 
@@ -349,7 +357,7 @@ if USE_DISTRIBUTED:
 with stagger_region(args.stagger_load):
     model = get_model(
         architecture="hf_pretrained",
-        device_type="cpu",
+        device_type="cuda" if generate_metrics else "cpu",
         data_type=None if is_fp8 else torch.float16,
         fused_weights=False,
         **model_path_kwargs,
@@ -358,7 +366,8 @@ with stagger_region(args.stagger_load):
 
 model.eval()
 fx_config.backed_size_oblivious = True
-model.compile(backend="sendnn", options={"sendnn.dynamic": True})
+if not generate_metrics:
+    model.compile(backend="sendnn", options={"sendnn.dynamic": True})
 
 __maybe_prepare_fp8_weights(model, is_fp8)
 
@@ -391,14 +400,16 @@ if (
     and dist.get_world_size() == 4
 ):
     extra_kwargs["_kvcache_num_blocks_hint"] = KVCACHE_NUM_BLOCKS_HINT
-warmup_model(
-    model,
-    input_ids,
-    max_new_tokens=max_new_tokens,
-    compile_dynamic_sendnn=True,
-    stagger_update_lazyhandle=args.stagger_update_lazyhandle,
-    **extra_kwargs,
-)
+
+if not generate_metrics:
+    warmup_model(
+        model,
+        input_ids,
+        max_new_tokens=max_new_tokens,
+        compile_dynamic_sendnn=True,
+        stagger_update_lazyhandle=args.stagger_update_lazyhandle,
+        **extra_kwargs,
+    )
 
 if USE_DISTRIBUTED:
     # wait for rank0 to be finished as it is the only one generating the criteria json
@@ -608,17 +619,18 @@ else:
 # metric calculator based on the cross-entropy and mean diff for each decode step
 def __metric_calculator(r: torch.Tensor, t: torch.Tensor):
     cross_entropy = torch.nn.CrossEntropyLoss()(
-        r, t.softmax(dim=1).to(dtype=torch.float32)
+        r, t.softmax(dim=1).to(device="cpu", dtype=torch.float32)
     )
     diff = torch.mean(
         torch.abs(
             r.softmax(dim=1).to(dtype=torch.float32)
-            - t.softmax(dim=1).to(dtype=torch.float32)
+            - t.softmax(dim=1).to(device="cpu", dtype=torch.float32)
         )
     )
     return (cross_entropy, diff)
 
 
+program_threshold_dict = {}
 failed_cases = []
 # for each program and valid prompt (batch size, sequence length)
 for program_id, valid_prompt, input_ids, extra_kwargs, sample_key in valid_prompts:
@@ -675,6 +687,14 @@ for program_id, valid_prompt, input_ids, extra_kwargs, sample_key in valid_promp
                 )
 
         if args.test_type == "metrics":
+            # if we are generating metrics, all inputs should be on cuda device
+            if generate_metrics:
+                input_ids = input_ids.to("cuda")
+                extra_kwargs = {
+                    k: v.to("cuda") if isinstance(v, torch.Tensor) else v
+                    for k, v in extra_kwargs.items()
+                }
+
             aiu_validation_info = extract_validation_information(
                 model,
                 input_ids,
@@ -711,12 +731,25 @@ for program_id, valid_prompt, input_ids, extra_kwargs, sample_key in valid_promp
                         f'For Program {program_id} in sentence {sentence_idx + 1}: the metric for token {token_idx} is {metrics_value}, AIU ID="{aiu_token.item()}" | STR="{aiu_str}" -- CPU ID="{cpu_token.item()}" | CPU STR="{cpu_str}"'
                     )
 
-            ce_fail_responses = filter_failed_level_1_cases(
-                level_1_metrics, lambda m: m[0] >= args.cross_entropy_threshold
-            )
-            failure_rate = len(ce_fail_responses) / len(level_1_metrics)
-            if failure_rate >= args.failure_rate_threshold:
-                failed_cases.append((program_id, valid_prompt, failure_rate))
+            # if generating metrics, get the 99th percentile ce threshold per sentence
+            # otherwise test the thresholds
+            if generate_metrics:
+                sentence_ce_dict = {}
+                for sentence_idx, token_idx, metrics_value in level_1_metrics:
+                    sentence_ce_dict.setdefault(sentence_idx, [])
+                    sentence_ce_dict[sentence_idx].append(metrics_value)
+
+                sentence_ce_threshold = {
+                    k: np.percentile(v, 99) for k, v in sentence_ce_dict.items()
+                }
+                program_threshold_dict[(program_id, sample_key)] = sentence_ce_threshold
+            else:
+                ce_fail_responses = filter_failed_level_1_cases(
+                    level_1_metrics, lambda m: m[0] >= args.cross_entropy_threshold
+                )
+                failure_rate = len(ce_fail_responses) / len(level_1_metrics)
+                if failure_rate >= args.failure_rate_threshold:
+                    failed_cases.append((program_id, valid_prompt, failure_rate))
 
         elif args.test_type == "tokens":
             aiu_validation_info = extract_validation_information(
@@ -783,6 +816,10 @@ for program_id, valid_prompt, input_ids, extra_kwargs, sample_key in valid_promp
                 dprint(f"Prompt:\n{tokenizer.decode(tokens_prompt)}")
                 dprint(f"AIU tokens:\n{aiu_tokens_generated}")
                 dprint(f"AIU output:\n{tokenizer.decode(aiu_tokens_generated)}")
+
+if generate_metrics:
+    with open(args.generate_metrics_path, "w") as f:
+        json.dump(program_threshold_dict, f, indent=4)
 
 if not args.skip_validation and local_rank == 0:
     if len(failed_cases) != 0:
