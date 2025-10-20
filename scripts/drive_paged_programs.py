@@ -22,7 +22,6 @@ from aiu_fms_testing_utils.testing.validation import (
     LogitsExtractorHook,
     capture_level_1_metrics,
     extract_validation_information,
-    filter_failed_level_1_cases,
     find_validation_info_path,
     get_validation_info_path,
     load_validation_information,
@@ -109,10 +108,17 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--cross_entropy_threshold",
+    "--default_cross_entropy_threshold",
     type=float,
     default=2.5,
     help="threshold to denote passing/failing a given iteration",
+)
+
+parser.add_argument(
+    "--cross_entropy_threshold_path",
+    type=str,
+    default=None,
+    help="path to a file with all expected cross-entropy loss thresholds per program, pre sequence",
 )
 
 parser.add_argument(
@@ -190,6 +196,15 @@ save_validation_info_outputs = args.save_validation_info_outputs
 generate_metrics = args.generate_metrics_path is not None
 tokenizer = AutoTokenizer.from_pretrained(model_variant)
 custom_shape = None
+
+default_cross_entropy_threshold = float(args.default_cross_entropy_threshold)
+program_threshold_dict = {}
+# if the path exists, load it as a json
+if args.cross_entropy_threshold_path is not None and os.path.exists(
+    args.cross_entropy_threshold_path
+):
+    with open(args.cross_entropy_threshold_path, "r") as f:
+        program_threshold_dict = json.load(f)
 
 if args.dataset_type == "custom":
     if local_rank == 0:
@@ -340,13 +355,17 @@ else:
 
 distributed_kwargs = {}
 if USE_DISTRIBUTED:
+    if generate_metrics:
+        torch.cuda.set_device(local_rank)
     if args.dist_timeout > 0:
         # Default timeout:
         # https://docs.pytorch.org/docs/stable/distributed.html#torch.distributed.init_process_group
-        dist.init_process_group(timeout=datetime.timedelta(minutes=args.dist_timeout))
+        dist.init_process_group(
+            timeout=datetime.timedelta(minutes=args.dist_timeout), backend="gloo"
+        )
         dprint(f"NOTICE: init_process_group timeout set to {args.dist_timeout} minutes")
     else:
-        dist.init_process_group()
+        dist.init_process_group(backend="gloo")
     aiu_dist_setup(dist.get_rank(), dist.get_world_size())
     distributed_kwargs["distributed_strategy"] = "tp"
     distributed_kwargs["group"] = dist.group.WORLD
@@ -630,8 +649,8 @@ def __metric_calculator(r: torch.Tensor, t: torch.Tensor):
     return (cross_entropy, diff)
 
 
-program_threshold_dict = {}
-failed_cases = []
+per_sentence_failed_cases = []
+aggregate_failed_cases = []
 # for each program and valid prompt (batch size, sequence length)
 for program_id, valid_prompt, input_ids, extra_kwargs, sample_key in valid_prompts:
     extra_kwargs["attn_name"] = ATTN_NAME
@@ -737,19 +756,55 @@ for program_id, valid_prompt, input_ids, extra_kwargs, sample_key in valid_promp
                 sentence_ce_dict = {}
                 for sentence_idx, token_idx, metrics_value in level_1_metrics:
                     sentence_ce_dict.setdefault(sentence_idx, [])
-                    sentence_ce_dict[sentence_idx].append(metrics_value)
+                    sentence_ce_dict[sentence_idx].append(metrics_value[0])
 
                 sentence_ce_threshold = {
                     k: np.percentile(v, 99) for k, v in sentence_ce_dict.items()
                 }
-                program_threshold_dict[(program_id, sample_key)] = sentence_ce_threshold
-            else:
-                ce_fail_responses = filter_failed_level_1_cases(
-                    level_1_metrics, lambda m: m[0] >= args.cross_entropy_threshold
+                if local_rank == 0:
+                    dprint(
+                        str(program_id.program_id), sample_key, sentence_ce_threshold
+                    )
+                program_threshold_dict[(str(program_id.program_id), sample_key)] = (
+                    sentence_ce_threshold
                 )
-                failure_rate = len(ce_fail_responses) / len(level_1_metrics)
-                if failure_rate >= args.failure_rate_threshold:
-                    failed_cases.append((program_id, valid_prompt, failure_rate))
+            else:
+                sentence_failures_dict = {}
+                for sentence_idx, token_idx, metrics_value in level_1_metrics:
+                    program_threshold_key = f"{str(program_id.program_id)},{sample_key}"
+                    if (
+                        len(program_threshold_dict) != 0
+                        and program_threshold_key not in program_threshold_dict
+                        and local_rank == 0
+                    ):
+                        dprint(
+                            f"could not find the following key {program_threshold_key}, defaulting to {default_cross_entropy_threshold}"
+                        )
+                    ce_threshold = program_threshold_dict.get(
+                        program_threshold_key, default_cross_entropy_threshold
+                    )
+                    sentence_failures_dict.setdefault(sentence_idx, 0)
+                    if metrics_value[0] >= ce_threshold:
+                        sentence_failures_dict[sentence_idx] += 1
+
+                for sentence_idx, failure_count in sentence_failures_dict.items():
+                    per_sentence_failed_cases.append(
+                        (
+                            program_id,
+                            valid_prompt,
+                            sentence_idx,
+                            failure_count / max_new_tokens,
+                        )
+                    )
+
+                aggregate_failed_cases.append(
+                    (
+                        program_id,
+                        valid_prompt,
+                        sum(sentence_failures_dict.values())
+                        / (max_new_tokens * len(sentence_failures_dict)),
+                    )
+                )
 
         elif args.test_type == "tokens":
             aiu_validation_info = extract_validation_information(
@@ -817,16 +872,30 @@ for program_id, valid_prompt, input_ids, extra_kwargs, sample_key in valid_promp
                 dprint(f"AIU tokens:\n{aiu_tokens_generated}")
                 dprint(f"AIU output:\n{tokenizer.decode(aiu_tokens_generated)}")
 
-if generate_metrics:
+if generate_metrics and local_rank == 0:
     with open(args.generate_metrics_path, "w") as f:
-        json.dump(program_threshold_dict, f, indent=4)
+        json_dict = {}
+        for program_seq, sentence_ce_threshold_dict in program_threshold_dict.items():
+            program_seq_key = ",".join(program_seq)
+            json_dict[program_seq_key] = {}
+            for sentence_i, ce_threshold in sentence_ce_threshold_dict.items():
+                json_dict[program_seq_key][sentence_i] = float(ce_threshold)
+
+        json.dump(json_dict, f, indent=4)
 
 if not args.skip_validation and local_rank == 0:
-    if len(failed_cases) != 0:
-        dprint("the test failed with the following cases:")
-        for failed_case in failed_cases:
+    if len(aggregate_failed_cases) != 0:
+        dprint("the test failed with the following aggregate cases:")
+        for failed_case in aggregate_failed_cases:
             dprint(
                 f"Program ID: {failed_case[0]}, Prompt Shape: {failed_case[1]}, Failure Rate: {failed_case[2]}"
             )
-    else:
+    if len(per_sentence_failed_cases) != 0:
+        dprint("the test failed with the following per sentence cases:")
+        for failed_case in per_sentence_failed_cases:
+            dprint(
+                f"Program ID: {failed_case[0]}, Prompt Shape: {failed_case[1]}, Sentence Index: {failed_case[2]}, Failure Rate: {failed_case[3]}"
+            )
+
+    if len(aggregate_failed_cases) == 0 and len(per_sentence_failed_cases) == 0:
         dprint("all tests passed")
