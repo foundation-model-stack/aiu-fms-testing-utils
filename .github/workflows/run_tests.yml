@@ -32,7 +32,7 @@ jobs:
         # In case of a cache hit on the primary key, this will be a no-op
         # In case of a cache miss, but hit on a secondary key, this will update what's changed
         python -m pip install --upgrade pip
-        pip install .[dev]
+        pip install .[dev] pytest
         
         # Enables the virtual env for following steps
         echo "$VIRTUAL_ENV/bin" >> $GITHUB_PATH
