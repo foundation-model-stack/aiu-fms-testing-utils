@@ -1,0 +1,59 @@
+name: Non-AIU Testing
+
+on: [pull_request]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python 3.12
+      id: setup_python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+    - name: Restore Virtualenv
+      uses: actions/cache/restore@v4
+      id: cache-venv-restore
+      with:
+        path: ./.venv/
+        key: ${{ runner.os }}-${{ steps.setup_python.outputs.python-version }}-venv-${{ hashFiles('pyproject.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-${{ steps.setup_python.outputs.python-version }}-venv-
+    - name: Install dependencies
+      run: |
+        # Create the virtual environment
+        python -m venv .venv
+        . ./.venv/bin/activate
+
+        # Install the dependencies
+        # In case of a cache hit on the primary key, this will be a no-op
+        # In case of a cache miss, but hit on a secondary key, this will update what's changed
+        python -m pip install --upgrade pip
+        pip install .[dev] pytest
+        
+        # Enables the virtual env for following steps
+        echo "$VIRTUAL_ENV/bin" >> $GITHUB_PATH
+        echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> $GITHUB_ENV    
+    - name: Test with pytest
+      env:
+        SHARE_GPT_DATASET_PATH: ${{ github.workspace }}/ShareGPT_V3_unfiltered_cleaned_split.json
+        DATASET_PATH: ${{ github.workspace }}/ShareGPT_V3_unfiltered_cleaned_split.json
+      run: |
+        # Install fms from the PR, all dependencies are already
+        # installed in the virtual env
+        pip install .
+        pwd && ls -al
+        curl -L -o ShareGPT_V3_unfiltered_cleaned_split.json https://huggingface.co/datasets/anon8231489123/ShareGPT_Vicuna_unfiltered/resolve/main/ShareGPT_V3_unfiltered_cleaned_split.json
+        pytest -s -v -rA tests/utils
+        pytest -s -v -rA tests/testing
+
+    - name: Save Virtualenv
+      id: cache-venv-save
+      uses: actions/cache/save@v4
+      with:
+        path: ./.venv/
+        key: ${{ steps.cache-venv-restore.outputs.cache-primary-key }}    
+
