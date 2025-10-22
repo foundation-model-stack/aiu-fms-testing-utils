@@ -38,10 +38,15 @@ jobs:
         echo "$VIRTUAL_ENV/bin" >> $GITHUB_PATH
         echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> $GITHUB_ENV    
     - name: Test with pytest
+      env:
+        SHARE_GPT_DATASET_PATH: ${{ github.workspace }}/ShareGPT_V3_unfiltered_cleaned_split.json
+        DATASET_PATH: ${{ github.workspace }}/ShareGPT_V3_unfiltered_cleaned_split.json
       run: |
         # Install fms from the PR, all dependencies are already
         # installed in the virtual env
         pip install .
+        pwd && ls -al
+        curl -L -o ShareGPT_V3_unfiltered_cleaned_split.json https://huggingface.co/datasets/anon8231489123/ShareGPT_Vicuna_unfiltered/resolve/main/ShareGPT_V3_unfiltered_cleaned_split.json
         pytest -s -v -rA tests/utils
         pytest -s -v -rA tests/testing
 
