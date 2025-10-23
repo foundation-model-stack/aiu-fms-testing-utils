@@ -122,6 +122,13 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--per_sequence_failure_rate_threshold",
+    type=float,
+    default=0.1,
+    help="the threshold which denotes whether to pass or fail the test for a given sequence.",
+)
+
+parser.add_argument(
     "--failure_rate_threshold",
     type=float,
     default=0.1,
@@ -763,7 +770,7 @@ for program_id, valid_prompt, input_ids, extra_kwargs, sample_key in valid_promp
                 }
                 if local_rank == 0:
                     dprint(
-                        str(program_id.program_id), sample_key, sentence_ce_threshold
+                        f"Program {str(program_id.program_id)} produced the following thresholds:\n{sentence_ce_threshold}"
                     )
                 program_threshold_dict[(str(program_id.program_id), sample_key)] = (
                     sentence_ce_threshold
@@ -781,30 +788,39 @@ for program_id, valid_prompt, input_ids, extra_kwargs, sample_key in valid_promp
                             f"could not find the following key {program_threshold_key}, defaulting to {default_cross_entropy_threshold}"
                         )
                     ce_threshold = program_threshold_dict.get(
-                        program_threshold_key, default_cross_entropy_threshold
-                    )
+                        program_threshold_key,
+                        {str(sentence_idx): default_cross_entropy_threshold},
+                    )[str(sentence_idx)]
                     sentence_failures_dict.setdefault(sentence_idx, 0)
-                    if metrics_value[0] >= ce_threshold:
+                    if metrics_value[0].item() >= ce_threshold:
                         sentence_failures_dict[sentence_idx] += 1
 
                 for sentence_idx, failure_count in sentence_failures_dict.items():
-                    per_sentence_failed_cases.append(
+                    per_sentence_failure_rate = failure_count / max_new_tokens
+                    if (
+                        per_sentence_failure_rate
+                        >= args.per_sequence_failure_rate_threshold
+                    ):
+                        per_sentence_failed_cases.append(
+                            (
+                                program_id,
+                                valid_prompt,
+                                sentence_idx,
+                                per_sentence_failure_rate,
+                            )
+                        )
+
+                aggregate_failure_rate = sum(sentence_failures_dict.values()) / (
+                    max_new_tokens * len(sentence_failures_dict)
+                )
+                if aggregate_failure_rate >= args.failure_rate_threshold:
+                    aggregate_failed_cases.append(
                         (
                             program_id,
                             valid_prompt,
-                            sentence_idx,
-                            failure_count / max_new_tokens,
+                            aggregate_failure_rate,
                         )
                     )
-
-                aggregate_failed_cases.append(
-                    (
-                        program_id,
-                        valid_prompt,
-                        sum(sentence_failures_dict.values())
-                        / (max_new_tokens * len(sentence_failures_dict)),
-                    )
-                )
 
         elif args.test_type == "tokens":
             aiu_validation_info = extract_validation_information(
