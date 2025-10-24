@@ -334,8 +334,8 @@ if args.distributed:
     # Fix until PT 2.3
     torch._C._distributed_c10d._register_process_group("default", dist.group.WORLD)
     if args.numa:
-        from numa import info
-        if info.numa_available():
+        try:
+            from numa import info
             numa_num_nodes = info.get_num_configured_nodes()
             numa_world_size = dist.get_world_size()
             numa_size_per_node = numa_world_size // numa_num_nodes           
@@ -344,7 +344,7 @@ if args.distributed:
             numa_node = dist.get_rank() // numa_size_per_node
             schedule.run_on_nodes(numa_node)
             dprint(f"NUMA: process {numa_rank} set to node {numa_node}")
-        else:
+        except:
             dprint(f"NUMA not available in this machine, please install libnuma libraries")
     aiu_setup.aiu_dist_setup(dist.get_rank(), dist.get_world_size())
 
