@@ -343,6 +343,8 @@ if args.distributed:
             numa_rank = dist.get_rank()
             numa_node = dist.get_rank() // numa_size_per_node
             schedule.run_on_nodes(numa_node)
+            from numa import memory
+            memory.set_local_alloc()
             dprint(f"NUMA: process {numa_rank} set to node {numa_node}")
         except:
             dprint(f"NUMA not available in this machine, please install libnuma libraries")
