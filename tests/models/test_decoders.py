@@ -969,6 +969,8 @@ def use_cached_model(request, persistent_model, record_property, tmp_path):
         **gptq_kwargs_cpu,
         **model_kwargs,
     )
+    # We also return the models so that we can reuse them in the cache hit check
+    models = (model, validation_model)
 
     _run_cpu_aiu_validation_test(
         model_path,
@@ -982,7 +984,7 @@ def use_cached_model(request, persistent_model, record_property, tmp_path):
         verify_cache_state=verify_cache_miss,
         warmup_only=True,
     )
-    return request.param
+    return request.param, models
 
 
 @pytest.mark.parametrize(
@@ -1041,14 +1043,19 @@ def test_common_shapes(
     COMMON_SHAPES,
     indirect=True,
 )
-def test_cache(use_cached_model, persistent_model, record_property, tmp_path):
+def test_cache(use_cached_model, record_property, tmp_path):
     torch.manual_seed(42)
     torch.set_grad_enabled(False)
     _reset_cache_settings(purge_cache_dir=False, cache_dir=tmp_path)
 
     # use_cached_model is an indirectly parametrized fixture, and the returned
-    # value is an expanded tuple from COMMON_SHAPES, so we unpack it here
-    model_path, batch_size, seq_length, max_new_tokens = use_cached_model
+    # value is an expanded tuple from COMMON_SHAPES, so we unpack it here.
+    # In addition, we also pass the model created on AIU in the fixture to
+    # avoid recreating it.
+    test_params, models = use_cached_model
+    model, validation_model = models
+    model_path, batch_size, seq_length, max_new_tokens = test_params
+
     micro_model_path = MICRO_MODEL_MAPPING.get(model_path, None)
 
     def verify_cache_hit():
@@ -1062,25 +1069,6 @@ def test_cache(use_cached_model, persistent_model, record_property, tmp_path):
 
     dprint(
         f"testing: model={model_path}, batch_size={batch_size}, seq_length={seq_length}, max_new_tokens={max_new_tokens}, micro_model={USE_MICRO_MODELS}, for cache hit"
-    )
-
-    # we don't currently support inferring gptq from get_model, so we must use an adapter with hf_configured
-    gptq_kwargs_aiu, gptq_kwargs_cpu = __maybe_get_gptq_kwargs(model_path)
-    is_gptq = len(gptq_kwargs_aiu) != 0
-    is_fp8 = "fp8" in ATTN_NAME
-    model_kwargs = _get_common_model_kwargs(is_gptq, model_path)
-
-    # Get the AIU model w/ the persistent model fixture
-    model = persistent_model.get_or_create(
-        is_gptq, is_fp8, **gptq_kwargs_aiu, **model_kwargs
-    )
-
-    validation_model = _get_cpu_model(
-        is_gptq,
-        is_fp8,
-        micro_model_state_dict=model.state_dict() if USE_MICRO_MODELS else None,
-        **gptq_kwargs_cpu,
-        **model_kwargs,
     )
 
     _run_cpu_aiu_validation_test(
