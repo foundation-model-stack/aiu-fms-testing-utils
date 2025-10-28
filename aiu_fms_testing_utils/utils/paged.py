@@ -287,19 +287,6 @@ def generate(
                     .contiguous()
                 )
 
-                # batch static
-                torch._dynamo.mark_static(input_ids_seq, 0)
-                torch._dynamo.mark_static(slot_mapping_seq, 0)
-                torch._dynamo.mark_static(position_ids_seq, 0)
-                torch._dynamo.mark_static(mask_seq, 0)
-
-                # seq dynamic
-                torch._dynamo.mark_dynamic(input_ids_seq, 1)
-                torch._dynamo.mark_dynamic(slot_mapping_seq, 1)
-                torch._dynamo.mark_dynamic(position_ids_seq, 1)
-                torch._dynamo.mark_dynamic(mask_seq, 2)
-                torch._dynamo.mark_dynamic(mask_seq, 3)
-
                 # FP8 per-sentence scale handling
                 if "fp8" in kwargs["attn_name"]:
                     for layer_idx, (t1, t2) in enumerate(current_kv_cache):
@@ -367,15 +354,15 @@ def generate(
                         ).unsqueeze(0)
 
                         chunked_kwargs = {
-                            "attn_name": kwargs["attn_name"],
-                            "last_n_tokens": kwargs["last_n_tokens"],
+                            "slot_mapping": slot_mapping_seq_chunk,
+                            "position_ids": position_ids_seq_chunk,
                             "past_key_value_states": current_kv_cache,
                             "use_cache": kwargs["use_cache"],
-                            "position_ids": position_ids_seq_chunk,
+                            "last_n_tokens": kwargs["last_n_tokens"],
+                            "attn_name": kwargs["attn_name"],
                             "left_padded_prompt_mask": left_padded_prompt_mask_seq_chunk,
                             "current_tkv_mask": current_tkv_mask_seq_chunk,
                             "block_table": block_table_seq_chunk,
-                            "slot_mapping": slot_mapping_seq_chunk,
                         }
 
                         # batch static
@@ -400,6 +387,18 @@ def generate(
                         output = (logits, current_kv_cache)
 
                 else:
+                    # batch static
+                    torch._dynamo.mark_static(input_ids_seq, 0)
+                    torch._dynamo.mark_static(slot_mapping_seq, 0)
+                    torch._dynamo.mark_static(position_ids_seq, 0)
+                    torch._dynamo.mark_static(mask_seq, 0)
+
+                    # seq dynamic
+                    torch._dynamo.mark_dynamic(input_ids_seq, 1)
+                    torch._dynamo.mark_dynamic(slot_mapping_seq, 1)
+                    torch._dynamo.mark_dynamic(position_ids_seq, 1)
+                    torch._dynamo.mark_dynamic(mask_seq, 2)
+                    torch._dynamo.mark_dynamic(mask_seq, 3)
                     output, current_kv_cache = model(
                         input_ids_seq,
                         slot_mapping=slot_mapping_seq,
