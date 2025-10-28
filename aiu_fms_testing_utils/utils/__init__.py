@@ -54,6 +54,7 @@ def warmup_model(
     compile_dynamic_sendnn: bool = False,
     use_cache: bool = True,
     stagger_update_lazyhandle: int = 0,
+    prefill_chunk_size: int = 0,
     **extra_kwargs,
 ):
     import torch_sendnn
@@ -62,6 +63,8 @@ def warmup_model(
     attn_name = extra_kwargs.get("attn_name", "sdpa")
     if "paged" in attn_name:
         from aiu_fms_testing_utils.utils.paged import generate, adjust_inputs_to_batch
+
+        attention_specific_kwargs["prefill_chunk_size"] = prefill_chunk_size
     else:
         # TODO: Add a unified generation dependent on attn_type
         from fms.utils.generation import generate
