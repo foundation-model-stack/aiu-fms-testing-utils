@@ -254,7 +254,9 @@ max_batch_size = int(os.environ["VLLM_DT_MAX_BATCH_SIZE"])
 max_tkv = int(os.environ["VLLM_DT_MAX_CONTEXT_LEN"])
 
 
-def __prepare_inputs(batch_size, seq_length, tokenizer, enforce_sizes=[], seed=0):
+def __prepare_inputs(
+    batch_size, seq_length, tokenizer, enforce_sizes=[], seed=0, pad_multiple=64
+):
     start = time.time()
     prompts_and_sizes, sample_key = sampler(
         DATASET_PATH,
@@ -266,6 +268,7 @@ def __prepare_inputs(batch_size, seq_length, tokenizer, enforce_sizes=[], seed=0
         enforce_sizes=enforce_sizes,
         truncation=allow_truncation,
         return_key=True,
+        pad_multiple=pad_multiple,
     )
     end = time.time()
     if local_rank == 0:
@@ -383,7 +386,13 @@ if not args.skip_validation:
 # warmup with any input so compiler produces criteria json
 # TODO: Swap this with __prepare_inputs once fix for shape_id is available
 # input_ids, extra_kwargs, sample_key = __prepare_inputs(2, max_tkv, tokenizer)
-prompt_list = [torch.arange(0, 64, dtype=torch.int64)]
+pad_multiple = 64
+if args.prefill_chunk_size > 0:
+    assert args.prefill_chunk_size % 64 == 0, (
+        "Chunk size must be a multiple of the page size"
+    )
+    pad_multiple = args.prefill_chunk_size
+prompt_list = [torch.arange(0, pad_multiple, dtype=torch.int64)]
 # matching vllm warmup to pad to 2 on fp8, and no pad for fp16
 if is_fp8:
     prompt_list = prompt_list * 2
@@ -495,7 +504,7 @@ with open(args.program_criteria_json_path, "r") as f:
 # FIXME: filter condition for this on prompt and batch
 program_map = get_programs_prompts(
     program_criteria_list,
-    multiple=64,
+    multiple=pad_multiple,
     max_batch_size=max_batch_size,
     max_tkv=max_tkv,
     program_cycles=max_new_tokens,
@@ -516,6 +525,7 @@ if custom_shape:
                     valid_prompt_shape[1],
                     tokenizer,
                     enforce_sizes=enforce_sizes,
+                    pad_multiple=pad_multiple,
                 )
                 valid_prompts = [
                     (
@@ -589,6 +599,7 @@ else:
                             valid_prompt_shape[1],
                             tokenizer,
                             enforce_sizes=enforce_sizes,
+                            pad_multiple=pad_multiple,
                         )
                         valid_prompts.append(
                             (
