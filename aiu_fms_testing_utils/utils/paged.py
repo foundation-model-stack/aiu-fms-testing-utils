@@ -372,9 +372,9 @@ def generate(
                         torch._dynamo.mark_static(block_table_seq_chunk, 0)
 
                         # seq dynamic
-                        torch._dynamo.mark_dynamic(input_ids_seq_chunk, 1)
-                        torch._dynamo.mark_dynamic(slot_mapping_seq_chunk, 1)
-                        torch._dynamo.mark_dynamic(position_ids_seq_chunk, 1)
+                        # torch._dynamo.mark_dynamic(input_ids_seq_chunk, 1)
+                        # torch._dynamo.mark_dynamic(slot_mapping_seq_chunk, 1)
+                        # torch._dynamo.mark_dynamic(position_ids_seq_chunk, 1)
                         torch._dynamo.mark_dynamic(block_table_seq_chunk, 1)
 
                         logits, current_kv_cache = model(
@@ -573,12 +573,12 @@ def generate(
     return result
 
 
-# this value is default to 2080 to be consistent with vllm for granite 3.3 8b instruct
+# this value is default to 8192 to be consistent with vllm for granite 3.3 8b instruct w/ chunked prefill
 KVCACHE_NUM_BLOCKS_HINT = int(
-    os.environ.get("AFTU_PAGED_KVCACHE_NUM_BLOCKS_HINT", 2080)
+    os.environ.get("AFTU_PAGED_KVCACHE_NUM_BLOCKS_HINT", 8192)
 )
 
-VLLM_DT_MAX_BATCH_TKV_LIMIT = int(os.environ.get("VLLM_DT_MAX_BATCH_TKV_LIMIT", 131072))
+VLLM_DT_MAX_BATCH_TKV_LIMIT = int(os.environ.get("VLLM_DT_MAX_BATCH_TKV_LIMIT", 524288))
 
 
 class ProgramCriteria:
