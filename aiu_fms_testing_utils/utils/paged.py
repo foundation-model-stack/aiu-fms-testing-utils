@@ -372,6 +372,9 @@ def generate(
                         torch._dynamo.mark_static(block_table_seq_chunk, 0)
 
                         # seq dynamic
+                        torch._dynamo.mark_dynamic(input_ids_seq_chunk, 1)
+                        torch._dynamo.mark_dynamic(slot_mapping_seq_chunk, 1)
+                        torch._dynamo.mark_dynamic(position_ids_seq_chunk, 1)
                         torch._dynamo.mark_dynamic(block_table_seq_chunk, 1)
 
                         logits, current_kv_cache = model(

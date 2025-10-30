@@ -255,7 +255,9 @@ max_batch_size = int(os.environ["VLLM_DT_MAX_BATCH_SIZE"])
 max_tkv = int(os.environ["VLLM_DT_MAX_CONTEXT_LEN"])
 
 
-def __prepare_inputs(batch_size, seq_length, tokenizer, enforce_sizes=[], seed=0, pad_multiple=64):
+def __prepare_inputs(
+    batch_size, seq_length, tokenizer, enforce_sizes=[], seed=0, pad_multiple=64
+):
     start = time.time()
     prompts_and_sizes, sample_key = sampler(
         DATASET_PATH,
@@ -387,7 +389,9 @@ if not args.skip_validation:
 # input_ids, extra_kwargs, sample_key = __prepare_inputs(2, max_tkv, tokenizer)
 pad_multiple = 64
 if args.prefill_chunk_size > 0:
-    assert args.prefill_chunk_size % 64 == 0, "Chunk size must be a multiple of the page size"
+    assert args.prefill_chunk_size % 64 == 0, (
+        "Chunk size must be a multiple of the page size"
+    )
     pad_multiple = args.prefill_chunk_size
 prompt_list = [torch.arange(0, pad_multiple, dtype=torch.int64)]
 # matching vllm warmup to pad to 2 on fp8, and no pad for fp16
