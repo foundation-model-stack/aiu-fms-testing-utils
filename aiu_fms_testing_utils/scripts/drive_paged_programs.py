@@ -286,11 +286,7 @@ def __prepare_inputs(batch_size, seq_length, tokenizer, enforce_sizes=[], seed=0
         )
         prompt_list = [prompt_list[0]] * (batch_size - len(prompt_list)) + prompt_list
 
-    min_pad_length = seq_length
-    if seq_length % pad_multiple != 0:
-        min_pad_length = math.ceil(seq_length / pad_multiple) * pad_multiple
-    print(pad_multiple, min_pad_length, seq_length)
-    input_ids, extra_kwargs = pad_input_ids(prompt_list, min_pad_length=min_pad_length)
+    input_ids, extra_kwargs = pad_input_ids(prompt_list, min_pad_length=seq_length)
     extra_kwargs["mask"] = extra_kwargs["mask"].to(torch.float16)
     return input_ids, extra_kwargs, sample_key
 
@@ -505,7 +501,7 @@ with open(args.program_criteria_json_path, "r") as f:
 # FIXME: filter condition for this on prompt and batch
 program_map = get_programs_prompts(
     program_criteria_list,
-    multiple=64,
+    multiple=pad_multiple,
     max_batch_size=max_batch_size,
     max_tkv=max_tkv,
     program_cycles=max_new_tokens,
