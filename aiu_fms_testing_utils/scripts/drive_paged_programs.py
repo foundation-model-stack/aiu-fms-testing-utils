@@ -389,7 +389,11 @@ if not args.skip_validation:
 # warmup with any input so compiler produces criteria json
 # TODO: Swap this with __prepare_inputs once fix for shape_id is available
 # input_ids, extra_kwargs, sample_key = __prepare_inputs(2, max_tkv, tokenizer)
-prompt_list = [torch.arange(0, 64, dtype=torch.int64)]
+pad_multiple = 64
+if args.prefill_chunk_size > 0:
+    assert args.prefill_chunk_size % 64 == 0, "Chunk size must be a multiple of the page size"
+    pad_multiple = args.prefill_chunk_size
+prompt_list = [torch.arange(0, pad_multiple, dtype=torch.int64)]
 # matching vllm warmup to pad to 2 on fp8, and no pad for fp16
 if is_fp8:
     prompt_list = prompt_list * 2
@@ -511,10 +515,6 @@ for v in program_map.values():
     random.Random(42).shuffle(v)
 
 # select prompts that fit the batch size criteria
-pad_multiple = 64
-if args.prefill_chunk_size > 0:
-    assert args.prefill_chunk_size % 64 == 0, "Chunk size must be a multiple of the page size"
-    pad_multiple = args.prefill_chunk_size
 valid_prompts = []
 if custom_shape:
     for program_criteria_seq, valid_prompt_shapes in program_map.items():

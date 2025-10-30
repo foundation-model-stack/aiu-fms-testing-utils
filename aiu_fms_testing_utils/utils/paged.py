@@ -365,6 +365,8 @@ def generate(
                             "block_table": block_table_seq_chunk,
                         }
 
+                        print(chunked_kwargs)
+
                         # batch static
                         torch._dynamo.mark_static(input_ids_seq_chunk, 0)
                         torch._dynamo.mark_static(slot_mapping_seq_chunk, 0)
