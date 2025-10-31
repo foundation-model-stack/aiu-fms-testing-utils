@@ -10,8 +10,8 @@ jobs:
       # Fetch full history + tags so we can find base version tag
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0       # <-- IMPORTANT
-          fetch-tags: true     # <-- IMPORTANT
+          fetch-depth: 0       
+          fetch-tags: true     
 
       - name: Set up Python 3.12 (with pip cache)
         id: setup_python
@@ -113,7 +113,6 @@ jobs:
           SHARE_GPT_DATASET_PATH: ${{ github.workspace }}/ShareGPT_V3_unfiltered_cleaned_split.json
           DATASET_PATH: ${{ github.workspace }}/ShareGPT_V3_unfiltered_cleaned_split.json
         run: |
-          pwd && ls -al
           pytest -s -v -rA tests/utils
           pytest -s -v -rA tests/testing
 
