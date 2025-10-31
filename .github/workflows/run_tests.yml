@@ -8,52 +8,108 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
-    - name: Set up Python 3.12
-      id: setup_python
-      uses: actions/setup-python@v5
-      with:
-        python-version: "3.12"
-    - name: Restore Virtualenv
-      uses: actions/cache/restore@v4
-      id: cache-venv-restore
-      with:
-        path: ./.venv/
-        key: ${{ runner.os }}-${{ steps.setup_python.outputs.python-version }}-venv-${{ hashFiles('pyproject.toml') }}
-        restore-keys: |
-          ${{ runner.os }}-${{ steps.setup_python.outputs.python-version }}-venv-
-    - name: Install dependencies
-      run: |
-        # Create the virtual environment
-        python -m venv .venv
-        . ./.venv/bin/activate
+      - uses: actions/checkout@v4
 
-        # Install the dependencies
-        # In case of a cache hit on the primary key, this will be a no-op
-        # In case of a cache miss, but hit on a secondary key, this will update what's changed
-        python -m pip install --upgrade pip
-        pip install .[dev] pytest
-        
-        # Enables the virtual env for following steps
-        echo "$VIRTUAL_ENV/bin" >> $GITHUB_PATH
-        echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> $GITHUB_ENV    
-    - name: Test with pytest
-      env:
-        SHARE_GPT_DATASET_PATH: ${{ github.workspace }}/ShareGPT_V3_unfiltered_cleaned_split.json
-        DATASET_PATH: ${{ github.workspace }}/ShareGPT_V3_unfiltered_cleaned_split.json
-      run: |
-        # Install fms from the PR, all dependencies are already
-        # installed in the virtual env
-        pip install .
-        pwd && ls -al
-        curl -L -o ShareGPT_V3_unfiltered_cleaned_split.json https://huggingface.co/datasets/anon8231489123/ShareGPT_Vicuna_unfiltered/resolve/main/ShareGPT_V3_unfiltered_cleaned_split.json
-        pytest -s -v -rA tests/utils
-        pytest -s -v -rA tests/testing
+      # Python with pip download cache
+      - name: Set up Python 3.12 (with pip cache)
+        id: setup_python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
 
-    - name: Save Virtualenv
-      id: cache-venv-save
-      uses: actions/cache/save@v4
-      with:
-        path: ./.venv/
-        key: ${{ steps.cache-venv-restore.outputs.cache-primary-key }}    
+      # -------------------- Virtualenv cache (restore) --------------------
+      - name: Restore Virtualenv
+        id: cache-venv-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: ./.venv/
+          key: ${{ runner.os }}-${{ steps.setup_python.outputs.python-version }}-venv-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ steps.setup_python.outputs.python-version }}-venv-
 
+      # Compute version from base branch tag and expose as PRETEND version
+      - name: Determine base version (from base branch tag)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Ensure base branch and tags are available
+          git fetch --no-tags origin "${{ github.base_ref }}" --depth=1
+          git fetch --tags --force
+
+          # Latest v* tag reachable from base branch (e.g., v0.4.3)
+          BASE_TAG="$(git describe --tags --abbrev=0 --match 'v*' "origin/${{ github.base_ref }}" 2>/dev/null || true)"
+          if [ -n "$BASE_TAG" ]; then
+            BASE_VER="${BASE_TAG#v}"
+          else
+            BASE_VER="0.0.0"  # fallback if no tags
+          fi
+
+          SHA_SHORT="${GITHUB_SHA::7}"
+          PR_NUM="${{ github.event.number }}"
+          PRETEND_VER="${BASE_VER}.dev+pr${PR_NUM}.${SHA_SHORT}"
+
+          echo "BASE_VER=$BASE_VER" >> "$GITHUB_ENV"
+          echo "SETUPTOOLS_SCM_PRETEND_VERSION=$PRETEND_VER" >> "$GITHUB_ENV"
+          echo "Computed version: $PRETEND_VER"
+
+      - name: Create/Update venv and install PR code (editable) with pretend version
+        shell: bash
+        env:
+          SETUPTOOLS_SCM_PRETEND_VERSION: ${{ env.SETUPTOOLS_SCM_PRETEND_VERSION }}
+        run: |
+          set -euo pipefail
+          # Create venv if not restored
+          if [ ! -f ".venv/bin/activate" ]; then
+            python -m venv .venv
+          fi
+          . .venv/bin/activate
+
+          python -m pip install --upgrade pip
+          # Always install editable to ensure PR code + fresh _version.py is written
+          pip install -e .[dev] pytest
+
+          # Make venv visible to later steps
+          echo "$VIRTUAL_ENV/bin" >> "$GITHUB_PATH"
+          echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> "$GITHUB_ENV"
+
+      - name: Sanity-check installed version
+        shell: bash
+        run: |
+          python - <<'PY'
+              import aiu_fms_testing_utils._version as v
+              print("Installed __version__:", getattr(v, "__version__", None))
+              print("version_tuple():", v.version_tuple())
+            PY
+
+      # -------------------- Dataset cache --------------------
+      - name: Cache ShareGPT dataset
+        id: cache-sharegpt
+        uses: actions/cache@v4
+        with:
+          path: ShareGPT_V3_unfiltered_cleaned_split.json
+          key: sharegpt-${{ runner.os }}-v1
+
+      - name: Fetch dataset if missing
+        if: steps.cache-sharegpt.outputs.cache-hit != 'true'
+        run: |
+          curl -L -o ShareGPT_V3_unfiltered_cleaned_split.json \
+            https://huggingface.co/datasets/anon8231489123/ShareGPT_Vicuna_unfiltered/resolve/main/ShareGPT_V3_unfiltered_cleaned_split.json
+
+      - name: Test with pytest
+        env:
+          SHARE_GPT_DATASET_PATH: ${{ github.workspace }}/ShareGPT_V3_unfiltered_cleaned_split.json
+          DATASET_PATH: ${{ github.workspace }}/ShareGPT_V3_unfiltered_cleaned_split.json
+        run: |
+          pwd && ls -al
+          pytest -s -v -rA tests/utils
+          pytest -s -v -rA tests/testing
+
+      # -------------------- Virtualenv cache (save) --------------------
+      - name: Save Virtualenv
+        if: ${{ steps.cache-venv-restore.outputs.cache-primary-key != '' }}
+        id: cache-venv-save
+        uses: actions/cache/save@v4
+        with:
+          path: ./.venv/
+          key: ${{ steps.cache-venv-restore.outputs.cache-primary-key }}
