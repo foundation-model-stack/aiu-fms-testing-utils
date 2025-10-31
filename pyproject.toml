@@ -38,9 +38,20 @@ dependencies = [
 "fms-model-optimizer[fp8]>=0.5.0,<1.0",
 "sentencepiece>=0.2.0,<0.3.0",
 "numpy>=1.26.4,<2.3.0",
-"transformers>=4.45,<=4.55.2",
+"transformers>=4.45,<=4.58",
 "torch==2.7.1",
 ]
+
+# This section installs command line executables that point to specific scripts
+# in the repo. This allows users to execute the scripts without needing to clone
+# the repo and navigate to the `scripts` folder.
+[project.scripts]
+drive_paged_programs = "aiu_fms_testing_utils.scripts.drive_paged_programs:__main__"
+generate_layers_metrics = "aiu_fms_testing_utils.scripts.generate_layers_metrics:__main__"
+generate_metrics = "aiu_fms_testing_utils.scripts.generate_metrics:__main__"
+inference = "aiu_fms_testing_utils.scripts.inference:__main__"
+run_encoders = "aiu_fms_testing_utils.scripts.run_encoders:__main__"
+validation = "aiu_fms_testing_utils.scripts.validation:__main__"
 
 [project.optional-dependencies]
 dev = ["wheel>=0.42.0,<1.0", "packaging>=23.2,<25"]
