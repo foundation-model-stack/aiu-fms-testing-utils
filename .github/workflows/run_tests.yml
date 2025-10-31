@@ -77,10 +77,10 @@ jobs:
         shell: bash
         run: |
           python - <<'PY'
-              import aiu_fms_testing_utils._version as v
-              print("Installed __version__:", getattr(v, "__version__", None))
-              print("version_tuple():", v.version_tuple())
-            PY
+          import aiu_fms_testing_utils._version as v
+          print("Installed __version__:", getattr(v, "__version__", None))
+          print("version_tuple():", v.version_tuple())
+          PY
 
       # -------------------- Dataset cache --------------------
       - name: Cache ShareGPT dataset
