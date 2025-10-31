@@ -7,7 +7,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Fetch full history + tags so we can find base version tag
+      # Fetch full history + tags to find base version tag
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0       
@@ -18,7 +18,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: "pip"
+          cache: "pip" # enables built-in caching of ~/.cache/pip so wheels don’t re-download each run.
 
       # -------------------- Restore venv cache --------------------
       - name: Restore Virtualenv
