@@ -599,9 +599,6 @@ def _get_device_validation_information(
         if cpu_validation_info is not None:
             return cpu_validation_info
 
-        if cpu_validation_info is not None:
-            return cpu_validation_info
-
     # overrides for validation info that are device specific
     device_dependent_kwargs = {}
     if device == "cpu":
