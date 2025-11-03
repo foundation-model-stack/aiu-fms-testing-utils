@@ -7,7 +7,12 @@ The script can take many arguments/flags according to your needs, but a few nota
 - `--skip_validation`: set it to true to skip CPU validation, which will make the script much faster.
 - `--save_validation_info_outputs`: set it to true to save cpu validation outputs for later consumption. The saved outputs will allow you to reuse CPU logits.
 - `--validation_info_outputs_dir`: path to directory containing validation info outputs. The use of saved outputs will avoid re-compute and will significantly reduce script execution time.
-- `--program_criteria_json_path` and `--dataset_path`: for both of these arguments, make sure that the provided directory path exists on your system. 
+- `--program_criteria_json_path` and `--dataset_path`: for both of these arguments, make sure that the provided directory path exists on your system.
+- `--programs`: Specified programs to run. Format: <program_id>:<batch_constraint>,<seq_len_constraint>
+  <program_id> can be one of an int, *, or ?. If an int, it will choose the exact program id. If *, it will choose all programs that match the batch_constraint and seq_len_constraint criteria. If ?, it will choose one program that matches the batch_constraint and seq_len_constraint criteria.
+  <batch_constraint> can be one of int or conditional expression on the batch size. Int will default to >= expression. Otherwise we can support >, >=, <, <=, == with a val.
+  <seq_len_constraint> can be one of int or conditional expression on the sequence length. Int will default to >= expression. Otherwise we can support >, >=, <, <=, == with a val.
+- `--enforce_homogeneous_prompt_programs`: Ensures all sequences in a batch would hit the same prefill program (by default we only ensure the largest prompt hits a specific prefill program)
 
 The following examples demonstrate the usage of the script. Replace the `<valid_path>` with your directory path.
 
@@ -74,3 +79,32 @@ VLLM_DT_MAX_BATCH_SIZE=4 VLLM_DT_MAX_CONTEXT_LEN=16384 HF_HUB_CACHE=/home/senuse
 # Run with a 32K context length using the rag_factoid dataset type and a program with any batch size and a specific prompt length
 EN_PREFILL_OPT=1 VLLM_DT_MAX_BATCH_SIZE=4 VLLM_DT_MAX_CONTEXT_LEN=32768 HF_HUB_CACHE=/home/senuser/models/huggingface_cache/hub DT_DEEPRT_VERBOSE=-1 DTLOG_LEVEL=error torchrun --nproc-per-node=4 /home/senuser/aiu-fms-testing-utils/scripts/drive_paged_programs.py --max_new_tokens=8 --model_variant=ibm-granite/granite-3.3-8b-instruct --program_criteria_json_path=/<valid_path>/dpp-32k.json --dataset_path=/<valid_path>/long_context_factoid_post_process.jsonl --dataset_type=rag_factoid --test_type=tokens --distributed --programs 0:0,32640
 ```
+
+Examples that showcase the use of `programs` argument:
+
+- programs: \*:0\,\<8192
+
+  Will match all programs with any batch size (all batch sizes >=0) and sequence lengths upto 8192.
+
+  Example command:
+  ```
+  VLLM_DT_MAX_BATCH_SIZE=32 VLLM_DT_MAX_BATCH_TKV_LIMIT=131072 VLLM_DT_MAX_CONTEXT_LEN=32768 FLEX_HDMA_P2PSIZE=268435456 DEM_COMPILE_VERSION=1 torchrun --nproc-per-node=4 <path_to_this_repo>/scripts/drive_paged_programs.py --programs \*:0\,\<8192  --max_new_tokens=32 --model_variant=<path>/granite-3.3-8b-instruct-FP8 --program_criteria_json_path=<valid_path>/program_criteria.json --dataset_path=<valid_path>/ShareGPT_V3_unfiltered_cleaned_split.json --dataset_type=sharegpt --test_type=metrics --cross_entropy_threshold=2.4444521379470827 --failure_rate_threshold=0.6 --attention_type=paged_fp8 --validation_info_outputs_dir=<output_path>/tmp_validation_info_dir --distributed --prioritize_large_batch_sizes --enforce_homogeneous_prompt_programs
+  ```
+
+- programs 0:4,16256
+
+  Since a program_id 0 is specified, any prompt that meets batch size crteria >=4, and seq length >=16256 and would result in this program would be selected.
+
+  Example command:
+  ```
+  VLLM_DT_MAX_BATCH_SIZE=4 VLLM_DT_MAX_CONTEXT_LEN=16384 HF_HUB_CACHE=/home/senuser/models/huggingface_cache/hub DT_DEEPRT_VERBOSE=-1 DTLOG_LEVEL=error torchrun --nproc-per-node=4 /home/senuser/aiu-fms-testing-utils/scripts/drive_paged_programs.py --max_new_tokens=8 --model_variant=ibm-granite/granite-3.3-8b-instruct --program_criteria_json_path=<valid_path>/dpp-16k.json --dataset_path=/<valid_path>/long_context_factoid_post_process.jsonl --dataset_type=rag_factoid --test_type=tokens --distributed --programs 0:4,16256
+  ```
+
+- programs: \?:0\,\<8192
+
+  Will match any one program with any batch size (all batch sizes >=0) and sequence lengths upto 8192.
+
+  Example command:
+  ```
+  VLLM_DT_MAX_BATCH_SIZE=32 VLLM_DT_MAX_BATCH_TKV_LIMIT=131072 VLLM_DT_MAX_CONTEXT_LEN=32768 FLEX_HDMA_P2PSIZE=268435456 DEM_COMPILE_VERSION=1 torchrun --nproc-per-node=4 <path_to_this_repo>/scripts/drive_paged_programs.py --programs \*:0\,\<8192  --max_new_tokens=32 --model_variant=<path>/granite-3.3-8b-instruct-FP8 --program_criteria_json_path=<valid_path>/program_criteria.json --dataset_path=<valid_path>/ShareGPT_V3_unfiltered_cleaned_split.json --dataset_type=sharegpt --test_type=metrics --cross_entropy_threshold=2.4444521379470827 --failure_rate_threshold=0.6 --attention_type=paged_fp8 --validation_info_outputs_dir=<output_path>/tmp_validation_info_dir --distributed --prioritize_large_batch_sizes --enforce_homogeneous_prompt_programs
+  ```
