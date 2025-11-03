@@ -579,14 +579,29 @@ else:
                     # if there does not exist enough sequence sizes between this range, we will cycle back to the beginning
                     # in the event we don't have enough sequences that satisfy the enforce_sizes, we will repeat sequences and warn the user
                     enforce_sizes = [valid_prompt_shape[1]]
-                    if args.enforce_homogeneous_prompt_programs:
-                        # this will get the number of bits for the sequence length and shift to get the power of 2 that is less than or equal to the sequence length
-                        tkv_cutoff = 1 << (valid_prompt_shape[1].bit_length() - 1)
+                    if (
+                        args.enforce_homogeneous_prompt_programs
+                        or args.prefill_chunk_size > 0
+                    ):
+                        # if enforcing homogeneous prompt programs, this will get the number of bits for the sequence length and shift to get the power of 2 that is less than or equal to the sequence length
+                        tkv_cutoff = (
+                            1 << (valid_prompt_shape[1].bit_length() - 1)
+                            if args.enforce_homogeneous_prompt_programs
+                            else pad_multiple
+                        )
+
                         possible_seq_lengths = [
-                            _ for _ in range(tkv_cutoff, valid_prompt_shape[1], 64)
+                            _
+                            for _ in range(
+                                tkv_cutoff, valid_prompt_shape[1], pad_multiple
+                            )
                         ]
                         # favor sequences that are close to the valid prompt length
                         possible_seq_lengths.reverse()
+                        # add the valid prompt size to the end since it will already exist in the above enforce_sizes
+                        possible_seq_lengths = possible_seq_lengths + [
+                            valid_prompt_shape[1]
+                        ]
                         enforce_sizes = enforce_sizes + list(
                             itertools.islice(
                                 itertools.cycle(possible_seq_lengths),
@@ -599,7 +614,7 @@ else:
                             valid_prompt_shape[1],
                             tokenizer,
                             enforce_sizes=enforce_sizes,
-                            pad_multiple=pad_multiple,
+                            pad_multiple=64,  # this should be the smallest granularity to ensure we get the largest enforce_size (if we choose chunked prefill, we want to make sure we pad to the full enforced size)
                         )
                         valid_prompts.append(
                             (

@@ -312,6 +312,9 @@ def generate(
                             .unsqueeze(0)
                             .clone()
                         )
+                        assert input_ids_seq_chunk.size(1) == prefill_chunk_size, (
+                            f"prefill chunk size was not equal to the chunk size. Found {input_ids_seq_chunk.size(0)}"
+                        )
                         slots_length = len(slot_mapping[seq_i])
                         slot_mapping_seq_chunk = (
                             torch.tensor(
