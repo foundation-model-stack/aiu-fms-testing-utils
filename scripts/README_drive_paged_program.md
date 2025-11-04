@@ -8,10 +8,10 @@ The script can take many arguments/flags according to your needs, but a few nota
 - `--save_validation_info_outputs`: set it to true to save cpu validation outputs for later consumption. The saved outputs will allow you to reuse CPU logits.
 - `--validation_info_outputs_dir`: path to directory containing validation info outputs. The use of saved outputs will avoid re-compute and will significantly reduce script execution time.
 - `--program_criteria_json_path` and `--dataset_path`: for both of these arguments, make sure that the provided directory path exists on your system.
-- `--programs`: Specified programs to run. Format: <program_id>:<batch_constraint>,<seq_len_constraint>
-  <program_id> can be one of an int, *, or ?. If an int, it will choose the exact program id. If *, it will choose all programs that match the batch_constraint and seq_len_constraint criteria. If ?, it will choose one program that matches the batch_constraint and seq_len_constraint criteria.
-  <batch_constraint> can be one of int or conditional expression on the batch size. Int will default to >= expression. Otherwise we can support >, >=, <, <=, == with a val.
-  <seq_len_constraint> can be one of int or conditional expression on the sequence length. Int will default to >= expression. Otherwise we can support >, >=, <, <=, == with a val.
+- `--programs`: Specified programs to run. Format: `<program_id>:<batch_constraint>,<seq_len_constraint>`  
+  `<program_id>` can be one of an int, *, or ?. If an int, it will choose the exact program id. If *, it will choose all programs that match the batch_constraint and seq_len_constraint criteria. If ?, it will choose one program that matches the batch_constraint and seq_len_constraint criteria.  
+  `<batch_constraint>` can be one of int or conditional expression on the batch size. Int will default to >= expression. Otherwise we can support >, >=, <, <=, == with a val.  
+  `<seq_len_constraint>` can be one of int or conditional expression on the sequence length. Int will default to >= expression. Otherwise we can support >, >=, <, <=, == with a val.  
 - `--enforce_homogeneous_prompt_programs`: Ensures all sequences in a batch would hit the same prefill program (by default we only ensure the largest prompt hits a specific prefill program)
 
 The following examples demonstrate the usage of the script. Replace the `<valid_path>` with your directory path.
@@ -84,7 +84,7 @@ Examples that showcase the use of `programs` argument:
 
 - programs: \*:0\,\<8192
 
-  Will match all programs with any batch size (all batch sizes >=0) and sequence lengths upto 8192.
+  Will match all programs that can be executed with prompts of any batch size (all batch sizes >=0) and sequence lengths upto 8192.
 
   Example command:
   ```
@@ -93,7 +93,7 @@ Examples that showcase the use of `programs` argument:
 
 - programs 0:4,16256
 
-  Since a program_id 0 is specified, any prompt that meets batch size crteria >=4, and seq length >=16256 and would result in this program would be selected.
+  Since a program_id 0 is specified, it will execute program id 0 with prompts that meet batch size criteria>=4, and seq length >=16256.
 
   Example command:
   ```
@@ -102,7 +102,7 @@ Examples that showcase the use of `programs` argument:
 
 - programs: \?:0\,\<8192
 
-  Will match any one program with any batch size (all batch sizes >=0) and sequence lengths upto 8192.
+  Will match any one program that can be executed with prompts of any batch size (all batch sizes >=0) and sequence lengths upto 8192.
 
   Example command:
   ```
