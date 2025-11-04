@@ -1,13 +1,30 @@
 The [drive_paged_programs.py](https://github.com/foundation-model-stack/aiu-fms-testing-utils/blob/main/scripts/drive_paged_programs.py) is designed to run and validate paged programs using a specified model variant. 
 
-It supports different attention types, including `paged` and `paged_fp8`, with the default set to `paged`. The supported dataset types are `sharegpt` and `rag_factoid`, with the default set to `sharegpt`.
+It supports different attention types, including `paged` and `paged_fp8`, with the default set to `paged`.  
+
+The supported dataset types are `sharegpt` , `rag_factoid` and `custom`, with the default set to `sharegpt`.  
+
+Dataset formats:
+<details>
+  <summary>RAG factoid</summary>
+  "<|start_of_role|>system<|end_of_role|>Given one or more documents and a user query, generate a response to the query using less than 150 words that is grounded in the provided documents. If no answer can be found in the documents, say, \"I do not have specific information\".<|end_of_text|>\n<|start_of_role|>document {\"document_id\": \"0\"}<|end_of_role|>....document text...<|end_of_text|>\n<|start_of_role|>document {\"document_id\": \"1\"}<|end_of_role|>......document text...<|end_of_text|>\n<|start_of_role|>user<|end_of_role|>any other famous poets you recommend me to know?<|end_of_text|>\n<|start_of_role|>assistant<|end_of_role|>There are Tyger Blake, E. E. Cummings, Dylan Thomas, James Russell Lowell, and William Blake.<|end_of_text|>\n<|start_of_role|>user<|end_of_role|>can you provide more details of E. E. Cummings?<|end_of_text|>\n<|start_of_role|>assistant<|end_of_role|>"
+</details>
+<details>
+  <summary>Share GPT</summary>
+  Follow format on Hugging Face https://huggingface.co/datasets/anon8231489123/ShareGPT_Vicuna_unfiltered/blob/main/ShareGPT_V3_unfiltered_cleaned_split.json
+</details>
+<details>
+  <summary>Custom</summary>
+  For a given file, each line will be one sequence in the batch, the batch size being the number of lines in the file.
+</details>
 
 The script can take many arguments/flags according to your needs, but a few notable flags are provided below. To see the description of all the command-line arguments that the script can parse, run it with `--help`.
 - `--distributed`: the script can run tests in a distributed environment, utilizing multiple instances of AIU, for faster execution.
 - `--skip_validation`: set it to true to skip CPU validation, which will make the script much faster.
 - `--save_validation_info_outputs`: set it to true to save cpu validation outputs for later consumption. The saved outputs will allow you to reuse CPU logits.
 - `--validation_info_outputs_dir`: path to directory containing validation info outputs. The use of saved outputs will avoid re-compute and will significantly reduce script execution time.
-- `--program_criteria_json_path` and `--dataset_path`: for both of these arguments, make sure that the provided directory path exists on your system.
+- `--program_criteria_json_path`: JSON file that includes the program criteria for a list of programs. If the file does not exist, it will be generated real time in the specified path.  
+- `--dataset_path`: Path to dataset on disk.  Note: For ShareGPT dataset type, if the path does not exist, the dataset will be downloaded from Hugging Face.  
 - `--programs`: Specified programs to run. Format: `<program_id>:<batch_constraint>,<seq_len_constraint>`  
   `<program_id>` can be one of an int, *, or ?. If an int, it will choose the exact program id. If *, it will choose all programs that match the batch_constraint and seq_len_constraint criteria. If ?, it will choose one program that matches the batch_constraint and seq_len_constraint criteria.  
   `<batch_constraint>` can be one of int or conditional expression on the batch size. Int will default to >= expression. Otherwise we can support >, >=, <, <=, == with a val.  
