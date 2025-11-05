@@ -219,8 +219,7 @@ def execute_dpp(
         dataset_path.mkdir(exist_ok=True)
         prompts = [
             "This is the first line:",
-            "This is the second line:",
-            "This is the third line, it should have more tokens than the first 2:",
+            "This is the second line, it should have more tokens than the first 1:",
         ]
 
         for i, prompt in enumerate(prompts):
