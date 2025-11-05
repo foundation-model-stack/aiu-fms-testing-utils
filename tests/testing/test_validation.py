@@ -37,7 +37,7 @@ def test_validation_info_round_trip(validation_type, post_iteration_hook):
     model.reset_parameters()
 
     seq_length = 64
-    batch_size = 8
+    batch_size = 16
     max_new_tokens = 128
 
     # prepare input_ids
