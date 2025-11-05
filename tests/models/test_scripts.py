@@ -215,7 +215,7 @@ def execute_dpp(
             SHARED_DIR, "ShareGPT_V3_unfiltered_cleaned_split.json"
         )
     elif dataset_type == "custom":
-        dataset_path = os.path.join(shared_tmp_path, "custom_dataset")
+        dataset_path = Path(os.path.join(shared_tmp_path, "custom_dataset"))
         dataset_path.mkdir(exist_ok=True)
         prompts = [
             "This is the first line:",
