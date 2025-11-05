@@ -218,6 +218,7 @@ def load_validation_information(
         f"Not enough validation files at {validation_files_path} for a batch size of {batch_size}"
     )
 
+    validation_files_paths.sort(key=lambda p: int(p.name.split(".pt")[0]))
     validation_info = []
     for i, validation_file_path in enumerate(validation_files_paths):
         if i == batch_size:
