@@ -195,11 +195,12 @@ if args.dataset_type == "custom":
             "Using custom prompts from user, programs parameter will be ignored as it will be determined by user prompt"
         )
     result = []
-    with open(DATASET_PATH, "r") as file:
+    with open(DATASET_PATH, "rb") as file:
         for line in file:
-            res_line = line.strip()
+            res_line = line.decode("unicode_escape").strip()
             result.append((res_line, get_pad_size(len(tokenizer.encode(res_line)))))
     custom_shape = (len(result), max([_[1] for _ in result]))
+    dprint(f"Custom shape: {custom_shape}")
 
     def __custom_line_sampler(*args, **kwargs):
         return_key = kwargs.get("return_key", False)
