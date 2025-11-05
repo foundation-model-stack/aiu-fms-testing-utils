@@ -4,6 +4,7 @@ import datetime
 import itertools
 import json
 import os
+from pathlib import Path
 import random
 import time
 from itertools import dropwhile
@@ -194,11 +195,20 @@ if args.dataset_type == "custom":
         dprint(
             "Using custom prompts from user, programs parameter will be ignored as it will be determined by user prompt"
         )
+    directory = Path(DATASET_PATH)
+    if not directory.is_dir():
+        dprint("when using a custom dataset, you must provide a directory")
+        exit()
+
     result = []
-    with open(DATASET_PATH, "r") as file:
-        for line in file:
-            res_line = line.strip()
-            result.append((res_line, get_pad_size(len(tokenizer.encode(res_line)))))
+    for fp in directory.iterdir():
+        if fp.is_file():
+            try:
+                content = fp.read_text()
+                result.append((content, get_pad_size(len(tokenizer.encode(content)))))
+            except Exception as e:
+                print(f"Error while reading {fp} for custom dataset: {e}")
+                exit()
     custom_shape = (len(result), max([_[1] for _ in result]))
 
     def __custom_line_sampler(*args, **kwargs):
