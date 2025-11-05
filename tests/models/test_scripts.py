@@ -215,13 +215,17 @@ def execute_dpp(
             SHARED_DIR, "ShareGPT_V3_unfiltered_cleaned_split.json"
         )
     elif dataset_type == "custom":
-        dataset_path = os.path.join(shared_tmp_path, "custom_text.txt")
-        with open(dataset_path, "w") as file:
-            file.write("This is the first line:")
-            file.write("This is the second line:")
-            file.write(
-                "This is the third line, it should have more tokens than the first 2:"
-            )
+        dataset_path = os.path.join(shared_tmp_path, "custom_dataset")
+        dataset_path.mkdir(exist_ok=True)
+        prompts = [
+            "This is the first line:",
+            "This is the second line:",
+            "This is the third line, it should have more tokens than the first 2:",
+        ]
+
+        for i, prompt in enumerate(prompts):
+            fp = dataset_path / f"{i}.txt"
+            fp.write_text(prompt)
     else:
         pytest.fail("please provide a valid dataset_type")
     command_list += [f"--dataset_type={dataset_type}", f"--dataset_path={dataset_path}"]
