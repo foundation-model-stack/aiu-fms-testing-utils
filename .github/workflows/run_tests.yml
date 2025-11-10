@@ -1,0 +1,126 @@
+name: Non-AIU Testing
+
+on: [pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Fetch full history + tags to find base version tag
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0       
+          fetch-tags: true     
+
+      - name: Set up Python 3.12 (with pip cache)
+        id: setup_python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip" # enables built-in caching of ~/.cache/pip so wheels don’t re-download each run.
+
+      # -------------------- Restore venv cache --------------------
+      - name: Restore Virtualenv
+        id: cache-venv-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: ./.venv/
+          key: ${{ runner.os }}-${{ steps.setup_python.outputs.python-version }}-venv-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ steps.setup_python.outputs.python-version }}-venv-
+
+      # -------------------- Resolve base version from tags --------------------
+      - name: Determine base version (from base branch tag)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          BASE_REF="${{ github.base_ref }}"
+          git fetch origin "${BASE_REF}" --prune --tags
+
+          # Try: latest v* tag that is merged into the base branch
+          BASE_VER="$(git tag --merged "origin/${BASE_REF}" --list 'v*' \
+                      | sort -V | tail -n1 | sed 's/^v//')"
+
+          if [ -z "${BASE_VER}" ]; then
+            echo "No v* tag merged into origin/${BASE_REF}; falling back to latest remote v* tag"
+            # Fallback: latest remote v* tag (not necessarily merged)
+            BASE_VER="$(git ls-remote --tags --sort='v:refname' origin 'v*' \
+                        | awk -F/ '{print $3}' | sed 's/\^{}//' | sed 's/^v//' | tail -n1)"
+          fi
+
+          if [ -z "${BASE_VER}" ]; then
+            BASE_VER="0.0.0"
+            echo "Still no tag found; using ${BASE_VER}"
+          fi
+
+          SHA_SHORT="${GITHUB_SHA::7}"
+          PR_NUM="${{ github.event.number }}"
+          # setuptools-scm will normalize `.dev` to `.dev0` — that's expected
+          PRETEND_VER="${BASE_VER}.dev+pr${PR_NUM}.${SHA_SHORT}"
+
+          echo "BASE_VER=${BASE_VER}" | tee -a "$GITHUB_ENV"
+          echo "SETUPTOOLS_SCM_PRETEND_VERSION=${PRETEND_VER}" | tee -a "$GITHUB_ENV"
+          echo "Computed PRETEND version: ${PRETEND_VER}"
+
+      # -------------------- Create/Update venv & install PR code --------------------
+      - name: Create/Update venv and install PR code (editable) with pretend version
+        shell: bash
+        env:
+          SETUPTOOLS_SCM_PRETEND_VERSION: ${{ env.SETUPTOOLS_SCM_PRETEND_VERSION }}
+        run: |
+          set -euo pipefail
+          if [ ! -f ".venv/bin/activate" ]; then
+            python -m venv .venv
+          fi
+          . .venv/bin/activate
+
+          python -m pip install --upgrade pip
+          # Editable install so your PR code is what gets tested;
+          # setuptools-scm writes _version.py using PRETEND env
+          pip install -e .[dev] pytest
+
+          echo "$VIRTUAL_ENV/bin" >> "$GITHUB_PATH"
+          echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> "$GITHUB_ENV"
+
+      - name: Sanity-check installed version
+        shell: bash
+        run: |
+          python - <<'PY'
+          import aiu_fms_testing_utils._version as v
+          print("Installed __version__:", getattr(v, "__version__", None))
+          print("version_tuple():", v.version_tuple)
+          PY
+
+      # -------------------- Dataset cache --------------------
+      - name: Cache ShareGPT dataset
+        id: cache-sharegpt
+        uses: actions/cache@v4
+        with:
+          path: ShareGPT_V3_unfiltered_cleaned_split.json
+          key: sharegpt-${{ runner.os }}-v1
+
+      - name: Fetch dataset if missing
+        if: steps.cache-sharegpt.outputs.cache-hit != 'true'
+        run: |
+          curl -L -o ShareGPT_V3_unfiltered_cleaned_split.json \
+            https://huggingface.co/datasets/anon8231489123/ShareGPT_Vicuna_unfiltered/resolve/main/ShareGPT_V3_unfiltered_cleaned_split.json
+
+      # -------------------- Run tests --------------------
+      - name: Test with pytest
+        env:
+          SHARE_GPT_DATASET_PATH: ${{ github.workspace }}/ShareGPT_V3_unfiltered_cleaned_split.json
+          DATASET_PATH: ${{ github.workspace }}/ShareGPT_V3_unfiltered_cleaned_split.json
+        run: |
+          pytest -s -v -rA tests/utils
+          pytest -s -v -rA tests/testing
+
+      # -------------------- Save venv cache --------------------
+      - name: Save Virtualenv
+        if: ${{ steps.cache-venv-restore.outputs.cache-primary-key != '' }}
+        id: cache-venv-save
+        uses: actions/cache/save@v4
+        with:
+          path: ./.venv/
+          key: ${{ steps.cache-venv-restore.outputs.cache-primary-key }}
