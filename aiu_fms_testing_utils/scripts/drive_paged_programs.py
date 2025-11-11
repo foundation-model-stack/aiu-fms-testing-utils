@@ -170,6 +170,11 @@ parser.add_argument(
     help="set to true to save cpu validation outputs for later consumption",
 )
 parser.add_argument(
+    "--stop_after_info_outputs",
+    action="store_true",
+    help="set to true to stop after cpu validation outputs have been saved",
+)
+parser.add_argument(
     "--prioritize_large_batch_sizes",
     action="store_true",
     help="set to true if you would like to prioritize large batch sizes",
@@ -373,55 +378,6 @@ with stagger_region(args.stagger_load):
     )
 
 model.eval()
-fx_config.backed_size_oblivious = True
-model.compile(backend="sendnn", options={"sendnn.dynamic": True})
-
-__maybe_prepare_fp8_weights(model, is_fp8)
-
-if not args.skip_validation:
-    with stagger_region(args.stagger_load):
-        validation_model = get_model(
-            architecture="hf_pretrained",
-            device_type="cpu",
-            data_type=None if is_fp8 else torch.float32,
-            fused_weights=False,
-            **model_path_kwargs,
-            **distributed_kwargs,
-        )
-    validation_model.eval()
-
-# warmup with any input so compiler produces criteria json
-# TODO: Swap this with __prepare_inputs once fix for shape_id is available
-# input_ids, extra_kwargs, sample_key = __prepare_inputs(2, max_tkv, tokenizer)
-prompt_list = [torch.arange(0, 64, dtype=torch.int64)]
-# matching vllm warmup to pad to 2 on fp8, and no pad for fp16
-if is_fp8:
-    prompt_list = prompt_list * 2
-input_ids, extra_kwargs = pad_input_ids(prompt_list, min_pad_length=64)
-extra_kwargs["mask"] = extra_kwargs["mask"].to(torch.float16)
-
-extra_kwargs["attn_name"] = ATTN_NAME
-if (
-    "granite-3.3-8b-instruct" in model_variant
-    and USE_DISTRIBUTED
-    and dist.get_world_size() == 4
-):
-    extra_kwargs["_kvcache_num_blocks_hint"] = KVCACHE_NUM_BLOCKS_HINT
-warmup_model(
-    model,
-    input_ids,
-    max_new_tokens=max_new_tokens,
-    compile_dynamic_sendnn=True,
-    stagger_update_lazyhandle=args.stagger_update_lazyhandle,
-    prefill_chunk_size=args.prefill_chunk_size,
-    **extra_kwargs,
-)
-
-if USE_DISTRIBUTED:
-    # wait for rank0 to be finished as it is the only one generating the criteria json
-    # this is needed since otherwise we may run into a race condition
-    torch.distributed.barrier()
-
 
 @dataclass
 class ProgramInfo:
@@ -430,7 +386,6 @@ class ProgramInfo:
     batch_size_limit_type: str
     prompt_length_limit: int
     prompt_length_limit_type: str
-
 
 def parse_program_limit(limit_str: str) -> tuple[int, str]:
     matcher = re.compile(r"^(<|>|<=|>=|==)(\d+)")
@@ -448,7 +403,7 @@ def parse_program_limit(limit_str: str) -> tuple[int, str]:
         limit_val = int(match.group(2))
     return limit_val, limit_type
 
-
+# TODO: Add a check or logic for case that prog criteria json must exist if saving CPU outputs
 with open(args.program_criteria_json_path, "r") as f:
     program_criteria_json_list = json.load(f)["programs"]
     program_criteria_list = []
@@ -621,39 +576,20 @@ else:
                 f"no valid prompt shape was found which would result in program {program_id} that satisfied batch{batch_size_limit_type}{batch_size_limit} and prompt_length{prompt_length_limit_type}{prompt_length_limit}"
             )
 
-
-# metric calculator based on the cross-entropy and mean diff for each decode step
-def __metric_calculator(r: torch.Tensor, t: torch.Tensor):
-    cross_entropy = torch.nn.CrossEntropyLoss()(
-        r, t.softmax(dim=1).to(dtype=torch.float32)
-    )
-    diff = torch.mean(
-        torch.abs(
-            r.softmax(dim=1).to(dtype=torch.float32)
-            - t.softmax(dim=1).to(dtype=torch.float32)
+if not args.skip_validation:
+    with stagger_region(args.stagger_load):
+        validation_model = get_model(
+            architecture="hf_pretrained",
+            device_type="cpu",
+            data_type=None if is_fp8 else torch.float32,
+            fused_weights=False,
+            **model_path_kwargs,
+            **distributed_kwargs,
         )
-    )
-    return (cross_entropy, diff)
+    validation_model.eval()
 
-
-failed_cases = []
-# for each program and valid prompt (batch size, sequence length)
-for program_id, valid_prompt, input_ids, extra_kwargs, sample_key in valid_prompts:
-    extra_kwargs["attn_name"] = ATTN_NAME
-    if (
-        "granite-3.3-8b-instruct" in model_variant
-        and USE_DISTRIBUTED
-        and dist.get_world_size() == 4
-    ):
-        extra_kwargs["_kvcache_num_blocks_hint"] = KVCACHE_NUM_BLOCKS_HINT
-
-    if local_rank == 0:
-        dprint(f"*** testing program {program_id} ***")
-        dprint(
-            f"program id: {program_id}, valid prompt: {valid_prompt}, input shape: {input_ids.shape}"
-        )
-
-    if not args.skip_validation:
+    for program_id, valid_prompt, input_ids, extra_kwargs, sample_key in valid_prompts:
+        dprint(f"Working on program_id: {program_id}")
         # attempt to load the cpu validation info if it is already computed
         cpu_validation_info = __load_validation_info(
             model_variant,
@@ -691,6 +627,80 @@ for program_id, valid_prompt, input_ids, extra_kwargs, sample_key in valid_promp
                     )
                 )
 
+if args.stop_after_info_outputs:
+    dprint("CPU validation outputs saved. Exiting as requested.")
+    exit(0)
+
+################################################################
+
+fx_config.backed_size_oblivious = True
+model.compile(backend="sendnn", options={"sendnn.dynamic": True})
+__maybe_prepare_fp8_weights(model, is_fp8)
+
+# warmup with any input so compiler produces criteria json
+# TODO: Swap this with __prepare_inputs once fix for shape_id is available
+# input_ids, extra_kwargs, sample_key = __prepare_inputs(2, max_tkv, tokenizer)
+prompt_list = [torch.arange(0, 64, dtype=torch.int64)]
+# matching vllm warmup to pad to 2 on fp8, and no pad for fp16
+if is_fp8:
+    prompt_list = prompt_list * 2
+input_ids, extra_kwargs = pad_input_ids(prompt_list, min_pad_length=64)
+extra_kwargs["mask"] = extra_kwargs["mask"].to(torch.float16)
+
+extra_kwargs["attn_name"] = ATTN_NAME
+if (
+    "granite-3.3-8b-instruct" in model_variant
+    and USE_DISTRIBUTED
+    and dist.get_world_size() == 4
+):
+    extra_kwargs["_kvcache_num_blocks_hint"] = KVCACHE_NUM_BLOCKS_HINT
+warmup_model(
+    model,
+    input_ids,
+    max_new_tokens=max_new_tokens,
+    compile_dynamic_sendnn=True,
+    stagger_update_lazyhandle=args.stagger_update_lazyhandle,
+    prefill_chunk_size=args.prefill_chunk_size,
+    **extra_kwargs,
+)
+
+if USE_DISTRIBUTED:
+    # wait for rank0 to be finished as it is the only one generating the criteria json
+    # this is needed since otherwise we may run into a race condition
+    torch.distributed.barrier()
+
+# metric calculator based on the cross-entropy and mean diff for each decode step
+def __metric_calculator(r: torch.Tensor, t: torch.Tensor):
+    cross_entropy = torch.nn.CrossEntropyLoss()(
+        r, t.softmax(dim=1).to(dtype=torch.float32)
+    )
+    diff = torch.mean(
+        torch.abs(
+            r.softmax(dim=1).to(dtype=torch.float32)
+            - t.softmax(dim=1).to(dtype=torch.float32)
+        )
+    )
+    return (cross_entropy, diff)
+
+
+failed_cases = []
+# for each program and valid prompt (batch size, sequence length)
+for program_id, valid_prompt, input_ids, extra_kwargs, sample_key in valid_prompts:
+    extra_kwargs["attn_name"] = ATTN_NAME
+    if (
+        "granite-3.3-8b-instruct" in model_variant
+        and USE_DISTRIBUTED
+        and dist.get_world_size() == 4
+    ):
+        extra_kwargs["_kvcache_num_blocks_hint"] = KVCACHE_NUM_BLOCKS_HINT
+
+    if local_rank == 0:
+        dprint(f"*** testing program {program_id} ***")
+        dprint(
+            f"program id: {program_id}, valid prompt: {valid_prompt}, input shape: {input_ids.shape}"
+        )
+
+    if not args.skip_validation:
         if args.test_type == "metrics":
             aiu_validation_info = extract_validation_information(
                 model,
