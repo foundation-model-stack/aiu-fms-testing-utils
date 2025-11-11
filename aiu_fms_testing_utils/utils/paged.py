@@ -165,6 +165,8 @@ def generate(
     if "fp8" in kwargs["attn_name"]:
         from fms_mo.aiu_addons.fp8.fp8_utils import ScaledTensor
 
+        already_scaled = prefill_chunk_size > 0
+
         kwargs["past_key_value_states"] = [
             (
                 ScaledTensor(
@@ -176,7 +178,7 @@ def generate(
                         dtype=torch.float8_e4m3fn,
                     ),
                     torch.tensor([1.0] * input_ids.shape[0], dtype=torch.float32),
-                    False,
+                    already_scaled,
                 ),
                 ScaledTensor(
                     torch.zeros(
@@ -187,7 +189,7 @@ def generate(
                         dtype=torch.float8_e4m3fn,
                     ),
                     torch.tensor([1.0] * input_ids.shape[0], dtype=torch.float32),
-                    False,
+                    already_scaled,
                 ),
             )
             for _ in range(model.config.nlayers)
@@ -421,7 +423,7 @@ def generate(
                         current_kv_scales[layer_idx][0][seq_i] = t1._scale
                         current_kv_scales[layer_idx][1][seq_i] = t2._scale
 
-                    if seq_i != input_ids.size(0) - 1:
+                    if seq_i != input_ids.size(0) - 1 and prefill_chunk_size == 0:
                         for layer_cache in current_kv_cache:
                             layer_cache[0]._scaled = False
                             layer_cache[1]._scaled = False
