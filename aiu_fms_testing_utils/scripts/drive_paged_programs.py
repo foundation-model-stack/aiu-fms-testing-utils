@@ -362,7 +362,6 @@ if USE_DISTRIBUTED:
         dist.get_rank() == 0
     )
 
-# not validation
 with stagger_region(args.stagger_load):
     model = get_model(
         architecture="hf_pretrained",
@@ -379,7 +378,6 @@ model.compile(backend="sendnn", options={"sendnn.dynamic": True})
 
 __maybe_prepare_fp8_weights(model, is_fp8)
 
-# is validation
 if not args.skip_validation:
     with stagger_region(args.stagger_load):
         validation_model = get_model(
