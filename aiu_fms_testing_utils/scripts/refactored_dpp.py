@@ -592,7 +592,7 @@ def get_program_prompt_list(
     return valid_prompts
 
 
-def run_validation_tests(
+def run_validation(
     args: argparse.Namespace,
     model: torch.nn.Module,
     validation_model: Optional[torch.nn.Module],
@@ -604,7 +604,7 @@ def run_validation_tests(
     attn_name: str,
     cpu_dtype: str,
     tokenizer: AutoTokenizer,
-) -> None:
+):
 
     if local_rank == 0:
         dprint(f"*** testing program {program_id} ***")
@@ -669,47 +669,17 @@ def run_validation_tests(
         **extra_kwargs,
     )
 
-    if args.test_type == "metrics":
-        process_metrics_test (
-            cross_entropy_threshold=args.cross_entropy_threshold,
-            failure_rate_threshold=args.failure_rate_threshold,
-            aiu_validation_info=aiu_validation_info, 
-            cpu_validation_info=cpu_validation_info, 
-            program_id=program_id, 
-            prompt_shape=valid_prompt, 
-            tokenizer=tokenizer
-        )
-
-    elif args.test_type == "tokens":
-        process_tokens_test (
-            max_new_tokens=args.max_new_tokens,
-            aiu_validation_info=aiu_validation_info, 
-            cpu_validation_info=cpu_validation_info, 
-            program_id=program_id, 
-            tokenizer=tokenizer
-        )
-    
-    if args.skip_validation and local_rank == 0:
-        for sentence_idx, test_sentence in enumerate(
-            aiu_validation_info.get_info("tokens")
-        ):
-            tokens_prompt = [t.item() for t in test_sentence[:-args.max_new_tokens]]
-            aiu_tokens_generated = [t.item() for t in test_sentence[-args.max_new_tokens:]]
-            dprint(f"For Program {program_id} in sentence {sentence_idx + 1}:")
-            dprint(f"Prompt:\n{tokenizer.decode(tokens_prompt)}")
-            dprint(f"AIU tokens:\n{aiu_tokens_generated}")
-            dprint(f"AIU output:\n{tokenizer.decode(aiu_tokens_generated)}")
+    return aiu_validation_info, cpu_validation_info
 
 
-def process_metrics_test(
+def run_metrics_test(
     cross_entropy_threshold: float,
-    failure_rate_threshold: float,
     aiu_validation_info: ValidationInfo,
     cpu_validation_info: ValidationInfo,
     program_id: str,
     prompt_shape: Tuple[int, int],
     tokenizer: AutoTokenizer,
-) -> None:
+):
     
     level_1_metrics = capture_level_1_metrics(
         cpu_validation_info.get_info("logits"),
@@ -737,17 +707,11 @@ def process_metrics_test(
     ce_fail_responses = filter_failed_level_1_cases(
         level_1_metrics, lambda m: m[0] >= cross_entropy_threshold
     )
+    failure_rate = len(ce_fail_responses) / len(level_1_metrics)
 
-    failure_rate = len(ce_fail_responses) / len(level_1_metrics) if level_1_metrics else 0.0
-    
-    if failure_rate >= failure_rate_threshold:
-        dprint(f"[FAIL] Program {program_id} failed with rate {failure_rate:.4f} >= threshold {failure_rate_threshold}.")
-    
-    if local_rank == 0:
-        dprint(f"[PASS] Program {program_id} passed. Failure Rate: {failure_rate:.4f}.")
+    return failure_rate
 
-
-def process_tokens_test(
+def run_tokens_test(
     max_new_tokens: int,
     aiu_validation_info: ValidationInfo,
     cpu_validation_info: ValidationInfo,
@@ -827,10 +791,10 @@ max_tkv = int(os.environ["VLLM_DT_MAX_CONTEXT_LEN"])
 distributed_kwargs = get_distributed_kwargs(args.distributed, args.dist_timeout, args.save_validation_info_outputs)
 
 model = load_model(
-    device_type="cpu", 
-    model_variant=args.model_variant, 
-    is_fp8=is_fp8, 
-    distributed_kwargs=distributed_kwargs, 
+    device_type="cpu",
+    model_variant=args.model_variant,
+    is_fp8=is_fp8,
+    distributed_kwargs=distributed_kwargs,
     stagger_load=args.stagger_load,
     is_validation=False)
 
@@ -927,14 +891,14 @@ valid_prompts = get_program_prompt_list(
     custom_shape=custom_shape,
 )
 
-## RUN TESTS ##
+## RUN VALIDATION AND TESTS ##
 
 failed_cases = []
 # for each program and valid prompt (batch size, sequence length)
 for program_id, valid_prompt, input_ids, extra_kwargs, sample_key in valid_prompts:
     extra_kwargs["attn_name"] = ATTN_NAME
 
-    run_validation_tests(
+    aiu_validation_info, cpu_validation_info = run_validation(
                 args=args,
                 model=model, 
                 validation_model=validation_model, 
@@ -947,3 +911,50 @@ for program_id, valid_prompt, input_ids, extra_kwargs, sample_key in valid_promp
                 cpu_dtype=CPU_DTYPE, 
                 tokenizer=tokenizer,
             )
+
+    if args.test_type == "metrics":
+        failure_rate = run_metrics_test (
+            cross_entropy_threshold=args.cross_entropy_threshold,
+            aiu_validation_info=aiu_validation_info,
+            cpu_validation_info=cpu_validation_info,
+            program_id=program_id,
+            prompt_shape=valid_prompt,
+            tokenizer=tokenizer
+        )
+        if failure_rate > args.failure_rate_threshold:
+            failed_cases.append(
+                (program_id, valid_prompt, failure_rate)
+            )
+
+    elif args.test_type == "tokens":
+        run_tokens_test (
+            max_new_tokens=args.max_new_tokens,
+            aiu_validation_info=aiu_validation_info,
+            cpu_validation_info=cpu_validation_info,
+            program_id=program_id,
+            tokenizer=tokenizer
+        )
+
+    else:
+        raise ValueError("test type must be one of metrics or tokens")
+
+    if args.skip_validation and local_rank == 0:
+        for sentence_idx, test_sentence in enumerate(
+            aiu_validation_info.get_info("tokens")
+        ):
+            tokens_prompt = [t.item() for t in test_sentence[:-args.max_new_tokens]]
+            aiu_tokens_generated = [t.item() for t in test_sentence[-args.max_new_tokens:]]
+            dprint(f"For Program {program_id} in sentence {sentence_idx + 1}:")
+            dprint(f"Prompt:\n{tokenizer.decode(tokens_prompt)}")
+            dprint(f"AIU tokens:\n{aiu_tokens_generated}")
+            dprint(f"AIU output:\n{tokenizer.decode(aiu_tokens_generated)}")
+
+if not args.skip_validation and local_rank == 0:
+    if len(failed_cases) != 0:
+        dprint("The test failed with the following cases:")
+        for failed_case in failed_cases:
+            dprint(
+                f"Program ID: {failed_case[0]}, Prompt Shape: {failed_case[1]}, Failure Rate: {failed_case[2]}"
+            )
+    else:
+        dprint("all tests passed")
