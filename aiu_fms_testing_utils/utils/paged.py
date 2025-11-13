@@ -5,6 +5,7 @@ import time
 from typing import Any, Callable, List, MutableMapping, Optional, Tuple, Union
 import torch
 import fms.utils.spyre.paged  # noqa
+from aiu_fms_testing_utils.utils import get_pad_size
 
 
 def adjust_inputs_to_batch(input_ids: torch.Tensor, **extra_kwargs):
@@ -300,62 +301,68 @@ def generate(
                 last_n_tokens = kwargs.get("last_n_tokens", 0)
 
                 if prefill_chunk_size > 0:
-                    left_padded_prompt_mask_seq_chunk = None
+                    required_extra_pads = get_pad_size(current_tkv, prefill_chunk_size) - current_tkv
+                    left_padded_prompt_mask_seq_chunk = (
+                        kwargs["position_ids"][seq_i] == 0
+                    ).sum(dim=0) - 1 + required_extra_pads
+                    left_padded_prompt_mask_seq_chunk = left_padded_prompt_mask_seq_chunk.unsqueeze(0)
+
                     # Chunked prefill
                     for chunk_j in range(math.ceil(current_tkv / prefill_chunk_size)):
-                        chunk_start = -current_tkv + chunk_j * prefill_chunk_size
-                        chunk_end = -current_tkv + min(
-                            (chunk_j + 1) * prefill_chunk_size, current_tkv
-                        )
+                        
+                        if chunk_j == 0:
+                            chunk_start = 0
+                            chunk_end = prefill_chunk_size - required_extra_pads
+                        else:
+                            required_extra_pads = 0
+                            chunk_start = chunk_end
+                            chunk_end += prefill_chunk_size
 
-                        ids_length = input_ids[seq_i].shape[0]
-                        input_ids_seq_chunk = (
-                            input_ids[seq_i][
-                                chunk_start + ids_length : chunk_end + ids_length
-                            ]
-                            .unsqueeze(0)
-                            .clone()
-                        )
+                        input_ids_seq_chunk = input_ids[seq_i][chunk_start: chunk_end]
+                        if required_extra_pads > 0:
+                            input_ids_seq_chunk = torch.cat((
+                                torch.zeros(required_extra_pads, dtype=torch.int64, device=input_ids_seq_chunk.device),
+                                input_ids_seq_chunk
+                            ))
+
+                        input_ids_seq_chunk = input_ids_seq_chunk.unsqueeze(0).clone()
+
                         assert input_ids_seq_chunk.size(1) == prefill_chunk_size, (
-                            f"prefill chunk size was not equal to the chunk size. Found {input_ids_seq_chunk.size(0)}"
+                            f"prefill chunk size was not equal to the chunk size for input_ids. Found {input_ids_seq_chunk.size(0)}"
                         )
-                        slots_length = len(slot_mapping[seq_i])
+                        
+                        slot_mapping_seq_chunk = slot_mapping[seq_i][chunk_start:chunk_end]
+                        if required_extra_pads > 0:
+                            slot_mapping_seq_chunk = slot_mapping_seq_chunk[chunk_start:chunk_start+BLOCK_SIZE] * (required_extra_pads//BLOCK_SIZE) + slot_mapping_seq_chunk
                         slot_mapping_seq_chunk = (
                             torch.tensor(
-                                slot_mapping[seq_i][
-                                    chunk_start + slots_length : chunk_end
-                                    + slots_length
-                                ],
+                                slot_mapping_seq_chunk,
                                 dtype=torch.int64,
                             )
                             .unsqueeze(0)
                             .clone()
                         )
-                        pids_length = kwargs["position_ids"][seq_i].shape[0]
-                        position_ids_seq_chunk = (
-                            kwargs["position_ids"][seq_i][
-                                chunk_start + pids_length : chunk_end + pids_length
-                            ]
-                            .unsqueeze(0)
-                            .clone()
+
+                        assert slot_mapping_seq_chunk.size(1) == prefill_chunk_size, (
+                            f"prefill chunk size was not equal to the chunk size for slot_mapping. Found {slot_mapping_seq_chunk.size(0)}"
                         )
 
-                        # This view will result in a discontiguous tensor (creates a new graph during compile)
-                        # For this reason, we must explicitly make contiguous
-                        if left_padded_prompt_mask_seq_chunk is None:
-                            left_padded_prompt_mask_seq_chunk = (
-                                position_ids_seq_chunk == 0
-                            ).sum(dim=1) - 1
-                        current_tkv_mask_seq_chunk = torch.min(
-                            torch.tensor(
-                                (chunk_j + 1) * prefill_chunk_size, dtype=torch.int64
-                            ),
-                            current_tkv,
-                        ).unsqueeze(0)
+                        position_ids_seq_chunk = kwargs["position_ids"][seq_i][chunk_start:chunk_end]
+                        if required_extra_pads > 0:
+                            position_ids_seq_chunk = torch.cat((
+                                torch.zeros(required_extra_pads, dtype=torch.int64, device=position_ids_seq_chunk.device),
+                                position_ids_seq_chunk
+                            ))
+                        position_ids_seq_chunk = position_ids_seq_chunk.unsqueeze(0).clone()
 
-                        table_length = len(block_table[seq_i])
-                        block_start = -current_tkv // BLOCK_SIZE + table_length
-                        block_end = chunk_end // BLOCK_SIZE + table_length
+                        assert position_ids_seq_chunk.size(1) == prefill_chunk_size, (
+                            f"prefill chunk size was not equal to the chunk size for position_ids. Found {position_ids_seq_chunk.size(0)}"
+                        )
+
+                        current_tkv_mask_seq_chunk = torch.tensor(prefill_chunk_size, dtype=torch.int64).unsqueeze(0)
+
+                        block_start = chunk_start // BLOCK_SIZE
+                        block_end = chunk_end // BLOCK_SIZE
                         block_table_seq_chunk = torch.tensor(
                             block_table[seq_i][block_start:block_end], dtype=torch.int64
                         ).unsqueeze(0)
