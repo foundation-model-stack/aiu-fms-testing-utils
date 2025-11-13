@@ -185,10 +185,15 @@ def execute_dpp(
     if prefill_chunk_size > 0:
         isolated_env["VLLM_DT_CHUNK_LEN"] = f"{prefill_chunk_size}"
     Path(os.path.join(shared_tmp_path, "sendnn_cache")).mkdir(exist_ok=True)
-    os.environ.setdefault(
-        "TORCH_SENDNN_CACHE_DIR", os.path.join(shared_tmp_path, "sendnn_cache")
-    )
-    isolated_env["TORCH_SENDNN_CACHE_ENABLE"] = "1"
+
+    # only enable for non-chunk
+    if prefill_chunk_size == 0:
+        os.environ.setdefault(
+            "TORCH_SENDNN_CACHE_DIR", os.path.join(shared_tmp_path, "sendnn_cache")
+        )
+        isolated_env["TORCH_SENDNN_CACHE_ENABLE"] = "1"
+    else:
+        isolated_env["TORCH_SENDNN_CACHE_ENABLE"] = "0"
 
     command_list = [
         "python3",
