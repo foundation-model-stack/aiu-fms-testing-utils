@@ -318,6 +318,7 @@ def generate(
 
                     # Chunked prefill
                     for chunk_j in range(math.ceil(current_tkv / prefill_chunk_size)):
+                        # chunk_start and chunk_end are the index mappings from the original sequence
                         if chunk_j == 0:
                             chunk_start = 0
                             chunk_end = prefill_chunk_size - required_extra_pads
@@ -327,6 +328,14 @@ def generate(
                             chunk_end += prefill_chunk_size
 
                         input_ids_seq_chunk = input_ids[seq_i][chunk_start:chunk_end]
+                        slot_mapping_seq_chunk = slot_mapping[seq_i][
+                            chunk_start:chunk_end
+                        ]
+                        position_ids_seq_chunk = kwargs["position_ids"][seq_i][
+                            chunk_start:chunk_end
+                        ]
+
+                        # add the extra required padding to chunk
                         if required_extra_pads > 0:
                             input_ids_seq_chunk = torch.cat(
                                 (
@@ -338,17 +347,6 @@ def generate(
                                     input_ids_seq_chunk,
                                 )
                             )
-
-                        input_ids_seq_chunk = input_ids_seq_chunk.unsqueeze(0).clone()
-
-                        assert input_ids_seq_chunk.size(1) == prefill_chunk_size, (
-                            f"prefill chunk size was not equal to the chunk size for input_ids. Found {input_ids_seq_chunk.size(0)}"
-                        )
-
-                        slot_mapping_seq_chunk = slot_mapping[seq_i][
-                            chunk_start:chunk_end
-                        ]
-                        if required_extra_pads > 0:
                             slot_mapping_seq_chunk = (
                                 slot_mapping_seq_chunk[
                                     chunk_start : chunk_start + BLOCK_SIZE
@@ -356,23 +354,6 @@ def generate(
                                 * (required_extra_pads // BLOCK_SIZE)
                                 + slot_mapping_seq_chunk
                             )
-                        slot_mapping_seq_chunk = (
-                            torch.tensor(
-                                slot_mapping_seq_chunk,
-                                dtype=torch.int64,
-                            )
-                            .unsqueeze(0)
-                            .clone()
-                        )
-
-                        assert slot_mapping_seq_chunk.size(1) == prefill_chunk_size, (
-                            f"prefill chunk size was not equal to the chunk size for slot_mapping. Found {slot_mapping_seq_chunk.size(0)}"
-                        )
-
-                        position_ids_seq_chunk = kwargs["position_ids"][seq_i][
-                            chunk_start:chunk_end
-                        ]
-                        if required_extra_pads > 0:
                             position_ids_seq_chunk = torch.cat(
                                 (
                                     torch.zeros(
@@ -383,9 +364,29 @@ def generate(
                                     position_ids_seq_chunk,
                                 )
                             )
+
+                        input_ids_seq_chunk = input_ids_seq_chunk.unsqueeze(0).clone()
+
+                        slot_mapping_seq_chunk = (
+                            torch.tensor(
+                                slot_mapping_seq_chunk,
+                                dtype=torch.int64,
+                            )
+                            .unsqueeze(0)
+                            .clone()
+                        )
+
                         position_ids_seq_chunk = position_ids_seq_chunk.unsqueeze(
                             0
                         ).clone()
+
+                        assert input_ids_seq_chunk.size(1) == prefill_chunk_size, (
+                            f"prefill chunk size was not equal to the chunk size for input_ids. Found {input_ids_seq_chunk.size(0)}"
+                        )
+
+                        assert slot_mapping_seq_chunk.size(1) == prefill_chunk_size, (
+                            f"prefill chunk size was not equal to the chunk size for slot_mapping. Found {slot_mapping_seq_chunk.size(0)}"
+                        )
 
                         assert position_ids_seq_chunk.size(1) == prefill_chunk_size, (
                             f"prefill chunk size was not equal to the chunk size for position_ids. Found {position_ids_seq_chunk.size(0)}"

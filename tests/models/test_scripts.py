@@ -268,7 +268,7 @@ dpp_possibilities.append(
 )  # tokens running with specific custom dataset
 dpp_possibilities.append(
     ("paged", None, 8, "sharegpt", "tokens", False, False, 128)
-)  # metrics and run all programs
+)  # metrics and run all programs with chunked prefill
 
 
 @pytest.mark.parametrize(

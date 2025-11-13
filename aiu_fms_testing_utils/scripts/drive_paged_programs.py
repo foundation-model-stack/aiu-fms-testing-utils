@@ -580,17 +580,13 @@ else:
                     # in the event we don't have enough sequences that satisfy the enforce_sizes, we will repeat sequences and warn the user
                     enforce_sizes = [valid_prompt_shape[1]]
                     if args.enforce_homogeneous_prompt_programs:
-                        # if enforcing homogeneous prompt programs, this will get the number of bits for the sequence length and shift to get the power of 2 that is less than or equal to the sequence length
+                        # this will get the number of bits for the sequence length and shift to get the power of 2 that is less than or equal to the sequence length
                         tkv_cutoff = 1 << (valid_prompt_shape[1].bit_length() - 1)
                         possible_seq_lengths = [
                             _ for _ in range(tkv_cutoff, valid_prompt_shape[1], 64)
                         ]
                         # favor sequences that are close to the valid prompt length
                         possible_seq_lengths.reverse()
-                        # add the valid prompt size to the end since it will already exist in the above enforce_sizes
-                        possible_seq_lengths = possible_seq_lengths + [
-                            valid_prompt_shape[1]
-                        ]
                         enforce_sizes = enforce_sizes + list(
                             itertools.islice(
                                 itertools.cycle(possible_seq_lengths),
