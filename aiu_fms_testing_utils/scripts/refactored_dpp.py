@@ -328,7 +328,7 @@ def get_model_path_kwargs(model_variant: str) -> Dict[str, Any]:
         
     return model_path_kwargs
 
-def get_distributed_kwargs(is_distributed: bool, dist_timeout: str) -> Dict[str, Any]:
+def get_distributed_kwargs(is_distributed: bool, dist_timeout: str, save_validation_info_outputs: bool) -> Dict[str, Any]:
     
     distributed_kwargs = {}
     if is_distributed:
@@ -403,7 +403,6 @@ def load_model(
     is_validation: bool = False,
 ):
 
-    device_type = "cpu"
     dtype = None if is_fp8 else (torch.float32 if is_validation else torch.float16)
 
     model_path_kwargs = get_model_path_kwargs(model_variant)
@@ -631,10 +630,10 @@ def run_validation_tests(
         # if the cpu validation info is not yet computed, compute it
         if cpu_validation_info is None and validation_model is not None:
             cpu_validation_info = extract_validation_information(
-                validation_model,
-                input_ids,
-                args.max_new_tokens,
-                LogitsExtractorHook(),
+                model=validation_model,
+                input_ids=input_ids,
+                max_new_tokens=args.max_new_tokens,
+                post_iteration_hook=LogitsExtractorHook(),
                 attn_algorithm="math",
                 **extra_kwargs,
             )
@@ -660,10 +659,10 @@ def run_validation_tests(
             golden_hook = GoldenTokenHook(cpu_validation_info.get_info("tokens"))
     
     aiu_validation_info = extract_validation_information(
-        model,
-        input_ids,
-        args.max_new_tokens,
-        golden_hook,
+        model=model,
+        input_ids=input_ids,
+        max_new_tokens=args.max_new_tokens,
+        post_iteration_hook=golden_hook,
         last_n_tokens=64,
         timing=args.timing,
         prefill_chunk_size=args.prefill_chunk_size,
@@ -825,7 +824,7 @@ max_tkv = int(os.environ["VLLM_DT_MAX_CONTEXT_LEN"])
 ## MODEL LOADING ##
 
 # Get distributed kwargs (empty if not distributed)
-distributed_kwargs = get_distributed_kwargs(args.distributed, args.dist_timeout)
+distributed_kwargs = get_distributed_kwargs(args.distributed, args.dist_timeout, args.save_validation_info_outputs)
 
 model = load_model(
     device_type="cpu", 
@@ -841,7 +840,12 @@ __maybe_prepare_fp8_weights(model, is_fp8)
 validation_model = None
 if not args.skip_validation:
     validation_model = load_model(
-        args.model_variant, is_fp8, distributed_kwargs, args.stagger_load, is_validation=True
+        device_type="cpu",
+        model_variant=args.model_variant,
+        is_fp8=is_fp8,
+        distributed_kwargs=distributed_kwargs,
+        stagger_load=args.stagger_load,
+        is_validation=True
     )
 
 ## MODEL WARMUP ##
@@ -912,14 +916,15 @@ sampler, allow_truncation, custom_shape = get_sampler(args.dataset_type, args.da
 
 # Select concrete prompts and program associations
 valid_prompts = get_program_prompt_list(
-    args, 
-    programs_to_test, 
-    program_criteria_list, 
-    program_map, 
-    tokenizer, 
-    sampler, 
-    allow_truncation, 
-    custom_shape
+    program_map=program_map,
+    dataset_path=args.dataset_path,
+    enforce_homogeneous_prompt_programs=args.enforce_homogeneous_prompt_programs,
+    programs_to_test=programs_to_test,
+    program_criteria_list=program_criteria_list,
+    tokenizer=tokenizer,
+    sampler=sampler,
+    allow_truncation=allow_truncation,
+    custom_shape=custom_shape,
 )
 
 ## RUN TESTS ##
