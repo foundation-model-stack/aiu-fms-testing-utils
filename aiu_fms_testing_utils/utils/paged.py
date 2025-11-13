@@ -338,19 +338,6 @@ def generate(
                                     input_ids_seq_chunk,
                                 )
                             )
-                            if os.environ["LOCAL_RANK"] == "0":
-                                print("pads were required: ", required_extra_pads)
-
-                        if os.environ["LOCAL_RANK"] == "0":
-                            print("input_ids[seq_i] - ", input_ids[seq_i].size(0))
-                            print(
-                                "chunk start - ",
-                                chunk_start,
-                                " chunk end - ",
-                                chunk_end,
-                            )
-                            print("chunk ", chunk_j, "-", input_ids_seq_chunk.size(0))
-                            print("current_tkv", current_tkv)
 
                         input_ids_seq_chunk = input_ids_seq_chunk.unsqueeze(0).clone()
 
@@ -418,22 +405,6 @@ def generate(
                             + block_table[seq_i][:block_end],
                             dtype=torch.int64,
                         ).unsqueeze(0)
-
-                        if os.environ["LOCAL_RANK"] == "0":
-                            print("slot_mapping - ", slot_mapping_seq_chunk.shape)
-                            print("position_ids - ", position_ids_seq_chunk.shape)
-                            print(
-                                "left_padded_prompt_mask_seq_chunk -",
-                                left_padded_prompt_mask_seq_chunk,
-                            )
-                            print("current_tkv_mask -", current_tkv_mask_seq_chunk)
-                            print(
-                                "block_table_seq_chunk - ",
-                                block_table_seq_chunk.shape,
-                                " - ",
-                                block_table_seq_chunk.tolist(),
-                            )
-                            print("input_ids_seq_chunk - ", input_ids_seq_chunk.shape)
 
                         chunked_kwargs = {
                             "slot_mapping": slot_mapping_seq_chunk,
