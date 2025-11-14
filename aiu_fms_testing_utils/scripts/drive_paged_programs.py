@@ -517,6 +517,7 @@ for v in program_map.values():
 # select prompts that fit the batch size criteria
 valid_prompts = []
 
+
 def get_program_prompt_list():
     if custom_shape:
         for program_criteria_seq, valid_prompt_shapes in program_map.items():
@@ -529,8 +530,14 @@ def get_program_prompt_list():
                         tokenizer,
                         enforce_sizes=enforce_sizes,
                     )
-                    
-                    yield program_criteria_seq[0].program_id, custom_shape, input_ids, extra_kwargs, sample_key
+
+                    yield (
+                        program_criteria_seq[0].program_id,
+                        custom_shape,
+                        input_ids,
+                        extra_kwargs,
+                        sample_key,
+                    )
                     break
             if len(valid_prompts) > 0:
                 break
@@ -596,7 +603,13 @@ def get_program_prompt_list():
                                 enforce_sizes=enforce_sizes,
                             )
                             used_keys.add(program_seq_key[0])
-                            yield program_seq_key[0], valid_prompt_shape, input_ids, extra_kwargs, sample_key
+                            yield (
+                                program_seq_key[0],
+                                valid_prompt_shape,
+                                input_ids,
+                                extra_kwargs,
+                                sample_key,
+                            )
                             break
                         except ValueError:
                             dprint(
@@ -625,7 +638,13 @@ def __metric_calculator(r: torch.Tensor, t: torch.Tensor):
 
 failed_cases = []
 # for each program and valid prompt (batch size, sequence length)
-for program_id, valid_prompt, input_ids, extra_kwargs, sample_key in get_program_prompt_list():
+for (
+    program_id,
+    valid_prompt,
+    input_ids,
+    extra_kwargs,
+    sample_key,
+) in get_program_prompt_list():
     extra_kwargs["attn_name"] = ATTN_NAME
     if (
         "granite-3.3-8b-instruct" in model_variant
