@@ -656,178 +656,177 @@ def __metric_calculator(r: torch.Tensor, t: torch.Tensor):
 failed_cases = []
 # for each program and valid prompt (batch size, sequence length)
 for program_id, valid_prompt, input_ids, extra_kwargs, sample_key in get_valid_prompts():
-    print(program_id, valid_prompt, input_ids.shape)
-#     extra_kwargs["attn_name"] = ATTN_NAME
-#     if (
-#         "granite-3.3-8b-instruct" in model_variant
-#         and USE_DISTRIBUTED
-#         and dist.get_world_size() == 4
-#     ):
-#         extra_kwargs["_kvcache_num_blocks_hint"] = KVCACHE_NUM_BLOCKS_HINT
+    extra_kwargs["attn_name"] = ATTN_NAME
+    if (
+        "granite-3.3-8b-instruct" in model_variant
+        and USE_DISTRIBUTED
+        and dist.get_world_size() == 4
+    ):
+        extra_kwargs["_kvcache_num_blocks_hint"] = KVCACHE_NUM_BLOCKS_HINT
 
-#     if local_rank == 0:
-#         dprint(f"*** testing program {program_id} ***")
-#         dprint(
-#             f"program id: {program_id}, valid prompt: {valid_prompt}, input shape: {input_ids.shape}"
-#         )
+    if local_rank == 0:
+        dprint(f"*** testing program {program_id} ***")
+        dprint(
+            f"program id: {program_id}, valid prompt: {valid_prompt}, input shape: {input_ids.shape}"
+        )
 
-#     if not args.skip_validation:
-#         # attempt to load the cpu validation info if it is already computed
-#         cpu_validation_info = __load_validation_info(
-#             model_variant,
-#             valid_prompt[0],
-#             valid_prompt[1],
-#             max_new_tokens,
-#             tokenizer,
-#             seed=0,
-#             attn_type=ATTN_NAME,
-#             sample_key=sample_key,
-#         )
-#         # if the cpu validation info is not yet computed, compute it
-#         if cpu_validation_info is None:
-#             cpu_validation_info = extract_validation_information(
-#                 validation_model,
-#                 input_ids,
-#                 max_new_tokens,
-#                 LogitsExtractorHook(),
-#                 attn_algorithm="math",
-#                 **extra_kwargs,
-#             )
-#             # save the cpu validation info for later consumption
-#             if save_validation_info_outputs:
-#                 cpu_validation_info.save(
-#                     get_validation_info_path(
-#                         args.validation_info_outputs_dir,
-#                         model_variant,
-#                         valid_prompt[0],
-#                         valid_prompt[1],
-#                         max_new_tokens,
-#                         0,
-#                         ATTN_NAME,
-#                         dtype=CPU_DTYPE,
-#                         sample_key=sample_key,
-#                     )
-#                 )
+    if not args.skip_validation:
+        # attempt to load the cpu validation info if it is already computed
+        cpu_validation_info = __load_validation_info(
+            model_variant,
+            valid_prompt[0],
+            valid_prompt[1],
+            max_new_tokens,
+            tokenizer,
+            seed=0,
+            attn_type=ATTN_NAME,
+            sample_key=sample_key,
+        )
+        # if the cpu validation info is not yet computed, compute it
+        if cpu_validation_info is None:
+            cpu_validation_info = extract_validation_information(
+                validation_model,
+                input_ids,
+                max_new_tokens,
+                LogitsExtractorHook(),
+                attn_algorithm="math",
+                **extra_kwargs,
+            )
+            # save the cpu validation info for later consumption
+            if save_validation_info_outputs:
+                cpu_validation_info.save(
+                    get_validation_info_path(
+                        args.validation_info_outputs_dir,
+                        model_variant,
+                        valid_prompt[0],
+                        valid_prompt[1],
+                        max_new_tokens,
+                        0,
+                        ATTN_NAME,
+                        dtype=CPU_DTYPE,
+                        sample_key=sample_key,
+                    )
+                )
 
-#         if args.test_type == "metrics":
-#             aiu_validation_info = extract_validation_information(
-#                 model,
-#                 input_ids,
-#                 max_new_tokens,
-#                 GoldenTokenHook(cpu_validation_info.get_info("tokens")),
-#                 last_n_tokens=64,
-#                 timing=TIMING,
-#                 prefill_chunk_size=args.prefill_chunk_size,
-#                 **extra_kwargs,
-#             )
+        if args.test_type == "metrics":
+            aiu_validation_info = extract_validation_information(
+                model,
+                input_ids,
+                max_new_tokens,
+                GoldenTokenHook(cpu_validation_info.get_info("tokens")),
+                last_n_tokens=64,
+                timing=TIMING,
+                prefill_chunk_size=args.prefill_chunk_size,
+                **extra_kwargs,
+            )
 
-#             # capture all level 1 metrics
-#             level_1_metrics = capture_level_1_metrics(
-#                 cpu_validation_info.get_info("logits"),
-#                 aiu_validation_info.get_info("logits"),
-#                 top_k_loss_calculator(20, __metric_calculator),
-#             )
+            # capture all level 1 metrics
+            level_1_metrics = capture_level_1_metrics(
+                cpu_validation_info.get_info("logits"),
+                aiu_validation_info.get_info("logits"),
+                top_k_loss_calculator(20, __metric_calculator),
+            )
 
-#             cpu_tokens = cpu_validation_info.get_info("tokens")
+            cpu_tokens = cpu_validation_info.get_info("tokens")
 
-#             for sentence_idx, token_idx, metrics_value in level_1_metrics:
-#                 if local_rank == 0:
-#                     aiu_token = torch.argmax(
-#                         aiu_validation_info.get_info("logits")[sentence_idx][token_idx],
-#                         dim=-1,
-#                     )
-#                     cpu_token = cpu_tokens[sentence_idx][valid_prompt[1] + token_idx]
-#                     aiu_str = tokenizer.decode(aiu_token).replace(
-#                         "\n", "<NEWLINE>"
-#                     )  # remove newlines for readability
-#                     cpu_str = tokenizer.decode(cpu_token).replace(
-#                         "\n", "<NEWLINE>"
-#                     )  # remove newlines for readability
-#                     dprint(
-#                         f'For Program {program_id} in sentence {sentence_idx + 1}: the metric for token {token_idx} is {metrics_value}, AIU ID="{aiu_token.item()}" | STR="{aiu_str}" -- CPU ID="{cpu_token.item()}" | CPU STR="{cpu_str}"'
-#                     )
+            for sentence_idx, token_idx, metrics_value in level_1_metrics:
+                if local_rank == 0:
+                    aiu_token = torch.argmax(
+                        aiu_validation_info.get_info("logits")[sentence_idx][token_idx],
+                        dim=-1,
+                    )
+                    cpu_token = cpu_tokens[sentence_idx][valid_prompt[1] + token_idx]
+                    aiu_str = tokenizer.decode(aiu_token).replace(
+                        "\n", "<NEWLINE>"
+                    )  # remove newlines for readability
+                    cpu_str = tokenizer.decode(cpu_token).replace(
+                        "\n", "<NEWLINE>"
+                    )  # remove newlines for readability
+                    dprint(
+                        f'For Program {program_id} in sentence {sentence_idx + 1}: the metric for token {token_idx} is {metrics_value}, AIU ID="{aiu_token.item()}" | STR="{aiu_str}" -- CPU ID="{cpu_token.item()}" | CPU STR="{cpu_str}"'
+                    )
 
-#             ce_fail_responses = filter_failed_level_1_cases(
-#                 level_1_metrics, lambda m: m[0] >= args.cross_entropy_threshold
-#             )
-#             failure_rate = len(ce_fail_responses) / len(level_1_metrics)
-#             if failure_rate >= args.failure_rate_threshold:
-#                 failed_cases.append((program_id, valid_prompt, failure_rate))
+            ce_fail_responses = filter_failed_level_1_cases(
+                level_1_metrics, lambda m: m[0] >= args.cross_entropy_threshold
+            )
+            failure_rate = len(ce_fail_responses) / len(level_1_metrics)
+            if failure_rate >= args.failure_rate_threshold:
+                failed_cases.append((program_id, valid_prompt, failure_rate))
 
-#         elif args.test_type == "tokens":
-#             aiu_validation_info = extract_validation_information(
-#                 model,
-#                 input_ids,
-#                 max_new_tokens,
-#                 None,
-#                 last_n_tokens=64,
-#                 timing=TIMING,
-#                 prefill_chunk_size=args.prefill_chunk_size,
-#                 **extra_kwargs,
-#             )
+        elif args.test_type == "tokens":
+            aiu_validation_info = extract_validation_information(
+                model,
+                input_ids,
+                max_new_tokens,
+                None,
+                last_n_tokens=64,
+                timing=TIMING,
+                prefill_chunk_size=args.prefill_chunk_size,
+                **extra_kwargs,
+            )
 
-#             if local_rank == 0:
-#                 for sentence_idx, (reference_sentence, test_sentence) in enumerate(
-#                     zip(
-#                         cpu_validation_info.get_info("tokens"),
-#                         aiu_validation_info.get_info("tokens"),
-#                     )
-#                 ):
-#                     tokens_prompt = [
-#                         t.item() for t in reference_sentence[:-max_new_tokens]
-#                     ]
-#                     cpu_tokens_generated = [
-#                         t.item() for t in reference_sentence[-max_new_tokens:]
-#                     ]
-#                     aiu_tokens_generated = [
-#                         t.item() for t in test_sentence[-max_new_tokens:]
-#                     ]
-#                     tokens_prompt_without_pad = list(
-#                         dropwhile(lambda x: x == tokenizer.pad_token_id, tokens_prompt)
-#                     )
-#                     prompt_length = len(
-#                         [token_id for token_id in tokens_prompt_without_pad]
-#                     )
-#                     dprint(f"Prompt Length: {prompt_length}")
-#                     dprint(f"For Program {program_id} in sentence {sentence_idx + 1}:")
-#                     dprint(f"Prompt:\n{tokenizer.decode(tokens_prompt_without_pad)}")
-#                     dprint(f"CPU tokens:\n{cpu_tokens_generated}")
-#                     dprint(f"AIU tokens:\n{aiu_tokens_generated}")
-#                     dprint(f"CPU output:\n{tokenizer.decode(cpu_tokens_generated)}")
-#                     dprint(f"AIU output:\n{tokenizer.decode(aiu_tokens_generated)}")
-#         else:
-#             raise ValueError("test type must be one of metrics or tokens")
-#     else:
-#         aiu_validation_info = extract_validation_information(
-#             model,
-#             input_ids,
-#             max_new_tokens,
-#             None,
-#             last_n_tokens=64,
-#             timing=TIMING,
-#             prefill_chunk_size=args.prefill_chunk_size,
-#             **extra_kwargs,
-#         )
+            if local_rank == 0:
+                for sentence_idx, (reference_sentence, test_sentence) in enumerate(
+                    zip(
+                        cpu_validation_info.get_info("tokens"),
+                        aiu_validation_info.get_info("tokens"),
+                    )
+                ):
+                    tokens_prompt = [
+                        t.item() for t in reference_sentence[:-max_new_tokens]
+                    ]
+                    cpu_tokens_generated = [
+                        t.item() for t in reference_sentence[-max_new_tokens:]
+                    ]
+                    aiu_tokens_generated = [
+                        t.item() for t in test_sentence[-max_new_tokens:]
+                    ]
+                    tokens_prompt_without_pad = list(
+                        dropwhile(lambda x: x == tokenizer.pad_token_id, tokens_prompt)
+                    )
+                    prompt_length = len(
+                        [token_id for token_id in tokens_prompt_without_pad]
+                    )
+                    dprint(f"Prompt Length: {prompt_length}")
+                    dprint(f"For Program {program_id} in sentence {sentence_idx + 1}:")
+                    dprint(f"Prompt:\n{tokenizer.decode(tokens_prompt_without_pad)}")
+                    dprint(f"CPU tokens:\n{cpu_tokens_generated}")
+                    dprint(f"AIU tokens:\n{aiu_tokens_generated}")
+                    dprint(f"CPU output:\n{tokenizer.decode(cpu_tokens_generated)}")
+                    dprint(f"AIU output:\n{tokenizer.decode(aiu_tokens_generated)}")
+        else:
+            raise ValueError("test type must be one of metrics or tokens")
+    else:
+        aiu_validation_info = extract_validation_information(
+            model,
+            input_ids,
+            max_new_tokens,
+            None,
+            last_n_tokens=64,
+            timing=TIMING,
+            prefill_chunk_size=args.prefill_chunk_size,
+            **extra_kwargs,
+        )
 
-#         if local_rank == 0:
-#             for sentence_idx, test_sentence in enumerate(
-#                 aiu_validation_info.get_info("tokens")
-#             ):
-#                 tokens_prompt = [t.item() for t in test_sentence[:-max_new_tokens]]
-#                 aiu_tokens_generated = [
-#                     t.item() for t in test_sentence[-max_new_tokens:]
-#                 ]
-#                 dprint(f"For Program {program_id} in sentence {sentence_idx + 1}:")
-#                 dprint(f"Prompt:\n{tokenizer.decode(tokens_prompt)}")
-#                 dprint(f"AIU tokens:\n{aiu_tokens_generated}")
-#                 dprint(f"AIU output:\n{tokenizer.decode(aiu_tokens_generated)}")
+        if local_rank == 0:
+            for sentence_idx, test_sentence in enumerate(
+                aiu_validation_info.get_info("tokens")
+            ):
+                tokens_prompt = [t.item() for t in test_sentence[:-max_new_tokens]]
+                aiu_tokens_generated = [
+                    t.item() for t in test_sentence[-max_new_tokens:]
+                ]
+                dprint(f"For Program {program_id} in sentence {sentence_idx + 1}:")
+                dprint(f"Prompt:\n{tokenizer.decode(tokens_prompt)}")
+                dprint(f"AIU tokens:\n{aiu_tokens_generated}")
+                dprint(f"AIU output:\n{tokenizer.decode(aiu_tokens_generated)}")
 
-# if not args.skip_validation and local_rank == 0:
-#     if len(failed_cases) != 0:
-#         dprint("the test failed with the following cases:")
-#         for failed_case in failed_cases:
-#             dprint(
-#                 f"Program ID: {failed_case[0]}, Prompt Shape: {failed_case[1]}, Failure Rate: {failed_case[2]}"
-#             )
-#     else:
-#         dprint("all tests passed")
+if not args.skip_validation and local_rank == 0:
+    if len(failed_cases) != 0:
+        dprint("the test failed with the following cases:")
+        for failed_case in failed_cases:
+            dprint(
+                f"Program ID: {failed_case[0]}, Prompt Shape: {failed_case[1]}, Failure Rate: {failed_case[2]}"
+            )
+    else:
+        dprint("all tests passed")
