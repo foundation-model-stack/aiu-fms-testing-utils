@@ -231,10 +231,7 @@ def generate(
     # reserving a pad block is required as writes to pad are done in parallel and could corrupt the real blocks
     if prefill_chunk_size > 0:
         pad_block_id = block_numbers.pop(0)
-        pad_slots = [
-            (pad_block_id * BLOCK_SIZE) + (pos_i % BLOCK_SIZE)
-            for pos_i in range(BLOCK_SIZE)
-        ]
+        pad_slots = [(pad_block_id * BLOCK_SIZE) + pos_i for pos_i in range(BLOCK_SIZE)]
 
     slot_mapping = []
     block_table = []
