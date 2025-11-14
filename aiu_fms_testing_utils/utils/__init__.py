@@ -324,22 +324,31 @@ def __sample_requests(
         dataset = __cached_encoded_datasets[_cached_dataset_key]
     else:
         # Loop to check create filtered dataset
-        for i in range(len(prompt_list)):
-            # Tokenize the prompts and completions.
-            prompt = prompt_list[i]
-            prompt_token_ids = tokenizer.encode(prompt, return_tensors="pt").squeeze(0)
+        if prompt_list is str:
+            with open(prompt_list, "r", encoding="utf-8") as f:
+                for prompt in f:
+                    prompt_token_ids = tokenizer.encode(prompt, return_tensors="pt").squeeze(0)
+                    prompt_len = len(prompt_token_ids)
+                    if prompt_len >= prompt_length_min and prompt_len <= prompt_length_max:
+                        dataset.append((prompt, prompt_len))
+        else:
+            for i in range(len(prompt_list)):
+                # Tokenize the prompts and completions.
+                prompt = prompt_list[i]
+                prompt_token_ids = tokenizer.encode(prompt, return_tensors="pt").squeeze(0)
 
-            prompt_len = len(prompt_token_ids)
+                prompt_len = len(prompt_token_ids)
+                # if prompt_len >= prompt_length_min and prompt_len <= prompt_length_max:
+                dataset.append((prompt, prompt_len))
 
-            dataset.append((prompt, prompt_len))
+            #dataset.sort(key=lambda tuple: tuple[1])
+            __cached_encoded_datasets[_cached_dataset_key] = dataset
 
-        dataset.sort(key=lambda tuple: tuple[1])
-        __cached_encoded_datasets[_cached_dataset_key] = dataset
-
-    # only keep values that are required
-    dataset = [
-        r for r in dataset if r[1] >= prompt_length_min and r[1] <= prompt_length_max
-    ]
+            # only keep values that are required
+            dataset = [
+                r for r in dataset if r[1] >= prompt_length_min and r[1] <= prompt_length_max
+            ]
+    dataset.sort(key=lambda tuple: tuple[1])
 
     pad_size_dict: dict[int, int] = {}
     for _, prompt_len in dataset:
@@ -491,14 +500,14 @@ def sample_rag_factoid_requests(
     if not os.path.exists(dataset_path):
         print("error dataset does not exist")
 
-    dataset = []
+    #dataset = []
     # Load the dataset.
-    with open(dataset_path, "r", encoding="utf-8") as f:
-        for line in f:
-            dataset.append(line)
+    # with open(dataset_path, "r", encoding="utf-8") as f:
+    #     for line in f:
+    #         dataset.append(line)
 
     sample_request = __sample_requests(
-        dataset,
+        dataset_path,
         num_requests,
         tokenizer,
         prompt_length_min,

@@ -16,6 +16,7 @@ from fms.utils.generation import pad_input_ids
 from torch import distributed as dist
 from torch.fx.experimental import _config as fx_config
 from transformers import AutoTokenizer
+from memory_profiler import profile
 
 from aiu_fms_testing_utils.testing.validation import (
     GoldenTokenHook,
@@ -377,7 +378,7 @@ with stagger_region(args.stagger_load):
 
 model.eval()
 fx_config.backed_size_oblivious = True
-model.compile(backend="sendnn", options={"sendnn.dynamic": True})
+# model.compile(backend="sendnn", options={"sendnn.dynamic": True})
 
 __maybe_prepare_fp8_weights(model, is_fp8)
 
@@ -523,9 +524,7 @@ program_map = get_programs_prompts(
 for v in program_map.values():
     random.Random(42).shuffle(v)
 
-# select prompts that fit the batch size criteria
-valid_prompts = []
-if custom_shape:
+def generate_custom_valid_prompts():
     for program_criteria_seq, valid_prompt_shapes in program_map.items():
         for valid_prompt_shape in valid_prompt_shapes:
             if valid_prompt_shape == custom_shape:
@@ -549,9 +548,13 @@ if custom_shape:
                 break
         if len(valid_prompts) > 0:
             break
-else:
+    return valid_prompts
+
+@profile
+def generate_valid_prompts(programs):
     for program_info in programs:
         program_id = program_info.program_id
+        print("\n program id", program_id)
         batch_size_limit = program_info.batch_size_limit
         batch_size_limit_type = program_info.batch_size_limit_type
         prompt_length_limit = program_info.prompt_length_limit
@@ -564,6 +567,7 @@ else:
                 for k, v in program_map.items()
                 if k[0] == program_criteria_list[int(program_id)]
             }
+        print(filtered_program_map)
         used_keys = set()
         # for each program, we need to check if we have a shape that satisfies the --programs request
         for program_seq_key, valid_prompt_shapes in filtered_program_map.items():
@@ -619,6 +623,8 @@ else:
                             )
                         )
                     try:
+                        print("\n prompt shape 0", valid_prompt_shape[0])
+                        print("\n prompt shape 1", valid_prompt_shape[1])
                         input_ids, extra_kwargs, sample_key = __prepare_inputs(
                             valid_prompt_shape[0],
                             valid_prompt_shape[1],
@@ -626,26 +632,22 @@ else:
                             enforce_sizes=enforce_sizes,
                             pad_multiple=64,  # this should be the smallest granularity to ensure we get the largest enforce_size (if we choose chunked prefill, we want to make sure we pad to the full enforced size)
                         )
-                        valid_prompts.append(
-                            (
-                                program_seq_key[0],
-                                valid_prompt_shape,
-                                input_ids,
-                                extra_kwargs,
-                                sample_key,
-                            )
-                        )
+                        
+                        yield program_seq_key[0], valid_prompt_shape, input_ids, extra_kwargs, sample_key
+                        #     )
+                        # )
                         used_keys.add(program_seq_key[0])
                         break
                     except ValueError:
                         dprint(
                             f"No valid sample exists in dataset for this input shape {valid_prompt_shape}"
                         )
-
+        
         if len(used_keys) == 0 and local_rank == 0:
             dprint(
                 f"no valid prompt shape was found which would result in program {program_id} that satisfied batch{batch_size_limit_type}{batch_size_limit} and prompt_length{prompt_length_limit_type}{prompt_length_limit}"
             )
+
 
 
 # metric calculator based on the cross-entropy and mean diff for each decode step
@@ -662,9 +664,12 @@ def __metric_calculator(r: torch.Tensor, t: torch.Tensor):
     return (cross_entropy, diff)
 
 
-failed_cases = []
-# for each program and valid prompt (batch size, sequence length)
-for program_id, valid_prompt, input_ids, extra_kwargs, sample_key in valid_prompts:
+
+
+def perform_validation(program_id, valid_prompt, input_ids, extra_kwargs, sample_key, failed_cases):
+    # for each program and valid prompt (batch size, sequence length)
+    #for program_id, valid_prompt, input_ids, extra_kwargs, sample_key in valid_prompts:
+    print("\n entered program validation with program id: ", program_id)
     extra_kwargs["attn_name"] = ATTN_NAME
     if (
         "granite-3.3-8b-instruct" in model_variant
@@ -829,6 +834,20 @@ for program_id, valid_prompt, input_ids, extra_kwargs, sample_key in valid_promp
                 dprint(f"Prompt:\n{tokenizer.decode(tokens_prompt)}")
                 dprint(f"AIU tokens:\n{aiu_tokens_generated}")
                 dprint(f"AIU output:\n{tokenizer.decode(aiu_tokens_generated)}")
+    return failed_cases
+
+
+# select prompts that fit the batch size criteria
+valid_prompts = []
+failed_cases = []
+if custom_shape:
+    valid_prompts = generate_custom_valid_prompts()
+    for program_id, valid_prompt, input_ids, extra_kwargs, sample_key in valid_prompts:
+        failed_cases.append(perform_validation(program_id, valid_prompt, input_ids, extra_kwargs, sample_key, failed_cases))
+else:
+    for program_id, valid_prompt, input_ids, extra_kwargs, sample_key in generate_valid_prompts(programs):
+        print("\n program id", program_id)
+        # failed_cases.append(perform_validation(program_id, valid_prompt, input_ids, extra_kwargs, sample_key, failed_cases))
 
 if not args.skip_validation and local_rank == 0:
     if len(failed_cases) != 0:
