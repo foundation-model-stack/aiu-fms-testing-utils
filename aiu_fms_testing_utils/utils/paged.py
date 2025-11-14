@@ -227,6 +227,15 @@ def generate(
     # left_padded_prompt_mask - empty_slots + context_lengths
     current_tkv_mask = torch.fill(context_lengths, input_ids.shape[1])
 
+    # if using chunked prefill, reserve a pad block
+    # reserving a pad block is required as writes to pad are done in parallel and could corrupt the real blocks
+    if prefill_chunk_size > 0:
+        pad_block_id = block_numbers.pop(0)
+        pad_slots = [
+            (pad_block_id * BLOCK_SIZE) + (pos_i % BLOCK_SIZE)
+            for pos_i in range(BLOCK_SIZE)
+        ]
+
     slot_mapping = []
     block_table = []
     # each sequence has the possibility of a different tkv, so loop over that
@@ -348,10 +357,7 @@ def generate(
                                 )
                             )
                             slot_mapping_seq_chunk = (
-                                slot_mapping_seq_chunk[
-                                    chunk_start : chunk_start + BLOCK_SIZE
-                                ]
-                                * (required_extra_pads // BLOCK_SIZE)
+                                pad_slots * (required_extra_pads // BLOCK_SIZE)
                                 + slot_mapping_seq_chunk
                             )
                             position_ids_seq_chunk = torch.cat(
@@ -398,7 +404,7 @@ def generate(
 
                         block_end = chunk_end // BLOCK_SIZE
                         block_table_seq_chunk = torch.tensor(
-                            block_table[seq_i][:1]
+                            [pad_block_id]
                             * (
                                 (prefill_chunk_size - chunk_end - chunk_start)
                                 // BLOCK_SIZE
