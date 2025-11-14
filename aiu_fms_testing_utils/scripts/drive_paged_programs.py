@@ -377,7 +377,7 @@ with stagger_region(args.stagger_load):
 
 model.eval()
 fx_config.backed_size_oblivious = True
-model.compile(backend="sendnn", options={"sendnn.dynamic": True})
+#model.compile(backend="sendnn", options={"sendnn.dynamic": True})
 
 __maybe_prepare_fp8_weights(model, is_fp8)
 
@@ -523,130 +523,121 @@ program_map = get_programs_prompts(
 for v in program_map.values():
     random.Random(42).shuffle(v)
 
-# select prompts that fit the batch size criteria
-valid_prompts = []
-if custom_shape:
-    for program_criteria_seq, valid_prompt_shapes in program_map.items():
-        for valid_prompt_shape in valid_prompt_shapes:
-            if valid_prompt_shape == custom_shape:
-                enforce_sizes = [valid_prompt_shape[1]]
-                input_ids, extra_kwargs, sample_key = __prepare_inputs(
-                    valid_prompt_shape[0],
-                    valid_prompt_shape[1],
-                    tokenizer,
-                    enforce_sizes=enforce_sizes,
-                    pad_multiple=pad_multiple,
-                )
-                valid_prompts = [
-                    (
-                        program_criteria_seq[0].program_id,
-                        custom_shape,
-                        input_ids,
-                        extra_kwargs,
-                        sample_key,
-                    )
-                ]
-                break
-        if len(valid_prompts) > 0:
-            break
-else:
-    for program_info in programs:
-        program_id = program_info.program_id
-        batch_size_limit = program_info.batch_size_limit
-        batch_size_limit_type = program_info.batch_size_limit_type
-        prompt_length_limit = program_info.prompt_length_limit
-        prompt_length_limit_type = program_info.prompt_length_limit_type
-
-        filtered_program_map = program_map
-        if program_id.isnumeric():
-            filtered_program_map = {
-                k: v
-                for k, v in program_map.items()
-                if k[0] == program_criteria_list[int(program_id)]
-            }
-        used_keys = set()
-        # for each program, we need to check if we have a shape that satisfies the --programs request
-        for program_seq_key, valid_prompt_shapes in filtered_program_map.items():
-            # if ? or numeric => we need to check if we have found at least one valid key to stop
-            if (program_id == "?" or program_id.isnumeric()) and len(used_keys) > 0:
-                break
-            # if * => we need to see if we have found the first key to see if we should skip
-            elif program_id == "*" and program_seq_key[0] in used_keys:
-                continue
-
+def get_valid_prompts():
+    found = 0
+    if custom_shape:
+        for program_criteria_seq, valid_prompt_shapes in program_map.items():
             for valid_prompt_shape in valid_prompt_shapes:
-                # make sure the criteria for batch limit and prompt limit is satisfied
-                # eval is safe here because we have limited what type and limit can be before
-
-                batch_check = eval(
-                    f"valid_prompt_shape[0] {batch_size_limit_type} {batch_size_limit}"
-                )
-                prompt_check = eval(
-                    f"valid_prompt_shape[1] {prompt_length_limit_type} {prompt_length_limit}"
-                )
-                if batch_check and prompt_check:
-                    # when we enforce homogeneous prompt programs, we will cycle through all sizes between the min of a program and the valid prompt sequence length
-                    # if there does not exist enough sequence sizes between this range, we will cycle back to the beginning
-                    # in the event we don't have enough sequences that satisfy the enforce_sizes, we will repeat sequences and warn the user
+                if valid_prompt_shape == custom_shape:
                     enforce_sizes = [valid_prompt_shape[1]]
-                    if (
-                        args.enforce_homogeneous_prompt_programs
-                        or args.prefill_chunk_size > 0
-                    ):
-                        # if enforcing homogeneous prompt programs, this will get the number of bits for the sequence length and shift to get the power of 2 that is less than or equal to the sequence length
-                        tkv_cutoff = (
-                            1 << (valid_prompt_shape[1].bit_length() - 1)
-                            if args.enforce_homogeneous_prompt_programs
-                            else pad_multiple
-                        )
+                    input_ids, extra_kwargs, sample_key = __prepare_inputs(
+                        valid_prompt_shape[0],
+                        valid_prompt_shape[1],
+                        tokenizer,
+                        enforce_sizes=enforce_sizes,
+                        pad_multiple=pad_multiple,
+                    )
+                    found = 1
+                    yield program_criteria_seq[0].program_id, custom_shape, input_ids, extra_kwargs, sample_key
+                    break
+            if found:
+                break
+    else:
+        for program_info in programs:
 
-                        possible_seq_lengths = [
-                            _
-                            for _ in range(
-                                tkv_cutoff, valid_prompt_shape[1], pad_multiple
-                            )
-                        ]
-                        # favor sequences that are close to the valid prompt length
-                        possible_seq_lengths.reverse()
-                        # add the valid prompt size to the end since it will already exist in the above enforce_sizes
-                        possible_seq_lengths = possible_seq_lengths + [
-                            valid_prompt_shape[1]
-                        ]
-                        enforce_sizes = enforce_sizes + list(
-                            itertools.islice(
-                                itertools.cycle(possible_seq_lengths),
-                                valid_prompt_shape[0] - 1,
-                            )
-                        )
-                    try:
-                        input_ids, extra_kwargs, sample_key = __prepare_inputs(
-                            valid_prompt_shape[0],
-                            valid_prompt_shape[1],
-                            tokenizer,
-                            enforce_sizes=enforce_sizes,
-                            pad_multiple=64,  # this should be the smallest granularity to ensure we get the largest enforce_size (if we choose chunked prefill, we want to make sure we pad to the full enforced size)
-                        )
-                        valid_prompts.append(
-                            (
-                                program_seq_key[0],
-                                valid_prompt_shape,
-                                input_ids,
-                                extra_kwargs,
-                                sample_key,
-                            )
-                        )
-                        used_keys.add(program_seq_key[0])
-                        break
-                    except ValueError:
-                        dprint(
-                            f"No valid sample exists in dataset for this input shape {valid_prompt_shape}"
-                        )
+            program_id = program_info.program_id
+            # print("\n program id", program_id)
+            batch_size_limit = program_info.batch_size_limit
+            batch_size_limit_type = program_info.batch_size_limit_type
+            prompt_length_limit = program_info.prompt_length_limit
+            prompt_length_limit_type = program_info.prompt_length_limit_type
 
-        if len(used_keys) == 0 and local_rank == 0:
-            dprint(
-                f"no valid prompt shape was found which would result in program {program_id} that satisfied batch{batch_size_limit_type}{batch_size_limit} and prompt_length{prompt_length_limit_type}{prompt_length_limit}"
-            )
+            filtered_program_map = program_map
+            if program_id.isnumeric():
+                filtered_program_map = {
+                    k: v
+                    for k, v in program_map.items()
+                    if k[0] == program_criteria_list[int(program_id)]
+                }
+            # print(filtered_program_map)
+            used_keys = set()
+            # for each program, we need to check if we have a shape that satisfies the --programs request
+            for program_seq_key, valid_prompt_shapes in filtered_program_map.items():
+                # if ? or numeric => we need to check if we have found at least one valid key to stop
+                if (program_id == "?" or program_id.isnumeric()) and len(used_keys) > 0:
+                    break
+                # if * => we need to see if we have found the first key to see if we should skip
+                elif program_id == "*" and program_seq_key[0] in used_keys:
+                    continue
 
+                for valid_prompt_shape in valid_prompt_shapes:
+                    # make sure the criteria for batch limit and prompt limit is satisfied
+                    # eval is safe here because we have limited what type and limit can be before
+
+                    batch_check = eval(
+                        f"valid_prompt_shape[0] {batch_size_limit_type} {batch_size_limit}"
+                    )
+                    prompt_check = eval(
+                        f"valid_prompt_shape[1] {prompt_length_limit_type} {prompt_length_limit}"
+                    )
+                    if batch_check and prompt_check:
+                        # when we enforce homogeneous prompt programs, we will cycle through all sizes between the min of a program and the valid prompt sequence length
+                        # if there does not exist enough sequence sizes between this range, we will cycle back to the beginning
+                        # in the event we don't have enough sequences that satisfy the enforce_sizes, we will repeat sequences and warn the user
+                        enforce_sizes = [valid_prompt_shape[1]]
+                        if (
+                            args.enforce_homogeneous_prompt_programs
+                            or args.prefill_chunk_size > 0
+                        ):
+                            # if enforcing homogeneous prompt programs, this will get the number of bits for the sequence length and shift to get the power of 2 that is less than or equal to the sequence length
+                            tkv_cutoff = (
+                                1 << (valid_prompt_shape[1].bit_length() - 1)
+                                if args.enforce_homogeneous_prompt_programs
+                                else pad_multiple
+                            )
+
+                            possible_seq_lengths = [
+                                _
+                                for _ in range(
+                                    tkv_cutoff, valid_prompt_shape[1], pad_multiple
+                                )
+                            ]
+                            # favor sequences that are close to the valid prompt length
+                            possible_seq_lengths.reverse()
+                            # add the valid prompt size to the end since it will already exist in the above enforce_sizes
+                            possible_seq_lengths = possible_seq_lengths + [
+                                valid_prompt_shape[1]
+                            ]
+                            enforce_sizes = enforce_sizes + list(
+                                itertools.islice(
+                                    itertools.cycle(possible_seq_lengths),
+                                    valid_prompt_shape[0] - 1,
+                                )
+                            )
+                        try:
+
+                            #print("\n valid_prompt_shape[0", valid_prompt_shape[0])
+                            #print("\n valid_prompt_shape[1", valid_prompt_shape[1])
+                            input_ids, extra_kwargs, sample_key = __prepare_inputs(
+                                valid_prompt_shape[0],
+                                valid_prompt_shape[1],
+                                tokenizer,
+                                enforce_sizes=enforce_sizes,
+                                pad_multiple=64,  # this should be the smallest granularity to ensure we get the largest enforce_size (if we choose chunked prefill, we want to make sure we pad to the full enforced size)
+                            )
+                            used_keys.add(program_seq_key[0])
+                            yield program_seq_key[0], valid_prompt_shape, input_ids, extra_kwargs, sample_key
+                            
+                            break
+                        except (ValueError, IndexError):
+                            dprint(
+                                f"No valid sample exists in dataset for this input shape {valid_prompt_shape}"
+                            )
+
+            if len(used_keys) == 0 and local_rank == 0:
+                dprint(
+                    f"no valid prompt shape was found which would result in program {program_id} that satisfied batch{batch_size_limit_type}{batch_size_limit} and prompt_length{prompt_length_limit_type}{prompt_length_limit}"
+                )
 
 # metric calculator based on the cross-entropy and mean diff for each decode step
 def __metric_calculator(r: torch.Tensor, t: torch.Tensor):
@@ -664,178 +655,179 @@ def __metric_calculator(r: torch.Tensor, t: torch.Tensor):
 
 failed_cases = []
 # for each program and valid prompt (batch size, sequence length)
-for program_id, valid_prompt, input_ids, extra_kwargs, sample_key in valid_prompts:
-    extra_kwargs["attn_name"] = ATTN_NAME
-    if (
-        "granite-3.3-8b-instruct" in model_variant
-        and USE_DISTRIBUTED
-        and dist.get_world_size() == 4
-    ):
-        extra_kwargs["_kvcache_num_blocks_hint"] = KVCACHE_NUM_BLOCKS_HINT
+for program_id, valid_prompt, input_ids, extra_kwargs, sample_key in get_valid_prompts():
+    print(program_id, valid_prompt, input_ids.shape)
+#     extra_kwargs["attn_name"] = ATTN_NAME
+#     if (
+#         "granite-3.3-8b-instruct" in model_variant
+#         and USE_DISTRIBUTED
+#         and dist.get_world_size() == 4
+#     ):
+#         extra_kwargs["_kvcache_num_blocks_hint"] = KVCACHE_NUM_BLOCKS_HINT
 
-    if local_rank == 0:
-        dprint(f"*** testing program {program_id} ***")
-        dprint(
-            f"program id: {program_id}, valid prompt: {valid_prompt}, input shape: {input_ids.shape}"
-        )
+#     if local_rank == 0:
+#         dprint(f"*** testing program {program_id} ***")
+#         dprint(
+#             f"program id: {program_id}, valid prompt: {valid_prompt}, input shape: {input_ids.shape}"
+#         )
 
-    if not args.skip_validation:
-        # attempt to load the cpu validation info if it is already computed
-        cpu_validation_info = __load_validation_info(
-            model_variant,
-            valid_prompt[0],
-            valid_prompt[1],
-            max_new_tokens,
-            tokenizer,
-            seed=0,
-            attn_type=ATTN_NAME,
-            sample_key=sample_key,
-        )
-        # if the cpu validation info is not yet computed, compute it
-        if cpu_validation_info is None:
-            cpu_validation_info = extract_validation_information(
-                validation_model,
-                input_ids,
-                max_new_tokens,
-                LogitsExtractorHook(),
-                attn_algorithm="math",
-                **extra_kwargs,
-            )
-            # save the cpu validation info for later consumption
-            if save_validation_info_outputs:
-                cpu_validation_info.save(
-                    get_validation_info_path(
-                        args.validation_info_outputs_dir,
-                        model_variant,
-                        valid_prompt[0],
-                        valid_prompt[1],
-                        max_new_tokens,
-                        0,
-                        ATTN_NAME,
-                        dtype=CPU_DTYPE,
-                        sample_key=sample_key,
-                    )
-                )
+#     if not args.skip_validation:
+#         # attempt to load the cpu validation info if it is already computed
+#         cpu_validation_info = __load_validation_info(
+#             model_variant,
+#             valid_prompt[0],
+#             valid_prompt[1],
+#             max_new_tokens,
+#             tokenizer,
+#             seed=0,
+#             attn_type=ATTN_NAME,
+#             sample_key=sample_key,
+#         )
+#         # if the cpu validation info is not yet computed, compute it
+#         if cpu_validation_info is None:
+#             cpu_validation_info = extract_validation_information(
+#                 validation_model,
+#                 input_ids,
+#                 max_new_tokens,
+#                 LogitsExtractorHook(),
+#                 attn_algorithm="math",
+#                 **extra_kwargs,
+#             )
+#             # save the cpu validation info for later consumption
+#             if save_validation_info_outputs:
+#                 cpu_validation_info.save(
+#                     get_validation_info_path(
+#                         args.validation_info_outputs_dir,
+#                         model_variant,
+#                         valid_prompt[0],
+#                         valid_prompt[1],
+#                         max_new_tokens,
+#                         0,
+#                         ATTN_NAME,
+#                         dtype=CPU_DTYPE,
+#                         sample_key=sample_key,
+#                     )
+#                 )
 
-        if args.test_type == "metrics":
-            aiu_validation_info = extract_validation_information(
-                model,
-                input_ids,
-                max_new_tokens,
-                GoldenTokenHook(cpu_validation_info.get_info("tokens")),
-                last_n_tokens=64,
-                timing=TIMING,
-                prefill_chunk_size=args.prefill_chunk_size,
-                **extra_kwargs,
-            )
+#         if args.test_type == "metrics":
+#             aiu_validation_info = extract_validation_information(
+#                 model,
+#                 input_ids,
+#                 max_new_tokens,
+#                 GoldenTokenHook(cpu_validation_info.get_info("tokens")),
+#                 last_n_tokens=64,
+#                 timing=TIMING,
+#                 prefill_chunk_size=args.prefill_chunk_size,
+#                 **extra_kwargs,
+#             )
 
-            # capture all level 1 metrics
-            level_1_metrics = capture_level_1_metrics(
-                cpu_validation_info.get_info("logits"),
-                aiu_validation_info.get_info("logits"),
-                top_k_loss_calculator(20, __metric_calculator),
-            )
+#             # capture all level 1 metrics
+#             level_1_metrics = capture_level_1_metrics(
+#                 cpu_validation_info.get_info("logits"),
+#                 aiu_validation_info.get_info("logits"),
+#                 top_k_loss_calculator(20, __metric_calculator),
+#             )
 
-            cpu_tokens = cpu_validation_info.get_info("tokens")
+#             cpu_tokens = cpu_validation_info.get_info("tokens")
 
-            for sentence_idx, token_idx, metrics_value in level_1_metrics:
-                if local_rank == 0:
-                    aiu_token = torch.argmax(
-                        aiu_validation_info.get_info("logits")[sentence_idx][token_idx],
-                        dim=-1,
-                    )
-                    cpu_token = cpu_tokens[sentence_idx][valid_prompt[1] + token_idx]
-                    aiu_str = tokenizer.decode(aiu_token).replace(
-                        "\n", "<NEWLINE>"
-                    )  # remove newlines for readability
-                    cpu_str = tokenizer.decode(cpu_token).replace(
-                        "\n", "<NEWLINE>"
-                    )  # remove newlines for readability
-                    dprint(
-                        f'For Program {program_id} in sentence {sentence_idx + 1}: the metric for token {token_idx} is {metrics_value}, AIU ID="{aiu_token.item()}" | STR="{aiu_str}" -- CPU ID="{cpu_token.item()}" | CPU STR="{cpu_str}"'
-                    )
+#             for sentence_idx, token_idx, metrics_value in level_1_metrics:
+#                 if local_rank == 0:
+#                     aiu_token = torch.argmax(
+#                         aiu_validation_info.get_info("logits")[sentence_idx][token_idx],
+#                         dim=-1,
+#                     )
+#                     cpu_token = cpu_tokens[sentence_idx][valid_prompt[1] + token_idx]
+#                     aiu_str = tokenizer.decode(aiu_token).replace(
+#                         "\n", "<NEWLINE>"
+#                     )  # remove newlines for readability
+#                     cpu_str = tokenizer.decode(cpu_token).replace(
+#                         "\n", "<NEWLINE>"
+#                     )  # remove newlines for readability
+#                     dprint(
+#                         f'For Program {program_id} in sentence {sentence_idx + 1}: the metric for token {token_idx} is {metrics_value}, AIU ID="{aiu_token.item()}" | STR="{aiu_str}" -- CPU ID="{cpu_token.item()}" | CPU STR="{cpu_str}"'
+#                     )
 
-            ce_fail_responses = filter_failed_level_1_cases(
-                level_1_metrics, lambda m: m[0] >= args.cross_entropy_threshold
-            )
-            failure_rate = len(ce_fail_responses) / len(level_1_metrics)
-            if failure_rate >= args.failure_rate_threshold:
-                failed_cases.append((program_id, valid_prompt, failure_rate))
+#             ce_fail_responses = filter_failed_level_1_cases(
+#                 level_1_metrics, lambda m: m[0] >= args.cross_entropy_threshold
+#             )
+#             failure_rate = len(ce_fail_responses) / len(level_1_metrics)
+#             if failure_rate >= args.failure_rate_threshold:
+#                 failed_cases.append((program_id, valid_prompt, failure_rate))
 
-        elif args.test_type == "tokens":
-            aiu_validation_info = extract_validation_information(
-                model,
-                input_ids,
-                max_new_tokens,
-                None,
-                last_n_tokens=64,
-                timing=TIMING,
-                prefill_chunk_size=args.prefill_chunk_size,
-                **extra_kwargs,
-            )
+#         elif args.test_type == "tokens":
+#             aiu_validation_info = extract_validation_information(
+#                 model,
+#                 input_ids,
+#                 max_new_tokens,
+#                 None,
+#                 last_n_tokens=64,
+#                 timing=TIMING,
+#                 prefill_chunk_size=args.prefill_chunk_size,
+#                 **extra_kwargs,
+#             )
 
-            if local_rank == 0:
-                for sentence_idx, (reference_sentence, test_sentence) in enumerate(
-                    zip(
-                        cpu_validation_info.get_info("tokens"),
-                        aiu_validation_info.get_info("tokens"),
-                    )
-                ):
-                    tokens_prompt = [
-                        t.item() for t in reference_sentence[:-max_new_tokens]
-                    ]
-                    cpu_tokens_generated = [
-                        t.item() for t in reference_sentence[-max_new_tokens:]
-                    ]
-                    aiu_tokens_generated = [
-                        t.item() for t in test_sentence[-max_new_tokens:]
-                    ]
-                    tokens_prompt_without_pad = list(
-                        dropwhile(lambda x: x == tokenizer.pad_token_id, tokens_prompt)
-                    )
-                    prompt_length = len(
-                        [token_id for token_id in tokens_prompt_without_pad]
-                    )
-                    dprint(f"Prompt Length: {prompt_length}")
-                    dprint(f"For Program {program_id} in sentence {sentence_idx + 1}:")
-                    dprint(f"Prompt:\n{tokenizer.decode(tokens_prompt_without_pad)}")
-                    dprint(f"CPU tokens:\n{cpu_tokens_generated}")
-                    dprint(f"AIU tokens:\n{aiu_tokens_generated}")
-                    dprint(f"CPU output:\n{tokenizer.decode(cpu_tokens_generated)}")
-                    dprint(f"AIU output:\n{tokenizer.decode(aiu_tokens_generated)}")
-        else:
-            raise ValueError("test type must be one of metrics or tokens")
-    else:
-        aiu_validation_info = extract_validation_information(
-            model,
-            input_ids,
-            max_new_tokens,
-            None,
-            last_n_tokens=64,
-            timing=TIMING,
-            prefill_chunk_size=args.prefill_chunk_size,
-            **extra_kwargs,
-        )
+#             if local_rank == 0:
+#                 for sentence_idx, (reference_sentence, test_sentence) in enumerate(
+#                     zip(
+#                         cpu_validation_info.get_info("tokens"),
+#                         aiu_validation_info.get_info("tokens"),
+#                     )
+#                 ):
+#                     tokens_prompt = [
+#                         t.item() for t in reference_sentence[:-max_new_tokens]
+#                     ]
+#                     cpu_tokens_generated = [
+#                         t.item() for t in reference_sentence[-max_new_tokens:]
+#                     ]
+#                     aiu_tokens_generated = [
+#                         t.item() for t in test_sentence[-max_new_tokens:]
+#                     ]
+#                     tokens_prompt_without_pad = list(
+#                         dropwhile(lambda x: x == tokenizer.pad_token_id, tokens_prompt)
+#                     )
+#                     prompt_length = len(
+#                         [token_id for token_id in tokens_prompt_without_pad]
+#                     )
+#                     dprint(f"Prompt Length: {prompt_length}")
+#                     dprint(f"For Program {program_id} in sentence {sentence_idx + 1}:")
+#                     dprint(f"Prompt:\n{tokenizer.decode(tokens_prompt_without_pad)}")
+#                     dprint(f"CPU tokens:\n{cpu_tokens_generated}")
+#                     dprint(f"AIU tokens:\n{aiu_tokens_generated}")
+#                     dprint(f"CPU output:\n{tokenizer.decode(cpu_tokens_generated)}")
+#                     dprint(f"AIU output:\n{tokenizer.decode(aiu_tokens_generated)}")
+#         else:
+#             raise ValueError("test type must be one of metrics or tokens")
+#     else:
+#         aiu_validation_info = extract_validation_information(
+#             model,
+#             input_ids,
+#             max_new_tokens,
+#             None,
+#             last_n_tokens=64,
+#             timing=TIMING,
+#             prefill_chunk_size=args.prefill_chunk_size,
+#             **extra_kwargs,
+#         )
 
-        if local_rank == 0:
-            for sentence_idx, test_sentence in enumerate(
-                aiu_validation_info.get_info("tokens")
-            ):
-                tokens_prompt = [t.item() for t in test_sentence[:-max_new_tokens]]
-                aiu_tokens_generated = [
-                    t.item() for t in test_sentence[-max_new_tokens:]
-                ]
-                dprint(f"For Program {program_id} in sentence {sentence_idx + 1}:")
-                dprint(f"Prompt:\n{tokenizer.decode(tokens_prompt)}")
-                dprint(f"AIU tokens:\n{aiu_tokens_generated}")
-                dprint(f"AIU output:\n{tokenizer.decode(aiu_tokens_generated)}")
+#         if local_rank == 0:
+#             for sentence_idx, test_sentence in enumerate(
+#                 aiu_validation_info.get_info("tokens")
+#             ):
+#                 tokens_prompt = [t.item() for t in test_sentence[:-max_new_tokens]]
+#                 aiu_tokens_generated = [
+#                     t.item() for t in test_sentence[-max_new_tokens:]
+#                 ]
+#                 dprint(f"For Program {program_id} in sentence {sentence_idx + 1}:")
+#                 dprint(f"Prompt:\n{tokenizer.decode(tokens_prompt)}")
+#                 dprint(f"AIU tokens:\n{aiu_tokens_generated}")
+#                 dprint(f"AIU output:\n{tokenizer.decode(aiu_tokens_generated)}")
 
-if not args.skip_validation and local_rank == 0:
-    if len(failed_cases) != 0:
-        dprint("the test failed with the following cases:")
-        for failed_case in failed_cases:
-            dprint(
-                f"Program ID: {failed_case[0]}, Prompt Shape: {failed_case[1]}, Failure Rate: {failed_case[2]}"
-            )
-    else:
-        dprint("all tests passed")
+# if not args.skip_validation and local_rank == 0:
+#     if len(failed_cases) != 0:
+#         dprint("the test failed with the following cases:")
+#         for failed_case in failed_cases:
+#             dprint(
+#                 f"Program ID: {failed_case[0]}, Prompt Shape: {failed_case[1]}, Failure Rate: {failed_case[2]}"
+#             )
+#     else:
+#         dprint("all tests passed")
