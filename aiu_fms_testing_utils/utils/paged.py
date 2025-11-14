@@ -316,6 +316,9 @@ def generate(
                             .unsqueeze(0)
                             .clone()
                         )
+                        assert input_ids_seq_chunk.size(1) == prefill_chunk_size, (
+                            f"prefill chunk size was not equal to the chunk size. Found {input_ids_seq_chunk.size(0)}"
+                        )
                         slots_length = len(slot_mapping[seq_i])
                         slot_mapping_seq_chunk = (
                             torch.tensor(
@@ -577,12 +580,12 @@ def generate(
     return result
 
 
-# this value is default to 2080 to be consistent with vllm for granite 3.3 8b instruct
+# this value is default to 8192 to be consistent with vllm for granite 3.3 8b instruct w/ chunked prefill
 KVCACHE_NUM_BLOCKS_HINT = int(
-    os.environ.get("AFTU_PAGED_KVCACHE_NUM_BLOCKS_HINT", 2080)
+    os.environ.get("AFTU_PAGED_KVCACHE_NUM_BLOCKS_HINT", 8192)
 )
 
-VLLM_DT_MAX_BATCH_TKV_LIMIT = int(os.environ.get("VLLM_DT_MAX_BATCH_TKV_LIMIT", 131072))
+VLLM_DT_MAX_BATCH_TKV_LIMIT = int(os.environ.get("VLLM_DT_MAX_BATCH_TKV_LIMIT", 524288))
 
 
 class ProgramCriteria:
