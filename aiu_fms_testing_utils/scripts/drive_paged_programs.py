@@ -377,7 +377,7 @@ with stagger_region(args.stagger_load):
 
 model.eval()
 fx_config.backed_size_oblivious = True
-#model.compile(backend="sendnn", options={"sendnn.dynamic": True})
+model.compile(backend="sendnn", options={"sendnn.dynamic": True})
 
 __maybe_prepare_fp8_weights(model, is_fp8)
 
