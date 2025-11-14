@@ -318,7 +318,7 @@ def __metric_calculator(r: torch.Tensor, t: torch.Tensor):
     return (cross_entropy, diff)
 
 
-def get_model_path_kwargs(model_variant: str) -> Dict[str, Any]:
+def get_model_kwargs(model_variant: str) -> Dict[str, Any]:
     
     model_path_kwargs = {}
     if os.path.exists(model_variant):
@@ -327,6 +327,7 @@ def get_model_path_kwargs(model_variant: str) -> Dict[str, Any]:
         model_path_kwargs["variant"] = model_variant
         
     return model_path_kwargs
+
 
 def get_distributed_kwargs(is_distributed: bool, dist_timeout: str, save_validation_info_outputs: bool) -> Dict[str, Any]:
     
@@ -348,6 +349,7 @@ def get_distributed_kwargs(is_distributed: bool, dist_timeout: str, save_validat
         )
 
     return distributed_kwargs
+
 
 def get_sampler(dataset_type: str, dataset_path:str, tokenizer: AutoTokenizer):
 
@@ -394,10 +396,11 @@ def get_sampler(dataset_type: str, dataset_path:str, tokenizer: AutoTokenizer):
 
     return sampler, allow_truncation, custom_shape
 
+
 def load_model(
     device_type: str,
-    model_variant: str,
     is_fp8: bool,
+    model_kwargs: Dict[str, Any],
     distributed_kwargs: Dict[str, Any],
     stagger_load: int,
     is_validation: bool = False,
@@ -405,15 +408,13 @@ def load_model(
 
     dtype = None if is_fp8 else (torch.float32 if is_validation else torch.float16)
 
-    model_path_kwargs = get_model_path_kwargs(model_variant)
-
     with stagger_region(stagger_load):
         model = get_model(
             architecture="hf_pretrained",
             device_type=device_type,
             data_type=dtype,
             fused_weights=False,
-            **model_path_kwargs,
+            **model_kwargs,
             **distributed_kwargs,
         )
     
@@ -423,8 +424,10 @@ def load_model(
     if not is_validation:
         fx_config.backed_size_oblivious = True
         model.compile(backend="sendnn", options={"sendnn.dynamic": True})
+        __maybe_prepare_fp8_weights(model, is_fp8)
         
     return model
+
 
 def get_programs_to_test(programs, program_criteria_list):
 
@@ -468,7 +471,7 @@ def get_programs_to_test(programs, program_criteria_list):
     return programs_to_test
 
 
-def get_program_prompt_list(
+def get_valid_prompts(
     program_map,
     dataset_path: str,
     enforce_homogeneous_prompt_programs: bool, 
@@ -591,12 +594,9 @@ def get_program_prompt_list(
 
     return valid_prompts
 
-
-def run_validation(
+def generate_cpu_validation(
     args: argparse.Namespace,
-    model: torch.nn.Module,
     validation_model: Optional[torch.nn.Module],
-    program_id: int,
     valid_prompt,
     input_ids: torch.Tensor,
     extra_kwargs: Dict[str, Any],
@@ -605,12 +605,6 @@ def run_validation(
     cpu_dtype: str,
     tokenizer: AutoTokenizer,
 ):
-
-    if local_rank == 0:
-        dprint(f"*** testing program {program_id} ***")
-        dprint(
-            f"program id: {program_id}, valid prompt: {valid_prompt}, input shape: {input_ids.shape}"
-        )
 
     cpu_validation_info: Optional[ValidationInfo] = None
     if not args.skip_validation:
@@ -653,6 +647,16 @@ def run_validation(
                     )
                 )
 
+    return cpu_validation_info
+
+def generate_aiu_validation(
+    args: argparse.Namespace,
+    model: torch.nn.Module,
+    input_ids: torch.Tensor,
+    cpu_validation_info: Optional[ValidationInfo],
+    extra_kwargs: Dict[str, Any],
+):
+
     golden_hook = None
     if args.test_type == "metrics":
         if not args.skip_validation and cpu_validation_info:
@@ -669,7 +673,7 @@ def run_validation(
         **extra_kwargs,
     )
 
-    return aiu_validation_info, cpu_validation_info
+    return aiu_validation_info
 
 
 def run_metrics_test(
@@ -787,26 +791,27 @@ max_tkv = int(os.environ["VLLM_DT_MAX_CONTEXT_LEN"])
 
 ## MODEL LOADING ##
 
-# Get distributed kwargs (empty if not distributed)
+model_kwargs = get_model_kwargs(args.model_variant)
+
+# distributed_kwargs is empty if not distributed
 distributed_kwargs = get_distributed_kwargs(args.distributed, args.dist_timeout, args.save_validation_info_outputs)
 
 model = load_model(
     device_type="cpu",
-    model_variant=args.model_variant,
     is_fp8=is_fp8,
+    model_kwargs=model_kwargs,
     distributed_kwargs=distributed_kwargs,
     stagger_load=args.stagger_load,
-    is_validation=False)
+    is_validation=False
+    )
 
-__maybe_prepare_fp8_weights(model, is_fp8)
 
-# Load validation model
 validation_model = None
 if not args.skip_validation:
     validation_model = load_model(
         device_type="cpu",
-        model_variant=args.model_variant,
         is_fp8=is_fp8,
+        model_kwargs=model_kwargs,
         distributed_kwargs=distributed_kwargs,
         stagger_load=args.stagger_load,
         is_validation=True
@@ -879,7 +884,7 @@ tokenizer = AutoTokenizer.from_pretrained(args.model_variant)
 sampler, allow_truncation, custom_shape = get_sampler(args.dataset_type, args.dataset_path, tokenizer)
 
 # Select concrete prompts and program associations
-valid_prompts = get_program_prompt_list(
+valid_prompts = get_valid_prompts(
     program_map=program_map,
     dataset_path=args.dataset_path,
     enforce_homogeneous_prompt_programs=args.enforce_homogeneous_prompt_programs,
@@ -896,13 +901,19 @@ valid_prompts = get_program_prompt_list(
 failed_cases = []
 # for each program and valid prompt (batch size, sequence length)
 for program_id, valid_prompt, input_ids, extra_kwargs, sample_key in valid_prompts:
+
+    if local_rank == 0:
+        dprint(f"*** testing program {program_id} ***")
+        dprint(
+            f"program id: {program_id}, valid prompt: {valid_prompt}, input shape: {input_ids.shape}"
+        )
+
     extra_kwargs["attn_name"] = ATTN_NAME
 
-    aiu_validation_info, cpu_validation_info = run_validation(
+    # Returns none if skipping validation
+    cpu_validation_info = generate_cpu_validation(
                 args=args,
-                model=model, 
-                validation_model=validation_model, 
-                program_id=program_id, 
+                validation_model=validation_model,  # could be None if skipping validation
                 valid_prompt=valid_prompt, 
                 input_ids=input_ids, 
                 extra_kwargs=extra_kwargs, 
@@ -910,6 +921,14 @@ for program_id, valid_prompt, input_ids, extra_kwargs, sample_key in valid_promp
                 attn_name=ATTN_NAME, 
                 cpu_dtype=CPU_DTYPE, 
                 tokenizer=tokenizer,
+            )
+    
+    aiu_validation_info = generate_aiu_validation(
+                args=args,
+                model=model, 
+                input_ids=input_ids, 
+                cpu_validation_info=cpu_validation_info,
+                extra_kwargs=extra_kwargs,
             )
 
     if args.test_type == "metrics":
