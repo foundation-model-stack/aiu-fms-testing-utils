@@ -902,13 +902,19 @@ failed_cases = []
 # for each program and valid prompt (batch size, sequence length)
 for program_id, valid_prompt, input_ids, extra_kwargs, sample_key in valid_prompts:
 
+    extra_kwargs["attn_name"] = ATTN_NAME
+    if (
+        "granite-3.3-8b-instruct" in args.model_variant
+        and args.distributed
+        and dist.get_world_size() == 4
+    ):
+        extra_kwargs["_kvcache_num_blocks_hint"] = KVCACHE_NUM_BLOCKS_HINT
+
     if local_rank == 0:
         dprint(f"*** testing program {program_id} ***")
         dprint(
             f"program id: {program_id}, valid prompt: {valid_prompt}, input shape: {input_ids.shape}"
         )
-
-    extra_kwargs["attn_name"] = ATTN_NAME
 
     # Returns none if skipping validation
     cpu_validation_info = generate_cpu_validation(
