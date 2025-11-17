@@ -322,13 +322,13 @@ def __metric_calculator(r: torch.Tensor, t: torch.Tensor):
 
 
 def get_model_kwargs(model_variant: str) -> Dict[str, Any]:
-    model_path_kwargs = {}
+    model_kwargs = {}
     if os.path.exists(model_variant):
-        model_path_kwargs["model_path"] = model_variant
+        model_kwargs["model_path"] = model_variant
     else:
-        model_path_kwargs["variant"] = model_variant
+        model_kwargs["variant"] = model_variant
 
-    return model_path_kwargs
+    return model_kwargs
 
 
 def get_distributed_kwargs(
@@ -750,163 +750,87 @@ def run_tokens_test(
         dprint(f"AIU output:\n{tokenizer.decode(aiu_tokens_generated)}")
 
 
-## ENV SETUP ##
+def main():
+        
+    ## ENV SETUP ##
 
-args = parse_cli_args()
+    args = parse_cli_args()
 
-if args.skip_validation and args.test_type == "metrics":
-    dprint("When skipping validation, only test_type will be ignored")
+    if args.skip_validation and args.test_type == "metrics":
+        dprint("When skipping validation, only test_type will be ignored")
 
-attention_map = {
-    "sdpa": "sdpa_causal",
-    "paged": "spyre_paged_attn",
-    "math_fp8": "math_fp8",
-    "paged_fp8": "spyre_paged_attn_fp8",
-}
-ATTN_NAME = attention_map[args.attention_type]
+    attention_map = {
+        "sdpa": "sdpa_causal",
+        "paged": "spyre_paged_attn",
+        "math_fp8": "math_fp8",
+        "paged_fp8": "spyre_paged_attn_fp8",
+    }
+    ATTN_NAME = attention_map[args.attention_type]
 
-is_fp8 = "fp8" in args.attention_type
-CPU_DTYPE = "fp8" if is_fp8 else "fp32"
+    is_fp8 = "fp8" in args.attention_type
+    CPU_DTYPE = "fp8" if is_fp8 else "fp32"
 
-torch.manual_seed(42)
-torch.set_grad_enabled(False)
+    torch.manual_seed(42)
+    torch.set_grad_enabled(False)
 
-os.environ["COMPILATION_MODE"] = "offline_decoder"
-os.environ["DT_PROG_CRITERIA_FILEPATH"] = args.program_criteria_json_path
-if (
-    "VLLM_DT_MAX_CONTEXT_LEN" not in os.environ
-    or "VLLM_DT_MAX_BATCH_SIZE" not in os.environ
-):
-    if local_rank == 0:
-        dprint(
-            "Please specify VLLM_DT_MAX_CONTEXT_LEN and VLLM_DT_MAX_BATCH_SIZE environment variables"
-        )
-    exit()
-max_batch_size = int(os.environ["VLLM_DT_MAX_BATCH_SIZE"])
-max_tkv = int(os.environ["VLLM_DT_MAX_CONTEXT_LEN"])
-
-
-## MODEL LOADING ##
-
-model_kwargs = get_model_kwargs(args.model_variant)
-
-# distributed_kwargs is empty if not distributed
-distributed_kwargs = get_distributed_kwargs(
-    args.distributed, args.dist_timeout, args.save_validation_info_outputs
-)
-
-model = load_model(
-    device_type="cpu",
-    is_fp8=is_fp8,
-    model_kwargs=model_kwargs,
-    distributed_kwargs=distributed_kwargs,
-    stagger_load=args.stagger_load,
-    is_validation=False,
-)
+    os.environ["COMPILATION_MODE"] = "offline_decoder"
+    os.environ["DT_PROG_CRITERIA_FILEPATH"] = args.program_criteria_json_path
+    if (
+        "VLLM_DT_MAX_CONTEXT_LEN" not in os.environ
+        or "VLLM_DT_MAX_BATCH_SIZE" not in os.environ
+    ):
+        if local_rank == 0:
+            dprint(
+                "Please specify VLLM_DT_MAX_CONTEXT_LEN and VLLM_DT_MAX_BATCH_SIZE environment variables"
+            )
+        exit()
+    max_batch_size = int(os.environ["VLLM_DT_MAX_BATCH_SIZE"])
+    max_tkv = int(os.environ["VLLM_DT_MAX_CONTEXT_LEN"])
 
 
-validation_model = None
-if not args.skip_validation:
-    validation_model = load_model(
+    ## MODEL LOADING ##
+
+    model_kwargs = get_model_kwargs(args.model_variant)
+
+    # distributed_kwargs is empty if not distributed
+    distributed_kwargs = get_distributed_kwargs(
+        args.distributed, args.dist_timeout, args.save_validation_info_outputs
+    )
+
+    model = load_model(
         device_type="cpu",
         is_fp8=is_fp8,
         model_kwargs=model_kwargs,
         distributed_kwargs=distributed_kwargs,
         stagger_load=args.stagger_load,
-        is_validation=True,
+        is_validation=False,
     )
 
 
-## MODEL WARMUP ##
-
-# warmup with any input so compiler produces criteria json
-# TODO: Swap this with __prepare_inputs once fix for shape_id is available
-# input_ids, extra_kwargs, sample_key = __prepare_inputs(2, max_tkv, tokenizer)
-prompt_list = [torch.arange(0, 64, dtype=torch.int64)]
-# matching vllm warmup to pad to 2 on fp8, and no pad for fp16
-if is_fp8:
-    prompt_list = prompt_list * 2
-input_ids, extra_kwargs = pad_input_ids(prompt_list, min_pad_length=64)
-extra_kwargs["mask"] = extra_kwargs["mask"].to(torch.float16)
-
-extra_kwargs["attn_name"] = ATTN_NAME
-if (
-    "granite-3.3-8b-instruct" in args.model_variant
-    and args.distributed
-    and dist.get_world_size() == 4
-):
-    extra_kwargs["_kvcache_num_blocks_hint"] = KVCACHE_NUM_BLOCKS_HINT
-
-warmup_model(
-    model=model,
-    input_ids=input_ids,
-    max_new_tokens=args.max_new_tokens,
-    compile_dynamic_sendnn=True,
-    stagger_update_lazyhandle=args.stagger_update_lazyhandle,
-    prefill_chunk_size=args.prefill_chunk_size,
-    **extra_kwargs,
-)
-
-if args.distributed:
-    # wait for rank0 to be finished as it is the only one generating the criteria json
-    # this is needed since otherwise we may run into a race condition
-    torch.distributed.barrier()
-
-
-## PREPARE PROGRAM CRITERIA AND PROMPTS ##
-
-with open(args.program_criteria_json_path, "r") as f:
-    program_criteria_json_list = json.load(f)["programs"]
-    program_criteria_list = []
-    for i, d in enumerate(program_criteria_json_list):
-        program_criteria_list.append(
-            ProgramCriteria(
-                i,
-                d["max_batch"],
-                d["max_tkv"],
-                d["batch_granularity"],
-                d["tkv_granularity"],
-            )
+    validation_model = None
+    if not args.skip_validation:
+        validation_model = load_model(
+            device_type="cpu",
+            is_fp8=is_fp8,
+            model_kwargs=model_kwargs,
+            distributed_kwargs=distributed_kwargs,
+            stagger_load=args.stagger_load,
+            is_validation=True,
         )
 
-    programs_to_test = get_programs_to_test(args.programs, program_criteria_list)
 
+    ## MODEL WARMUP ##
 
-# FIXME: filter condition for this on prompt and batch
-program_map = get_programs_prompts(
-    program_criteria_list=program_criteria_list,
-    multiple=64,
-    max_batch_size=max_batch_size,
-    max_tkv=max_tkv,
-    program_cycles=args.max_new_tokens,
-    prioritize_large_batch_sizes=args.prioritize_large_batch_sizes,
-)
-for v in program_map.values():
-    random.Random(42).shuffle(v)
+    # warmup with any input so compiler produces criteria json
+    # TODO: Swap this with __prepare_inputs once fix for shape_id is available
+    # input_ids, extra_kwargs, sample_key = __prepare_inputs(2, max_tkv, tokenizer)
+    prompt_list = [torch.arange(0, 64, dtype=torch.int64)]
+    # matching vllm warmup to pad to 2 on fp8, and no pad for fp16
+    if is_fp8:
+        prompt_list = prompt_list * 2
+    input_ids, extra_kwargs = pad_input_ids(prompt_list, min_pad_length=64)
+    extra_kwargs["mask"] = extra_kwargs["mask"].to(torch.float16)
 
-tokenizer = AutoTokenizer.from_pretrained(args.model_variant)
-sampler, allow_truncation, custom_shape = get_sampler(
-    args.dataset_type, args.dataset_path, tokenizer
-)
-
-# Select concrete prompts and program associations
-valid_prompts = get_valid_prompts(
-    program_map=program_map,
-    dataset_path=args.dataset_path,
-    enforce_homogeneous_prompt_programs=args.enforce_homogeneous_prompt_programs,
-    programs_to_test=programs_to_test,
-    program_criteria_list=program_criteria_list,
-    tokenizer=tokenizer,
-    sampler=sampler,
-    allow_truncation=allow_truncation,
-    custom_shape=custom_shape,
-)
-
-## RUN VALIDATION AND TESTS ##
-
-failed_cases = []
-# for each program and valid prompt (batch size, sequence length)
-for program_id, valid_prompt, input_ids, extra_kwargs, sample_key in valid_prompts:
     extra_kwargs["attn_name"] = ATTN_NAME
     if (
         "granite-3.3-8b-instruct" in args.model_variant
@@ -915,76 +839,157 @@ for program_id, valid_prompt, input_ids, extra_kwargs, sample_key in valid_promp
     ):
         extra_kwargs["_kvcache_num_blocks_hint"] = KVCACHE_NUM_BLOCKS_HINT
 
-    if local_rank == 0:
-        dprint(f"*** testing program {program_id} ***")
-        dprint(
-            f"program id: {program_id}, valid prompt: {valid_prompt}, input shape: {input_ids.shape}"
-        )
-
-    # Returns none if skipping validation
-    cpu_validation_info = generate_cpu_validation(
-        args=args,
-        validation_model=validation_model,  # could be None if skipping validation
-        valid_prompt=valid_prompt,
-        input_ids=input_ids,
-        extra_kwargs=extra_kwargs,
-        sample_key=sample_key,
-        attn_name=ATTN_NAME,
-        cpu_dtype=CPU_DTYPE,
-        tokenizer=tokenizer,
-    )
-
-    aiu_validation_info = generate_aiu_validation(
-        args=args,
+    warmup_model(
         model=model,
         input_ids=input_ids,
-        cpu_validation_info=cpu_validation_info,
-        extra_kwargs=extra_kwargs,
+        max_new_tokens=args.max_new_tokens,
+        compile_dynamic_sendnn=True,
+        stagger_update_lazyhandle=args.stagger_update_lazyhandle,
+        prefill_chunk_size=args.prefill_chunk_size,
+        **extra_kwargs,
     )
 
-    if args.test_type == "metrics":
-        failure_rate = run_metrics_test(
-            cross_entropy_threshold=args.cross_entropy_threshold,
-            aiu_validation_info=aiu_validation_info,
-            cpu_validation_info=cpu_validation_info,
-            program_id=program_id,
-            prompt_shape=valid_prompt,
-            tokenizer=tokenizer,
-        )
-        if failure_rate > args.failure_rate_threshold:
-            failed_cases.append((program_id, valid_prompt, failure_rate))
+    if args.distributed:
+        # wait for rank0 to be finished as it is the only one generating the criteria json
+        # this is needed since otherwise we may run into a race condition
+        torch.distributed.barrier()
 
-    elif args.test_type == "tokens":
-        run_tokens_test(
-            max_new_tokens=args.max_new_tokens,
-            aiu_validation_info=aiu_validation_info,
-            cpu_validation_info=cpu_validation_info,
-            program_id=program_id,
-            tokenizer=tokenizer,
-        )
 
-    else:
-        raise ValueError("test type must be one of metrics or tokens")
+    ## PREPARE PROGRAM CRITERIA AND PROMPTS ##
 
-    if args.skip_validation and local_rank == 0:
-        for sentence_idx, test_sentence in enumerate(
-            aiu_validation_info.get_info("tokens")
-        ):
-            tokens_prompt = [t.item() for t in test_sentence[: -args.max_new_tokens]]
-            aiu_tokens_generated = [
-                t.item() for t in test_sentence[-args.max_new_tokens :]
-            ]
-            dprint(f"For Program {program_id} in sentence {sentence_idx + 1}:")
-            dprint(f"Prompt:\n{tokenizer.decode(tokens_prompt)}")
-            dprint(f"AIU tokens:\n{aiu_tokens_generated}")
-            dprint(f"AIU output:\n{tokenizer.decode(aiu_tokens_generated)}")
-
-if not args.skip_validation and local_rank == 0:
-    if len(failed_cases) != 0:
-        dprint("The test failed with the following cases:")
-        for failed_case in failed_cases:
-            dprint(
-                f"Program ID: {failed_case[0]}, Prompt Shape: {failed_case[1]}, Failure Rate: {failed_case[2]}"
+    with open(args.program_criteria_json_path, "r") as f:
+        program_criteria_json_list = json.load(f)["programs"]
+        program_criteria_list = []
+        for i, d in enumerate(program_criteria_json_list):
+            program_criteria_list.append(
+                ProgramCriteria(
+                    i,
+                    d["max_batch"],
+                    d["max_tkv"],
+                    d["batch_granularity"],
+                    d["tkv_granularity"],
+                )
             )
-    else:
-        dprint("all tests passed")
+
+        programs_to_test = get_programs_to_test(args.programs, program_criteria_list)
+
+
+    # FIXME: filter condition for this on prompt and batch
+    program_map = get_programs_prompts(
+        program_criteria_list=program_criteria_list,
+        multiple=64,
+        max_batch_size=max_batch_size,
+        max_tkv=max_tkv,
+        program_cycles=args.max_new_tokens,
+        prioritize_large_batch_sizes=args.prioritize_large_batch_sizes,
+    )
+    for v in program_map.values():
+        random.Random(42).shuffle(v)
+
+    tokenizer = AutoTokenizer.from_pretrained(args.model_variant)
+    sampler, allow_truncation, custom_shape = get_sampler(
+        args.dataset_type, args.dataset_path, tokenizer
+    )
+
+    # Select concrete prompts and program associations
+    valid_prompts = get_valid_prompts(
+        program_map=program_map,
+        dataset_path=args.dataset_path,
+        enforce_homogeneous_prompt_programs=args.enforce_homogeneous_prompt_programs,
+        programs_to_test=programs_to_test,
+        program_criteria_list=program_criteria_list,
+        tokenizer=tokenizer,
+        sampler=sampler,
+        allow_truncation=allow_truncation,
+        custom_shape=custom_shape,
+    )
+
+    ## RUN VALIDATION AND TESTS ##
+
+    failed_cases = []
+    # for each program and valid prompt (batch size, sequence length)
+    for program_id, valid_prompt, input_ids, extra_kwargs, sample_key in valid_prompts:
+        extra_kwargs["attn_name"] = ATTN_NAME
+        if (
+            "granite-3.3-8b-instruct" in args.model_variant
+            and args.distributed
+            and dist.get_world_size() == 4
+        ):
+            extra_kwargs["_kvcache_num_blocks_hint"] = KVCACHE_NUM_BLOCKS_HINT
+
+        if local_rank == 0:
+            dprint(f"*** testing program {program_id} ***")
+            dprint(
+                f"program id: {program_id}, valid prompt: {valid_prompt}, input shape: {input_ids.shape}"
+            )
+
+        # Returns none if skipping validation
+        cpu_validation_info = generate_cpu_validation(
+            args=args,
+            validation_model=validation_model,  # could be None if skipping validation
+            valid_prompt=valid_prompt,
+            input_ids=input_ids,
+            extra_kwargs=extra_kwargs,
+            sample_key=sample_key,
+            attn_name=ATTN_NAME,
+            cpu_dtype=CPU_DTYPE,
+            tokenizer=tokenizer,
+        )
+
+        aiu_validation_info = generate_aiu_validation(
+            args=args,
+            model=model,
+            input_ids=input_ids,
+            cpu_validation_info=cpu_validation_info,
+            extra_kwargs=extra_kwargs,
+        )
+
+        if args.test_type == "metrics":
+            failure_rate = run_metrics_test(
+                cross_entropy_threshold=args.cross_entropy_threshold,
+                aiu_validation_info=aiu_validation_info,
+                cpu_validation_info=cpu_validation_info,
+                program_id=program_id,
+                prompt_shape=valid_prompt,
+                tokenizer=tokenizer,
+            )
+            if failure_rate > args.failure_rate_threshold:
+                failed_cases.append((program_id, valid_prompt, failure_rate))
+
+        elif args.test_type == "tokens":
+            run_tokens_test(
+                max_new_tokens=args.max_new_tokens,
+                aiu_validation_info=aiu_validation_info,
+                cpu_validation_info=cpu_validation_info,
+                program_id=program_id,
+                tokenizer=tokenizer,
+            )
+
+        else:
+            raise ValueError("test type must be one of metrics or tokens")
+
+        if args.skip_validation and local_rank == 0:
+            for sentence_idx, test_sentence in enumerate(
+                aiu_validation_info.get_info("tokens")
+            ):
+                tokens_prompt = [t.item() for t in test_sentence[: -args.max_new_tokens]]
+                aiu_tokens_generated = [
+                    t.item() for t in test_sentence[-args.max_new_tokens :]
+                ]
+                dprint(f"For Program {program_id} in sentence {sentence_idx + 1}:")
+                dprint(f"Prompt:\n{tokenizer.decode(tokens_prompt)}")
+                dprint(f"AIU tokens:\n{aiu_tokens_generated}")
+                dprint(f"AIU output:\n{tokenizer.decode(aiu_tokens_generated)}")
+
+    if not args.skip_validation and local_rank == 0:
+        if len(failed_cases) != 0:
+            dprint("The test failed with the following cases:")
+            for failed_case in failed_cases:
+                dprint(
+                    f"Program ID: {failed_case[0]}, Prompt Shape: {failed_case[1]}, Failure Rate: {failed_case[2]}"
+                )
+        else:
+            dprint("all tests passed")
+
+if __name__ == "__main__":
+    main()
