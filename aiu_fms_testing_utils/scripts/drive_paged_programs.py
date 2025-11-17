@@ -398,9 +398,15 @@ if not args.skip_validation:
 # input_ids, extra_kwargs, sample_key = __prepare_inputs(2, max_tkv, tokenizer)
 pad_multiple = 64
 if args.prefill_chunk_size > 0:
+<<<<<<< HEAD
     assert (
         args.prefill_chunk_size % 64 == 0
     ), "Chunk size must be a multiple of the page size"
+=======
+    assert args.prefill_chunk_size % 64 == 0, (
+        "Chunk size must be a multiple of the page size"
+    )
+>>>>>>> main
     pad_multiple = args.prefill_chunk_size
 prompt_list = [torch.arange(0, pad_multiple, dtype=torch.int64)]
 # matching vllm warmup to pad to 2 on fp8, and no pad for fp16
