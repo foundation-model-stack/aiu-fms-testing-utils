@@ -751,7 +751,6 @@ def run_tokens_test(
 
 
 def main():
-        
     ## ENV SETUP ##
 
     args = parse_cli_args()
@@ -787,7 +786,6 @@ def main():
     max_batch_size = int(os.environ["VLLM_DT_MAX_BATCH_SIZE"])
     max_tkv = int(os.environ["VLLM_DT_MAX_CONTEXT_LEN"])
 
-
     ## MODEL LOADING ##
 
     model_kwargs = get_model_kwargs(args.model_variant)
@@ -806,7 +804,6 @@ def main():
         is_validation=False,
     )
 
-
     validation_model = None
     if not args.skip_validation:
         validation_model = load_model(
@@ -817,7 +814,6 @@ def main():
             stagger_load=args.stagger_load,
             is_validation=True,
         )
-
 
     ## MODEL WARMUP ##
 
@@ -854,7 +850,6 @@ def main():
         # this is needed since otherwise we may run into a race condition
         torch.distributed.barrier()
 
-
     ## PREPARE PROGRAM CRITERIA AND PROMPTS ##
 
     with open(args.program_criteria_json_path, "r") as f:
@@ -872,7 +867,6 @@ def main():
             )
 
         programs_to_test = get_programs_to_test(args.programs, program_criteria_list)
-
 
     # FIXME: filter condition for this on prompt and batch
     program_map = get_programs_prompts(
@@ -972,7 +966,9 @@ def main():
             for sentence_idx, test_sentence in enumerate(
                 aiu_validation_info.get_info("tokens")
             ):
-                tokens_prompt = [t.item() for t in test_sentence[: -args.max_new_tokens]]
+                tokens_prompt = [
+                    t.item() for t in test_sentence[: -args.max_new_tokens]
+                ]
                 aiu_tokens_generated = [
                     t.item() for t in test_sentence[-args.max_new_tokens :]
                 ]
@@ -990,6 +986,7 @@ def main():
                 )
         else:
             dprint("all tests passed")
+
 
 if __name__ == "__main__":
     main()
