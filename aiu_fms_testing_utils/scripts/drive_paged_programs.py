@@ -264,7 +264,9 @@ max_batch_size = int(os.environ["VLLM_DT_MAX_BATCH_SIZE"])
 max_tkv = int(os.environ["VLLM_DT_MAX_CONTEXT_LEN"])
 
 
-def __prepare_inputs(batch_size, seq_length, tokenizer, enforce_sizes=[], seed=0):
+def __prepare_inputs(
+    batch_size, seq_length, tokenizer, enforce_sizes=[], seed=0, pad_multiple=64
+):
     start = time.time()
     prompts_and_sizes, sample_key = sampler(
         DATASET_PATH,
@@ -276,6 +278,7 @@ def __prepare_inputs(batch_size, seq_length, tokenizer, enforce_sizes=[], seed=0
         enforce_sizes=enforce_sizes,
         truncation=allow_truncation,
         return_key=True,
+        pad_multiple=pad_multiple,
     )
     end = time.time()
     if local_rank == 0:
@@ -393,7 +396,13 @@ if not args.skip_validation:
 # warmup with any input so compiler produces criteria json
 # TODO: Swap this with __prepare_inputs once fix for shape_id is available
 # input_ids, extra_kwargs, sample_key = __prepare_inputs(2, max_tkv, tokenizer)
-prompt_list = [torch.arange(0, 64, dtype=torch.int64)]
+pad_multiple = 64
+if args.prefill_chunk_size > 0:
+    assert (
+        args.prefill_chunk_size % 64 == 0
+    ), "Chunk size must be a multiple of the page size"
+    pad_multiple = args.prefill_chunk_size
+prompt_list = [torch.arange(0, pad_multiple, dtype=torch.int64)]
 # matching vllm warmup to pad to 2 on fp8, and no pad for fp16
 if is_fp8:
     prompt_list = prompt_list * 2
@@ -505,7 +514,7 @@ with open(args.program_criteria_json_path, "r") as f:
 # FIXME: filter condition for this on prompt and batch
 program_map = get_programs_prompts(
     program_criteria_list,
-    multiple=64,
+    multiple=pad_multiple,
     max_batch_size=max_batch_size,
     max_tkv=max_tkv,
     program_cycles=max_new_tokens,
@@ -514,12 +523,11 @@ program_map = get_programs_prompts(
 for v in program_map.values():
     random.Random(42).shuffle(v)
 
+
 # select prompts that fit the batch size criteria
-valid_prompts = []
-
-
 def get_program_prompt_list():
     if custom_shape:
+        prompt_found = 0
         for program_criteria_seq, valid_prompt_shapes in program_map.items():
             for valid_prompt_shape in valid_prompt_shapes:
                 if valid_prompt_shape == custom_shape:
@@ -529,8 +537,9 @@ def get_program_prompt_list():
                         valid_prompt_shape[1],
                         tokenizer,
                         enforce_sizes=enforce_sizes,
+                        pad_multiple=pad_multiple,
                     )
-
+                    prompt_found = 1
                     yield (
                         program_criteria_seq[0].program_id,
                         custom_shape,
@@ -539,7 +548,7 @@ def get_program_prompt_list():
                         sample_key,
                     )
                     break
-            if len(valid_prompts) > 0:
+            if prompt_found:
                 break
     else:
         for program_info in programs:
@@ -581,14 +590,29 @@ def get_program_prompt_list():
                         # if there does not exist enough sequence sizes between this range, we will cycle back to the beginning
                         # in the event we don't have enough sequences that satisfy the enforce_sizes, we will repeat sequences and warn the user
                         enforce_sizes = [valid_prompt_shape[1]]
-                        if args.enforce_homogeneous_prompt_programs:
-                            # this will get the number of bits for the sequence length and shift to get the power of 2 that is less than or equal to the sequence length
-                            tkv_cutoff = 1 << (valid_prompt_shape[1].bit_length() - 1)
+                        if (
+                            args.enforce_homogeneous_prompt_programs
+                            or args.prefill_chunk_size > 0
+                        ):
+                            # if enforcing homogeneous prompt programs, this will get the number of bits for the sequence length and shift to get the power of 2 that is less than or equal to the sequence length
+                            tkv_cutoff = (
+                                1 << (valid_prompt_shape[1].bit_length() - 1)
+                                if args.enforce_homogeneous_prompt_programs
+                                else pad_multiple
+                            )
+
                             possible_seq_lengths = [
-                                _ for _ in range(tkv_cutoff, valid_prompt_shape[1], 64)
+                                _
+                                for _ in range(
+                                    tkv_cutoff, valid_prompt_shape[1], pad_multiple
+                                )
                             ]
                             # favor sequences that are close to the valid prompt length
                             possible_seq_lengths.reverse()
+                            # add the valid prompt size to the end since it will already exist in the above enforce_sizes
+                            possible_seq_lengths = possible_seq_lengths + [
+                                valid_prompt_shape[1]
+                            ]
                             enforce_sizes = enforce_sizes + list(
                                 itertools.islice(
                                     itertools.cycle(possible_seq_lengths),
@@ -601,6 +625,7 @@ def get_program_prompt_list():
                                 valid_prompt_shape[1],
                                 tokenizer,
                                 enforce_sizes=enforce_sizes,
+                                pad_multiple=64,  # this should be the smallest granularity to ensure we get the largest enforce_size (if we choose chunked prefill, we want to make sure we pad to the full enforced size)
                             )
                             used_keys.add(program_seq_key[0])
                             yield (
@@ -610,6 +635,7 @@ def get_program_prompt_list():
                                 extra_kwargs,
                                 sample_key,
                             )
+
                             break
                         except ValueError:
                             dprint(
