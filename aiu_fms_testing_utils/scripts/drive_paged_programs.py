@@ -342,7 +342,7 @@ def get_distributed_kwargs(
             # Default timeout:
             # https://docs.pytorch.org/docs/stable/distributed.html#torch.distributed.init_process_group
             dist.init_process_group(
-                timeout=datetime.timedelta(minutes=args.dist_timeout)
+                timeout=datetime.timedelta(minutes=dist_timeout)
             )
             dprint(f"NOTICE: init_process_group timeout set to {dist_timeout} minutes")
         else:
