@@ -847,11 +847,11 @@ def main():
         )
 
     ## MODEL WARMUP ##
+    pad_multiple = 64
     if not args.save_cpu_validation_only:
         # warmup with any input so compiler produces criteria json
         # TODO: Swap this with __prepare_inputs once fix for shape_id is available
         # input_ids, extra_kwargs, sample_key = __prepare_inputs(2, max_tkv, tokenizer)
-        pad_multiple = 64
         if args.prefill_chunk_size > 0:
             assert args.prefill_chunk_size % 64 == 0, (
                 "Chunk size must be a multiple of the page size"
@@ -1017,8 +1017,11 @@ def main():
                     dprint(f"AIU tokens:\n{aiu_tokens_generated}")
                     dprint(f"AIU output:\n{tokenizer.decode(aiu_tokens_generated)}")
 
-
-    if not args.skip_validation and not args.save_cpu_validation_only and local_rank == 0:
+    if (
+        not args.skip_validation
+        and not args.save_cpu_validation_only
+        and local_rank == 0
+    ):
         if len(failed_cases) != 0:
             dprint("The test failed with the following cases:")
             for failed_case in failed_cases:
