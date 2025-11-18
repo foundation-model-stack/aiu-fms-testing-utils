@@ -213,7 +213,7 @@ def __prepare_inputs(
     allow_truncation: bool,
     enforce_sizes: List[int] = [],
     seed: int = 0,
-    pad_multiple: int = 64
+    pad_multiple: int = 64,
 ):
     start = time.time()
     prompts_and_sizes, sample_key = sampler(
@@ -505,7 +505,7 @@ def get_valid_prompts(
                         dataset_path=dataset_path,
                         allow_truncation=allow_truncation,
                         enforce_sizes=enforce_sizes,
-                        pad_multiple=pad_multiple
+                        pad_multiple=pad_multiple,
                     )
                     valid_prompts = [
                         (
@@ -555,7 +555,10 @@ def get_valid_prompts(
                         # if there does not exist enough sequence sizes between this range, we will cycle back to the beginning
                         # in the event we don't have enough sequences that satisfy the enforce_sizes, we will repeat sequences and warn the user
                         enforce_sizes = [valid_prompt_shape[1]]
-                        if enforce_homogeneous_prompt_programs or prefill_chunk_size > 0:
+                        if (
+                            enforce_homogeneous_prompt_programs
+                            or prefill_chunk_size > 0
+                        ):
                             # if enforcing homogeneous prompt programs, this will get the number of bits for the sequence length and shift to get the power of 2 that is less than or equal to the sequence length
                             tkv_cutoff = (
                                 1 << (valid_prompt_shape[1].bit_length() - 1)
@@ -563,7 +566,10 @@ def get_valid_prompts(
                                 else pad_multiple
                             )
                             possible_seq_lengths = [
-                                _ for _ in range(tkv_cutoff, valid_prompt_shape[1], pad_multiple)
+                                _
+                                for _ in range(
+                                    tkv_cutoff, valid_prompt_shape[1], pad_multiple
+                                )
                             ]
                             # favor sequences that are close to the valid prompt length
                             possible_seq_lengths.reverse()
@@ -586,7 +592,7 @@ def get_valid_prompts(
                                 dataset_path=dataset_path,
                                 allow_truncation=allow_truncation,
                                 enforce_sizes=enforce_sizes,
-                                pad_multiple=64 # this should be the smallest granularity to ensure we get the largest enforce_size (if we choose chunked prefill, we want to make sure we pad to the full enforced size)
+                                pad_multiple=64,  # this should be the smallest granularity to ensure we get the largest enforce_size (if we choose chunked prefill, we want to make sure we pad to the full enforced size)
                             )
                             valid_prompts.append(
                                 (
