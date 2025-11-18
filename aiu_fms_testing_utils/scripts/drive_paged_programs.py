@@ -191,6 +191,11 @@ def parse_cli_args() -> argparse.Namespace:
         help="set to true to save cpu validation outputs for later consumption",
     )
     parser.add_argument(
+        "--save_cpu_validation_only",
+        action="store_true",
+        help="set to true to save cpu validation outputs only and skip aiu testing",
+    )
+    parser.add_argument(
         "--prioritize_large_batch_sizes",
         action="store_true",
         help="set to true if you would like to prioritize large batch sizes",
@@ -349,9 +354,6 @@ def get_distributed_kwargs(
         aiu_dist_setup(dist.get_rank(), dist.get_world_size())
         distributed_kwargs["distributed_strategy"] = "tp"
         distributed_kwargs["group"] = dist.group.WORLD
-        save_validation_info_outputs = save_validation_info_outputs and (
-            dist.get_rank() == 0
-        )
 
     return distributed_kwargs
 
@@ -773,6 +775,11 @@ def main():
 
     args = parse_cli_args()
 
+    if args.save_cpu_validation_only:
+        args.skip_validation = False
+        args.save_validation_info_outputs = True
+        dprint("Running in --save-cpu-validation-only mode")
+
     if args.skip_validation and args.test_type == "metrics":
         dprint("When skipping validation, only test_type will be ignored")
 
@@ -812,15 +819,21 @@ def main():
     distributed_kwargs = get_distributed_kwargs(
         args.distributed, args.dist_timeout, args.save_validation_info_outputs
     )
+    if args.distributed:
+        args.save_validation_info_outputs = args.save_validation_info_outputs and (
+            dist.get_rank() == 0
+        )
 
-    model = load_model(
-        device_type="cpu",
-        is_fp8=is_fp8,
-        model_kwargs=model_kwargs,
-        distributed_kwargs=distributed_kwargs,
-        stagger_load=args.stagger_load,
-        is_validation=False,
-    )
+    model = None
+    if not args.save_cpu_validation_only:
+        model = load_model(
+            device_type="cpu",
+            is_fp8=is_fp8,
+            model_kwargs=model_kwargs,
+            distributed_kwargs=distributed_kwargs,
+            stagger_load=args.stagger_load,
+            is_validation=False,
+        )
 
     validation_model = None
     if not args.skip_validation:
@@ -834,45 +847,45 @@ def main():
         )
 
     ## MODEL WARMUP ##
+    if not args.save_cpu_validation_only:
+        # warmup with any input so compiler produces criteria json
+        # TODO: Swap this with __prepare_inputs once fix for shape_id is available
+        # input_ids, extra_kwargs, sample_key = __prepare_inputs(2, max_tkv, tokenizer)
+        pad_multiple = 64
+        if args.prefill_chunk_size > 0:
+            assert args.prefill_chunk_size % 64 == 0, (
+                "Chunk size must be a multiple of the page size"
+            )
+            pad_multiple = args.prefill_chunk_size
+        prompt_list = [torch.arange(0, pad_multiple, dtype=torch.int64)]
+        # matching vllm warmup to pad to 2 on fp8, and no pad for fp16
+        if is_fp8:
+            prompt_list = prompt_list * 2
+        input_ids, extra_kwargs = pad_input_ids(prompt_list, min_pad_length=64)
+        extra_kwargs["mask"] = extra_kwargs["mask"].to(torch.float16)
 
-    # warmup with any input so compiler produces criteria json
-    # TODO: Swap this with __prepare_inputs once fix for shape_id is available
-    # input_ids, extra_kwargs, sample_key = __prepare_inputs(2, max_tkv, tokenizer)
-    pad_multiple = 64
-    if args.prefill_chunk_size > 0:
-        assert args.prefill_chunk_size % 64 == 0, (
-            "Chunk size must be a multiple of the page size"
+        extra_kwargs["attn_name"] = ATTN_NAME
+        if (
+            "granite-3.3-8b-instruct" in args.model_variant
+            and args.distributed
+            and dist.get_world_size() == 4
+        ):
+            extra_kwargs["_kvcache_num_blocks_hint"] = KVCACHE_NUM_BLOCKS_HINT
+
+        warmup_model(
+            model=model,
+            input_ids=input_ids,
+            max_new_tokens=args.max_new_tokens,
+            compile_dynamic_sendnn=True,
+            stagger_update_lazyhandle=args.stagger_update_lazyhandle,
+            prefill_chunk_size=args.prefill_chunk_size,
+            **extra_kwargs,
         )
-        pad_multiple = args.prefill_chunk_size
-    prompt_list = [torch.arange(0, pad_multiple, dtype=torch.int64)]
-    # matching vllm warmup to pad to 2 on fp8, and no pad for fp16
-    if is_fp8:
-        prompt_list = prompt_list * 2
-    input_ids, extra_kwargs = pad_input_ids(prompt_list, min_pad_length=64)
-    extra_kwargs["mask"] = extra_kwargs["mask"].to(torch.float16)
 
-    extra_kwargs["attn_name"] = ATTN_NAME
-    if (
-        "granite-3.3-8b-instruct" in args.model_variant
-        and args.distributed
-        and dist.get_world_size() == 4
-    ):
-        extra_kwargs["_kvcache_num_blocks_hint"] = KVCACHE_NUM_BLOCKS_HINT
-
-    warmup_model(
-        model=model,
-        input_ids=input_ids,
-        max_new_tokens=args.max_new_tokens,
-        compile_dynamic_sendnn=True,
-        stagger_update_lazyhandle=args.stagger_update_lazyhandle,
-        prefill_chunk_size=args.prefill_chunk_size,
-        **extra_kwargs,
-    )
-
-    if args.distributed:
-        # wait for rank0 to be finished as it is the only one generating the criteria json
-        # this is needed since otherwise we may run into a race condition
-        torch.distributed.barrier()
+        if args.distributed:
+            # wait for rank0 to be finished as it is the only one generating the criteria json
+            # this is needed since otherwise we may run into a race condition
+            torch.distributed.barrier()
 
     ## PREPARE PROGRAM CRITERIA AND PROMPTS ##
 
@@ -956,54 +969,56 @@ def main():
             tokenizer=tokenizer,
         )
 
-        aiu_validation_info = generate_aiu_validation(
-            args=args,
-            model=model,
-            input_ids=input_ids,
-            cpu_validation_info=cpu_validation_info,
-            extra_kwargs=extra_kwargs,
-        )
-
-        if args.test_type == "metrics":
-            failure_rate = run_metrics_test(
-                cross_entropy_threshold=args.cross_entropy_threshold,
-                aiu_validation_info=aiu_validation_info,
+        if not args.save_cpu_validation_only:
+            aiu_validation_info = generate_aiu_validation(
+                args=args,
+                model=model,
+                input_ids=input_ids,
                 cpu_validation_info=cpu_validation_info,
-                program_id=program_id,
-                prompt_shape=valid_prompt,
-                tokenizer=tokenizer,
-            )
-            if failure_rate > args.failure_rate_threshold:
-                failed_cases.append((program_id, valid_prompt, failure_rate))
-
-        elif args.test_type == "tokens":
-            run_tokens_test(
-                max_new_tokens=args.max_new_tokens,
-                aiu_validation_info=aiu_validation_info,
-                cpu_validation_info=cpu_validation_info,
-                program_id=program_id,
-                tokenizer=tokenizer,
+                extra_kwargs=extra_kwargs,
             )
 
-        else:
-            raise ValueError("test type must be one of metrics or tokens")
+            if args.test_type == "metrics":
+                failure_rate = run_metrics_test(
+                    cross_entropy_threshold=args.cross_entropy_threshold,
+                    aiu_validation_info=aiu_validation_info,
+                    cpu_validation_info=cpu_validation_info,
+                    program_id=program_id,
+                    prompt_shape=valid_prompt,
+                    tokenizer=tokenizer,
+                )
+                if failure_rate > args.failure_rate_threshold:
+                    failed_cases.append((program_id, valid_prompt, failure_rate))
 
-        if args.skip_validation and local_rank == 0:
-            for sentence_idx, test_sentence in enumerate(
-                aiu_validation_info.get_info("tokens")
-            ):
-                tokens_prompt = [
-                    t.item() for t in test_sentence[: -args.max_new_tokens]
-                ]
-                aiu_tokens_generated = [
-                    t.item() for t in test_sentence[-args.max_new_tokens :]
-                ]
-                dprint(f"For Program {program_id} in sentence {sentence_idx + 1}:")
-                dprint(f"Prompt:\n{tokenizer.decode(tokens_prompt)}")
-                dprint(f"AIU tokens:\n{aiu_tokens_generated}")
-                dprint(f"AIU output:\n{tokenizer.decode(aiu_tokens_generated)}")
+            elif args.test_type == "tokens":
+                run_tokens_test(
+                    max_new_tokens=args.max_new_tokens,
+                    aiu_validation_info=aiu_validation_info,
+                    cpu_validation_info=cpu_validation_info,
+                    program_id=program_id,
+                    tokenizer=tokenizer,
+                )
 
-    if not args.skip_validation and local_rank == 0:
+            else:
+                raise ValueError("test type must be one of metrics or tokens")
+
+            if args.skip_validation and local_rank == 0:
+                for sentence_idx, test_sentence in enumerate(
+                    aiu_validation_info.get_info("tokens")
+                ):
+                    tokens_prompt = [
+                        t.item() for t in test_sentence[: -args.max_new_tokens]
+                    ]
+                    aiu_tokens_generated = [
+                        t.item() for t in test_sentence[-args.max_new_tokens :]
+                    ]
+                    dprint(f"For Program {program_id} in sentence {sentence_idx + 1}:")
+                    dprint(f"Prompt:\n{tokenizer.decode(tokens_prompt)}")
+                    dprint(f"AIU tokens:\n{aiu_tokens_generated}")
+                    dprint(f"AIU output:\n{tokenizer.decode(aiu_tokens_generated)}")
+
+
+    if not args.skip_validation and not args.save_cpu_validation_only and local_rank == 0:
         if len(failed_cases) != 0:
             dprint("The test failed with the following cases:")
             for failed_case in failed_cases:
