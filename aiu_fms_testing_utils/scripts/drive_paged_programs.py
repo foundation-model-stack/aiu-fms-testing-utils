@@ -349,9 +349,6 @@ def get_distributed_kwargs(
         aiu_dist_setup(dist.get_rank(), dist.get_world_size())
         distributed_kwargs["distributed_strategy"] = "tp"
         distributed_kwargs["group"] = dist.group.WORLD
-        save_validation_info_outputs = save_validation_info_outputs and (
-            dist.get_rank() == 0
-        )
 
     return distributed_kwargs
 
@@ -811,6 +808,9 @@ def main():
     # distributed_kwargs is empty if not distributed
     distributed_kwargs = get_distributed_kwargs(
         args.distributed, args.dist_timeout, args.save_validation_info_outputs
+    )
+    args.save_validation_info_outputs = args.save_validation_info_outputs and (
+        dist.get_rank() == 0
     )
 
     model = load_model(
