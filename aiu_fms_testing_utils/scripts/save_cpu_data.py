@@ -89,25 +89,30 @@ def process_row(row):
         "input_ids": input_ids,
         "validation": cpu_validation_info
     }
-with ThreadPoolExecutor(max_workers=1) as executor:
-    results = list(executor.map(process_row, dataset))
+
+for row in dataset:
+    result = process_row(row)
+# with ThreadPoolExecutor(max_workers=1) as executor:
+#     results = list(executor.map(process_row, dataset))
 
     # save the results
     validation_info = {}
-    for result in results:
-        tokens = result["validation"].get_info("tokens")
-        logits = result["validation"].get_info("logits")
-        logprobs = []
-        for step_num, logits_for_step in enumerate(logits[0]):
-            logprobs.append(torch.nn.functional.log_softmax(logits_for_step, dim=-1))
-        validation_info[result["id"]] = {
-            "logprobs": logprobs,
-            "tokens": tokens,
-            "text": "".join([tokenizer.decode(tensor.tolist(), \
-                                               skip_special_tokens=True) for \
-                            tensor in tokens[0][-8:]])
-        }
+    # for result in results:
+    tokens = result["validation"].get_info("tokens")
+    generated_tokens = tokens[0][-max_new_tokens:]
+    logits = result["validation"].get_info("logits")
+    logprobs = []
+    for step_num, logits_for_step in enumerate(logits[0]):
+        logprobs.append(torch.nn.functional.log_softmax(logits_for_step, dim=-1))
+    validation_info[result["id"]] = {
+        "logprobs": logprobs,
+        "tokens": generated_tokens,
+        "text": "".join([tokenizer.decode(tensor.tolist(), \
+                                            skip_special_tokens=True) for \
+                        tensor in generated_tokens])
+    }
 
-    
-    torch.save(validation_info, "cpu_validation_info.pt") 
+
+    torch.save(validation_info, f"{result["id"]}-cpu_validation_info.pt")
+    print("finished saving cpu validation info for id: ", result["id"])
 
