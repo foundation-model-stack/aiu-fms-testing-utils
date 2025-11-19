@@ -1,1 +1,0 @@
-aiu_fms_testing_utils/scripts/save_cpu_data.py
