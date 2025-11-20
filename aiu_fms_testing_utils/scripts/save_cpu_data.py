@@ -1,5 +1,4 @@
 import json
-import os
 from aiu_fms_testing_utils.testing.validation import LogitsExtractorHook, extract_validation_information
 from fms.models import get_model
 from transformers import AutoTokenizer
@@ -65,7 +64,7 @@ model_path_kwargs = {"variant": model_variant}
 validation_model = get_model(
             architecture="hf_pretrained",
             device_type="cpu",
-            data_type=None if is_fp8 else torch.float32,
+            data_type=None if is_fp8 else torch.bfloat16,
             fused_weights=False,
             **model_path_kwargs,
         )
@@ -77,7 +76,8 @@ def process_row(row):
     prompt_text = row["prompt"]
     input_ids = torch.tensor(tokenizer.encode(prompt_text)).unsqueeze(0)
     print("fetching cpu validation info for id: ", id)
-    cpu_validation_info = extract_validation_information(
+    with torch.no_grad():
+        cpu_validation_info = extract_validation_information(
             validation_model,
             input_ids,
             max_new_tokens,
@@ -90,14 +90,18 @@ def process_row(row):
         "validation": cpu_validation_info
     }
 
+results = []
 for row in dataset:
     result = process_row(row)
-# with ThreadPoolExecutor(max_workers=1) as executor:
+    results.append(result)
+    torch.save(result, f"{result["id"]} - cpu_validation_info.pt")
+    print("saved cpu validation info for id: ", result["id"])
+# with ThreadPoolExecutor(max_workers=5) as executor:
 #     results = list(executor.map(process_row, dataset))
 
-    # save the results
-    validation_info = {}
-    # for result in results:
+# save the results
+validation_info = {}
+for result in results:
     tokens = result["validation"].get_info("tokens")
     generated_tokens = tokens[0][-max_new_tokens:]
     logits = result["validation"].get_info("logits")
@@ -113,6 +117,6 @@ for row in dataset:
     }
 
 
-    torch.save(validation_info, f"{result["id"]}-cpu_validation_info.pt")
-    print("finished saving cpu validation info for id: ", result["id"])
+torch.save(validation_info, "cpu_validation_info.pt")
+print("finished saving cpu validation info for id: ", result["id"])
 
