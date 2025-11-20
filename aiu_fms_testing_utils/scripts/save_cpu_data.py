@@ -51,6 +51,12 @@ parser.add_argument(
     help="set this if you want to change the number of tokens generated per sequence (1 prefill + max_new_tokens-1 decodes). Note: If this value is larger than 64, this may result in switching decode programs mid generation",
 )
 parser.add_argument(
+    "--max_workers",
+    type=int,
+    default=8,
+    help="max workers to run in parallel",
+)
+parser.add_argument(
     "--dataset_path",
     type=str,
     help="path to dataset",
@@ -90,12 +96,12 @@ def process_row(row):
         "validation": cpu_validation_info
     }
 
-validation_info = {}
-# results = []
-for row in dataset:
-    result = process_row(row)
-    # results.append(result)
+with ThreadPoolExecutor(max_workers=args.max_workers) as executor:
+    results = list(executor.map(process_row, dataset))
 
+# save the results
+validation_info = {}
+for result in results:
     tokens = result["validation"].get_info("tokens")
     generated_tokens_tensor = tokens[0][-max_new_tokens:]
     generated_tokens = [token.item() for token in generated_tokens_tensor]
@@ -104,6 +110,8 @@ for row in dataset:
     for step_num, logits_for_step in enumerate(logits[0]):
         logprob_for_step = torch.nn.functional.log_softmax(logits_for_step, dim=-1)
         values, indices = torch.topk(logprob_for_step, k=100)
+        # in case we want to save a new tensor?
+        # but this will also take memory
         # top_logprobs = torch.full_like(logprobs, float('-inf'))
         # top_logprobs.scatter_(1, indices, values)
         top_logprob_dict = {
@@ -116,43 +124,8 @@ for row in dataset:
         "tokens": generated_tokens,
         "text": tokenizer.decode(generated_tokens)
     }
-    with open(f"{result["id"]} - cpu_validation_info123.json", "w") as f:
-        json.dump(validation_info, f, indent=4)
 
-
-    # torch.save(validation_info, f"{result["id"]} - cpu_validation_info_top_dict.pt")
-    # torch.save(result, f"{result["id"]} - cpu_validation_info1.pt")
-    # print("saved cpu validation info for id: ", result["id"])
-# with ThreadPoolExecutor(max_workers=5) as executor:
-#     results = list(executor.map(process_row, dataset))
-
-# save the results
-# validation_info = {}
-# for result in results:
-#     tokens = result["validation"].get_info("tokens")
-#     generated_tokens = tokens[0][-max_new_tokens:]
-#     logits = result["validation"].get_info("logits")
-#     logprobs = []
-#     top_logprob_dict_list = []
-#     for step_num, logits_for_step in enumerate(logits[0]):
-#         logprobs.append(torch.nn.functional.log_softmax(logits_for_step, dim=-1))
-#         values, indices = torch.topk(logprobs, k=100)
-#         # top_logprobs = torch.full_like(logprobs, float('-inf'))
-#         # top_logprobs.scatter_(1, indices, values)
-#         top_logprob_dict = {
-#             int(idx): float(val)
-#             for idx, val in zip(indices[0], values[0])
-#         }
-#     validation_info[result["id"]] = {
-#         "logprobs": top_logprob_dict,
-#         "tokens": generated_tokens,
-#         "text": "".join([tokenizer.decode(tensor.tolist(), \
-#                                             skip_special_tokens=True) for \
-#                         tensor in generated_tokens])
-#     }
-
-
-# torch.save(validation_info, "cpu_validation_info_top_dict.pt")
+# save the final result
 with open("cpu_validation_info.json", "w") as f:
         json.dump(validation_info, f, indent=4)
 print("all done!")
