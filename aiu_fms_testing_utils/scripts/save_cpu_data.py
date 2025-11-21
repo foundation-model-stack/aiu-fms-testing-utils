@@ -96,12 +96,14 @@ def process_row(row):
         "validation": cpu_validation_info
     }
 
-with ThreadPoolExecutor(max_workers=args.max_workers) as executor:
-    results = list(executor.map(process_row, dataset))
+# with ThreadPoolExecutor(max_workers=args.max_workers) as executor:
+#     results = list(executor.map(process_row, dataset))
 
 # save the results
 validation_info = {}
-for result in results:
+for row in dataset:
+    result = process_row(row)
+# for result in results:
     tokens = result["validation"].get_info("tokens")
     generated_tokens_tensor = tokens[0][-max_new_tokens:]
     generated_tokens = [token.item() for token in generated_tokens_tensor]
@@ -124,6 +126,10 @@ for result in results:
         "tokens": generated_tokens,
         "text": tokenizer.decode(generated_tokens)
     }
+    with open(f"{result["id"]}_cpu_validation_info.json", "w") as f:
+        json.dump(validation_info, f, indent=4)
+    print(f"Done for {result["id"]}")
+
 
 # save the final result
 with open("cpu_validation_info.json", "w") as f:
