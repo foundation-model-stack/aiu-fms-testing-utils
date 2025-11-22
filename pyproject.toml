@@ -39,7 +39,7 @@ dependencies = [
 "sentencepiece>=0.2.0,<0.3.0",
 "numpy>=1.26.4,<2.3.0",
 "transformers>=4.45,<=4.58",
-"torch==2.7.1",
+"torch>=2.7.1,<2.10.0",
 ]
 
 # This section installs command line executables that point to specific scripts
