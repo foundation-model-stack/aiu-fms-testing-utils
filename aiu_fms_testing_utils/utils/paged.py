@@ -229,8 +229,8 @@ def generate(
 
     # if using chunked prefill, reserve a pad block
     # reserving a pad block is required as writes to pad are done in parallel and could corrupt the real blocks
+    pad_block_id = block_numbers.pop(0)
     if prefill_chunk_size > 0:
-        pad_block_id = block_numbers.pop(0)
         pad_slots = [(pad_block_id * BLOCK_SIZE) + pos_i for pos_i in range(BLOCK_SIZE)]
 
     slot_mapping = []
@@ -239,7 +239,7 @@ def generate(
     for seq_tkv in context_lengths:
         block_table_i = [block_numbers.pop(0) for _ in range(seq_tkv // BLOCK_SIZE)]
         # pad block_table_i for the real padded length
-        block_table_i = [block_table_i[0]] * (
+        block_table_i = [pad_block_id] * (
             (input_ids.shape[1] - seq_tkv) // BLOCK_SIZE
         ) + block_table_i
         slot_mapping_i = []
@@ -408,23 +408,31 @@ def generate(
                         ).unsqueeze(0)
 
                         block_end = chunk_end // BLOCK_SIZE
+                        pad_idx = (input_ids.shape[1] - current_tkv) // BLOCK_SIZE
                         block_table_seq_chunk = torch.tensor(
                             [pad_block_id]
                             * (
                                 (prefill_chunk_size - chunk_end - chunk_start)
                                 // BLOCK_SIZE
                             )
-                            + block_table[seq_i][:block_end],
+                            + block_table[seq_i][pad_idx:pad_idx+block_end],
                             dtype=torch.int64,
                         ).unsqueeze(0)
                         if dist.get_rank() == 0:
+                            print("\n block table seq is", block_table[seq_i])
+                            print("\n current tkv: ", current_tkv)
+                            print("\n prefill_chunk_size: ", prefill_chunk_size)
+                            print("\n block end", block_end)
                             print("\n block_table_seq_chunk", block_table_seq_chunk)
-                            print("\n slot_mapping_seq_chunk", slot_mapping_seq_chunk)
-                            print("\n position_ids", position_ids_seq_chunk)
-                            print("\n left_padded_prompt_mask_seq_chunk", left_padded_prompt_mask_seq_chunk)
-                            print("\n current_tkv_mask_seq_chunk", current_tkv_mask_seq_chunk)
-                            print("\n input ids seq chunk", input_ids_seq_chunk)
-                            print("\n block table is", block_table)
+                            print("\n pad index", (input_ids.shape[1] - current_tkv) // BLOCK_SIZE )
+                            #pad_idx = (input_ids.shape[1] - current_tkv) // BLOCK_SIZE
+                            #print("\n except pad", block_table[seq_i][pad_idx :pad_idx + block_end])
+                            #print("\n slot_mapping_seq_chunk", slot_mapping_seq_chunk)
+                            #print("\n position_ids", position_ids_seq_chunk)
+                            #print("\n left_padded_prompt_mask_seq_chunk", left_padded_prompt_mask_seq_chunk)
+                            #print("\n current_tkv_mask_seq_chunk", current_tkv_mask_seq_chunk)
+                            #print("\n input ids seq chunk", input_ids_seq_chunk)
+                            
 
                         chunked_kwargs = {
                             "slot_mapping": slot_mapping_seq_chunk,
