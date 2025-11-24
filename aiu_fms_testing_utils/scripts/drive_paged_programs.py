@@ -421,6 +421,18 @@ warmup_model(
     **extra_kwargs,
 )
 
+# do an extra inference call to workaround the issue on z/OS where the first inference
+# result is always incorrect during multi-AIU (issue 173)
+extract_validation_information(
+    model,
+    input_ids,
+    max_new_tokens,
+    post_iteration_hook=None,
+    last_n_tokens=64,
+    prefill_chunk_size=args.prefill_chunk_size,
+    **extra_kwargs,
+)
+
 if USE_DISTRIBUTED:
     # wait for rank0 to be finished as it is the only one generating the criteria json
     # this is needed since otherwise we may run into a race condition
