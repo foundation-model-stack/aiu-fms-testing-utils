@@ -6,7 +6,7 @@ from typing import Any, Callable, List, MutableMapping, Optional, Tuple, Union
 import torch
 import fms.utils.spyre.paged  # noqa
 from aiu_fms_testing_utils.utils import get_pad_size
-
+import torch.distributed as dist
 
 def adjust_inputs_to_batch(input_ids: torch.Tensor, **extra_kwargs):
     """
@@ -251,6 +251,7 @@ def generate(
             slot_mapping_i.append(slot)
         slot_mapping.append(slot_mapping_i)
         block_table.append(block_table_i)
+    
     kwargs["current_tkv_mask"] = None
     kwargs["left_padded_prompt_mask"] = None
     kwargs["use_cache"] = use_cache
@@ -326,18 +327,25 @@ def generate(
                     for chunk_j in range(math.ceil(current_tkv / prefill_chunk_size)):
                         # chunk_start and chunk_end are the index mappings from the original sequence
                         if chunk_j == 0:
+                            print("\n chunk start is 0")
                             chunk_start = 0
                             chunk_end = prefill_chunk_size - required_extra_pads
-                        else:
+                        else: 
+                            print("\n chunk start is chunk end")
                             required_extra_pads = 0
                             chunk_start = chunk_end
                             chunk_end += prefill_chunk_size
 
-                        input_ids_seq_chunk = input_ids[seq_i][chunk_start:chunk_end]
-                        slot_mapping_seq_chunk = slot_mapping[seq_i][
+                        torch.set_printoptions(profile="full")
+                        # if dist.get_rank() == 0:
+                        #     print("\n input ids before chunking", input_ids[seq_i][-current_tkv:])
+                        input_ids_seq_chunk = input_ids[seq_i][-current_tkv:][chunk_start:chunk_end]
+                        # if dist.get_rank() == 0:
+                        #     print("\n input ids after chunking", input_ids_seq_chunk)
+                        slot_mapping_seq_chunk = slot_mapping[seq_i][-current_tkv:][
                             chunk_start:chunk_end
                         ]
-                        position_ids_seq_chunk = kwargs["position_ids"][seq_i][
+                        position_ids_seq_chunk = kwargs["position_ids"][seq_i][-current_tkv:][
                             chunk_start:chunk_end
                         ]
 
@@ -409,6 +417,14 @@ def generate(
                             + block_table[seq_i][:block_end],
                             dtype=torch.int64,
                         ).unsqueeze(0)
+                        if dist.get_rank() == 0:
+                            print("\n block_table_seq_chunk", block_table_seq_chunk)
+                            print("\n slot_mapping_seq_chunk", slot_mapping_seq_chunk)
+                            print("\n position_ids", position_ids_seq_chunk)
+                            print("\n left_padded_prompt_mask_seq_chunk", left_padded_prompt_mask_seq_chunk)
+                            print("\n current_tkv_mask_seq_chunk", current_tkv_mask_seq_chunk)
+                            print("\n input ids seq chunk", input_ids_seq_chunk)
+                            print("\n block table is", block_table)
 
                         chunked_kwargs = {
                             "slot_mapping": slot_mapping_seq_chunk,
@@ -433,7 +449,10 @@ def generate(
                         torch._dynamo.mark_dynamic(slot_mapping_seq_chunk, 1)
                         torch._dynamo.mark_dynamic(position_ids_seq_chunk, 1)
                         torch._dynamo.mark_dynamic(block_table_seq_chunk, 1)
-
+                        
+                        torch.set_printoptions(profile="full")
+                        # if dist.get_rank() == 0:
+                        #     print("\n input ids seq chunk", input_ids_seq_chunk)
                         logits, current_kv_cache = model(
                             input_ids_seq_chunk, **chunked_kwargs
                         )
