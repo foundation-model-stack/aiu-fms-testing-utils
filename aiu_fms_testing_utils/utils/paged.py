@@ -7,6 +7,7 @@ import torch
 import fms.utils.spyre.paged  # noqa
 from aiu_fms_testing_utils.utils import get_pad_size
 
+
 def adjust_inputs_to_batch(input_ids: torch.Tensor, **extra_kwargs):
     """
     Adjusts the inputs to a batch. Batch size 1 cannot be handled since we want a symbolic shape for the batch
@@ -435,7 +436,7 @@ def generate(
                         torch._dynamo.mark_dynamic(slot_mapping_seq_chunk, 1)
                         torch._dynamo.mark_dynamic(position_ids_seq_chunk, 1)
                         torch._dynamo.mark_dynamic(block_table_seq_chunk, 1)
-        
+
                         logits, current_kv_cache = model(
                             input_ids_seq_chunk, **chunked_kwargs
                         )
