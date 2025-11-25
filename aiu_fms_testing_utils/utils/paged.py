@@ -334,7 +334,6 @@ def generate(
                             chunk_start = chunk_end
                             chunk_end += prefill_chunk_size
 
-                        torch.set_printoptions(profile="full")
                         input_ids_seq_chunk = input_ids[seq_i][-current_tkv:][chunk_start:chunk_end]
                         slot_mapping_seq_chunk = slot_mapping[seq_i][-current_tkv:][
                             chunk_start:chunk_end
@@ -414,6 +413,7 @@ def generate(
                             dtype=torch.int64,
                         ).unsqueeze(0)
                         if dist.get_rank() == 0:
+                            torch.set_printoptions(profile="full")
                             print("\n block table seq is", block_table[seq_i])
                             print("\n current tkv: ", current_tkv)
                             print("\n prefill_chunk_size: ", prefill_chunk_size)
