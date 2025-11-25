@@ -327,21 +327,15 @@ def generate(
                     for chunk_j in range(math.ceil(current_tkv / prefill_chunk_size)):
                         # chunk_start and chunk_end are the index mappings from the original sequence
                         if chunk_j == 0:
-                            print("\n chunk start is 0")
                             chunk_start = 0
                             chunk_end = prefill_chunk_size - required_extra_pads
                         else: 
-                            print("\n chunk start is chunk end")
                             required_extra_pads = 0
                             chunk_start = chunk_end
                             chunk_end += prefill_chunk_size
 
                         torch.set_printoptions(profile="full")
-                        # if dist.get_rank() == 0:
-                        #     print("\n input ids before chunking", input_ids[seq_i][-current_tkv:])
                         input_ids_seq_chunk = input_ids[seq_i][-current_tkv:][chunk_start:chunk_end]
-                        # if dist.get_rank() == 0:
-                        #     print("\n input ids after chunking", input_ids_seq_chunk)
                         slot_mapping_seq_chunk = slot_mapping[seq_i][-current_tkv:][
                             chunk_start:chunk_end
                         ]
@@ -408,14 +402,15 @@ def generate(
                         ).unsqueeze(0)
 
                         block_end = chunk_end // BLOCK_SIZE
-                        pad_idx = (input_ids.shape[1] - current_tkv) // BLOCK_SIZE
+                        block_pad_idx = (input_ids.shape[1] - current_tkv) // BLOCK_SIZE
+
                         block_table_seq_chunk = torch.tensor(
                             [pad_block_id]
                             * (
                                 (prefill_chunk_size - chunk_end - chunk_start)
                                 // BLOCK_SIZE
                             )
-                            + block_table[seq_i][pad_idx:pad_idx+block_end],
+                            + block_table[seq_i][block_pad_idx:block_pad_idx+block_end],
                             dtype=torch.int64,
                         ).unsqueeze(0)
                         if dist.get_rank() == 0:
@@ -458,9 +453,6 @@ def generate(
                         torch._dynamo.mark_dynamic(position_ids_seq_chunk, 1)
                         torch._dynamo.mark_dynamic(block_table_seq_chunk, 1)
                         
-                        torch.set_printoptions(profile="full")
-                        # if dist.get_rank() == 0:
-                        #     print("\n input ids seq chunk", input_ids_seq_chunk)
                         logits, current_kv_cache = model(
                             input_ids_seq_chunk, **chunked_kwargs
                         )
