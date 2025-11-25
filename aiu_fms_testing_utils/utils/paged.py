@@ -251,7 +251,7 @@ def generate(
             slot_mapping_i.append(slot)
         slot_mapping.append(slot_mapping_i)
         block_table.append(block_table_i)
-    
+
     kwargs["current_tkv_mask"] = None
     kwargs["left_padded_prompt_mask"] = None
     kwargs["use_cache"] = use_cache
@@ -335,13 +335,15 @@ def generate(
                             chunk_start = chunk_end
                             chunk_end += prefill_chunk_size
 
-                        input_ids_seq_chunk = input_ids[seq_i][-current_tkv:][chunk_start:chunk_end]
+                        input_ids_seq_chunk = input_ids[seq_i][-current_tkv:][
+                            chunk_start:chunk_end
+                        ]
                         slot_mapping_seq_chunk = slot_mapping[seq_i][-current_tkv:][
                             chunk_start:chunk_end
                         ]
-                        position_ids_seq_chunk = kwargs["position_ids"][seq_i][-current_tkv:][
-                            chunk_start:chunk_end
-                        ]
+                        position_ids_seq_chunk = kwargs["position_ids"][seq_i][
+                            -current_tkv:
+                        ][chunk_start:chunk_end]
 
                         # add the extra required padding to chunk
                         if required_extra_pads > 0:
@@ -405,11 +407,10 @@ def generate(
                         # length of padding or index until padding has occured in block table
                         block_pad_len = (input_ids.shape[1] - current_tkv) // BLOCK_SIZE
                         block_table_seq_chunk = torch.tensor(
-                            [pad_block_id]
-                            * (
-                                block_seq_left_padding
-                            )
-                            + block_table[seq_i][block_pad_len:block_pad_len+block_end],
+                            [pad_block_id] * (block_seq_left_padding)
+                            + block_table[seq_i][
+                                block_pad_len : block_pad_len + block_end
+                            ],
                             dtype=torch.int64,
                         ).unsqueeze(0)
 
