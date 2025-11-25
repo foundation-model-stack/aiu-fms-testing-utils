@@ -329,6 +329,7 @@ def generate(
                         if chunk_j == 0:
                             chunk_start = 0
                             chunk_end = prefill_chunk_size - required_extra_pads
+                            block_left_padding = (prefill_chunk_size) - (chunk_end-chunk_start)
                         else: 
                             required_extra_pads = 0
                             chunk_start = chunk_end
@@ -402,11 +403,10 @@ def generate(
 
                         block_end = chunk_end // BLOCK_SIZE
                         block_pad_idx = (input_ids.shape[1] - current_tkv) // BLOCK_SIZE
-
                         block_table_seq_chunk = torch.tensor(
                             [pad_block_id]
                             * (
-                                (prefill_chunk_size - chunk_end - chunk_start)
+                                block_left_padding
                                 // BLOCK_SIZE
                             )
                             + block_table[seq_i][block_pad_idx:block_pad_idx+block_end],
