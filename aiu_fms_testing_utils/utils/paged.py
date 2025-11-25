@@ -229,8 +229,8 @@ def generate(
 
     # if using chunked prefill, reserve a pad block
     # reserving a pad block is required as writes to pad are done in parallel and could corrupt the real blocks
-    pad_block_id = block_numbers.pop(0)
     if prefill_chunk_size > 0:
+        pad_block_id = block_numbers.pop(0)
         pad_slots = [(pad_block_id * BLOCK_SIZE) + pos_i for pos_i in range(BLOCK_SIZE)]
 
     slot_mapping = []
@@ -239,7 +239,7 @@ def generate(
     for seq_tkv in context_lengths:
         block_table_i = [block_numbers.pop(0) for _ in range(seq_tkv // BLOCK_SIZE)]
         # pad block_table_i for the real padded length
-        block_table_i = [pad_block_id] * (
+        block_table_i = [block_table_i[0]] * (
             (input_ids.shape[1] - seq_tkv) // BLOCK_SIZE
         ) + block_table_i
         slot_mapping_i = []
@@ -322,6 +322,7 @@ def generate(
                     left_padded_prompt_mask_seq_chunk = (
                         left_padded_prompt_mask_seq_chunk.unsqueeze(0)
                     )
+                    block_seq_left_padding = required_extra_pads // BLOCK_SIZE
 
                     # Chunked prefill
                     for chunk_j in range(math.ceil(current_tkv / prefill_chunk_size)):
@@ -329,7 +330,6 @@ def generate(
                         if chunk_j == 0:
                             chunk_start = 0
                             chunk_end = prefill_chunk_size - required_extra_pads
-                            block_left_padding = (prefill_chunk_size) - (chunk_end-chunk_start)
                         else: 
                             required_extra_pads = 0
                             chunk_start = chunk_end
@@ -406,8 +406,7 @@ def generate(
                         block_table_seq_chunk = torch.tensor(
                             [pad_block_id]
                             * (
-                                block_left_padding
-                                // BLOCK_SIZE
+                                block_seq_left_padding
                             )
                             + block_table[seq_i][block_pad_idx:block_pad_idx+block_end],
                             dtype=torch.int64,
