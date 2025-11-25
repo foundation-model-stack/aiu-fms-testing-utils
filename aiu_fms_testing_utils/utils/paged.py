@@ -6,7 +6,6 @@ from typing import Any, Callable, List, MutableMapping, Optional, Tuple, Union
 import torch
 import fms.utils.spyre.paged  # noqa
 from aiu_fms_testing_utils.utils import get_pad_size
-import torch.distributed as dist
 
 def adjust_inputs_to_batch(input_ids: torch.Tensor, **extra_kwargs):
     """
@@ -330,7 +329,7 @@ def generate(
                         if chunk_j == 0:
                             chunk_start = 0
                             chunk_end = prefill_chunk_size - required_extra_pads
-                        else: 
+                        else:
                             required_extra_pads = 0
                             chunk_start = chunk_end
                             chunk_end += prefill_chunk_size
@@ -402,31 +401,16 @@ def generate(
                         ).unsqueeze(0)
 
                         block_end = chunk_end // BLOCK_SIZE
-                        block_pad_idx = (input_ids.shape[1] - current_tkv) // BLOCK_SIZE
+                        # length of padding or index until padding has occured in block table
+                        block_pad_len = (input_ids.shape[1] - current_tkv) // BLOCK_SIZE
                         block_table_seq_chunk = torch.tensor(
                             [pad_block_id]
                             * (
                                 block_seq_left_padding
                             )
-                            + block_table[seq_i][block_pad_idx:block_pad_idx+block_end],
+                            + block_table[seq_i][block_pad_len:block_pad_len+block_end],
                             dtype=torch.int64,
                         ).unsqueeze(0)
-                        if dist.get_rank() == 0:
-                            torch.set_printoptions(profile="full")
-                            print("\n block table seq is", block_table[seq_i])
-                            print("\n current tkv: ", current_tkv)
-                            print("\n prefill_chunk_size: ", prefill_chunk_size)
-                            print("\n block end", block_end)
-                            print("\n block_table_seq_chunk", block_table_seq_chunk)
-                            print("\n pad index", (input_ids.shape[1] - current_tkv) // BLOCK_SIZE )
-                            #pad_idx = (input_ids.shape[1] - current_tkv) // BLOCK_SIZE
-                            #print("\n except pad", block_table[seq_i][pad_idx :pad_idx + block_end])
-                            #print("\n slot_mapping_seq_chunk", slot_mapping_seq_chunk)
-                            #print("\n position_ids", position_ids_seq_chunk)
-                            #print("\n left_padded_prompt_mask_seq_chunk", left_padded_prompt_mask_seq_chunk)
-                            #print("\n current_tkv_mask_seq_chunk", current_tkv_mask_seq_chunk)
-                            #print("\n input ids seq chunk", input_ids_seq_chunk)
-                            
 
                         chunked_kwargs = {
                             "slot_mapping": slot_mapping_seq_chunk,
@@ -451,7 +435,7 @@ def generate(
                         torch._dynamo.mark_dynamic(slot_mapping_seq_chunk, 1)
                         torch._dynamo.mark_dynamic(position_ids_seq_chunk, 1)
                         torch._dynamo.mark_dynamic(block_table_seq_chunk, 1)
-                        
+        
                         logits, current_kv_cache = model(
                             input_ids_seq_chunk, **chunked_kwargs
                         )
