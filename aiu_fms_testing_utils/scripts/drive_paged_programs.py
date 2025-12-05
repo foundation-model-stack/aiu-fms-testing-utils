@@ -288,6 +288,8 @@ def __prepare_inputs(batch_size, seq_length, tokenizer, enforce_sizes=[], seed=0
             encoded = encoded[:seq_length]
         prompt_list.append(encoded)
 
+    if not prompt_list:
+        raise ValueError(f"No valid prompt sample exists in dataset for input shape (Batch Size={batch_size}, Seq Length={seq_length})")
     if len(prompt_list) < batch_size:
         dprint(
             f"You requested {batch_size} prompts but we were only able to get {len(prompt_list)} valid prompts. We will be repeating the first prompt."
