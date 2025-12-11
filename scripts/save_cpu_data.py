@@ -1,1 +1,1 @@
-/Users/prashantgupta/Documents/code/ibm/aiu-fms-testing-utils/aiu_fms_testing_utils/scripts/save_cpu_data.py
+../aiu_fms_testing_utils/scripts/save_cpu_data.py
