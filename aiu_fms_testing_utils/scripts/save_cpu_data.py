@@ -2,7 +2,10 @@ import json
 from aiu_fms_testing_utils.testing.validation import LogitsExtractorHook, extract_validation_information
 from fms.models import get_model
 from transformers import AutoTokenizer
-from concurrent.futures import ThreadPoolExecutor
+# from concurrent.futures import ThreadPoolExecutor
+# Ideally we want this script to fetch data in parallel
+# But it's proving harder than initially thought
+# Making it work for now, making it fast is second step
 
 import argparse
 import torch
@@ -96,6 +99,7 @@ def process_row(row):
         "validation": cpu_validation_info
     }
 
+# See comment above
 # with ThreadPoolExecutor(max_workers=args.max_workers) as executor:
 #     results = list(executor.map(process_row, dataset))
 
