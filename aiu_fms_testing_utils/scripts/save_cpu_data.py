@@ -1,5 +1,8 @@
 import json
-from aiu_fms_testing_utils.testing.validation import LogitsExtractorHook, extract_validation_information
+from aiu_fms_testing_utils.testing.validation import (
+    LogitsExtractorHook,
+    extract_validation_information,
+)
 from fms.models import get_model
 from transformers import AutoTokenizer
 # from concurrent.futures import ThreadPoolExecutor
@@ -12,23 +15,23 @@ import torch
 
 
 def load_jsonl(path):
-        """
-        Loads a JSONL file.
-        - If field is None: returns a list of dicts (one per line).
-        - If field is a string: returns a list of obj[field] (only non-None values).
-        """
-        data = []
-        with open(path, "r", encoding="utf-8") as f:
-            for idx, line in enumerate(f):
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    obj = json.loads(line)
-                except (ValueError, json.JSONDecodeError) as e:
-                    print(f"Failed to parse line {idx} in {path}: {e}")
-                data.append(obj)
-        return data
+    """
+    Loads a JSONL file.
+    - If field is None: returns a list of dicts (one per line).
+    - If field is a string: returns a list of obj[field] (only non-None values).
+    """
+    data = []
+    with open(path, "r", encoding="utf-8") as f:
+        for idx, line in enumerate(f):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+            except (ValueError, json.JSONDecodeError) as e:
+                print(f"Failed to parse line {idx} in {path}: {e}")
+            data.append(obj)
+    return data
 
 
 parser = argparse.ArgumentParser(
@@ -71,15 +74,17 @@ model_variant = args.model_variant
 tokenizer = AutoTokenizer.from_pretrained(model_variant)
 model_path_kwargs = {"variant": model_variant}
 validation_model = get_model(
-            architecture="hf_pretrained",
-            device_type="cpu",
-            data_type=None if is_fp8 else torch.bfloat16,
-            fused_weights=False,
-            **model_path_kwargs,
-        )
+    architecture="hf_pretrained",
+    device_type="cpu",
+    data_type=None if is_fp8 else torch.bfloat16,
+    fused_weights=False,
+    **model_path_kwargs,
+)
 
 # get the input ids for the validation
 dataset = load_jsonl(args.dataset_path)
+
+
 def process_row(row):
     id = row["id"]
     prompt_text = row["prompt"]
@@ -93,11 +98,8 @@ def process_row(row):
             LogitsExtractorHook(),
             attn_algorithm="math",
         )
-    return {
-        "id": id,
-        "input_ids": input_ids,
-        "validation": cpu_validation_info
-    }
+    return {"id": id, "input_ids": input_ids, "validation": cpu_validation_info}
+
 
 # See comment above
 # with ThreadPoolExecutor(max_workers=args.max_workers) as executor:
@@ -107,7 +109,7 @@ def process_row(row):
 validation_info = {}
 for row in dataset:
     result = process_row(row)
-# for result in results:
+    # for result in results:
     tokens = result["validation"].get_info("tokens")
     generated_tokens_tensor = tokens[0][-max_new_tokens:]
     generated_tokens = [token.item() for token in generated_tokens_tensor]
@@ -121,21 +123,20 @@ for row in dataset:
         # top_logprobs = torch.full_like(logprobs, float('-inf'))
         # top_logprobs.scatter_(1, indices, values)
         top_logprob_dict = {
-            int(idx): float(val)
-            for idx, val in zip(indices[0], values[0])
+            int(idx): float(val) for idx, val in zip(indices[0], values[0])
         }
         top_logprobs.append(top_logprob_dict)
     validation_info[result["id"]] = {
         "logprobs": top_logprobs,
         "tokens": generated_tokens,
-        "text": tokenizer.decode(generated_tokens)
+        "text": tokenizer.decode(generated_tokens),
     }
-    with open(f"{result["id"]}_cpu_validation_info.json", "w") as f:
+    with open(f"{result['id']}_cpu_validation_info.json", "w") as f:
         json.dump(validation_info, f, indent=4)
-    print(f"Done for {result["id"]}")
+    print(f"Done for {result['id']}")
 
 
 # save the final result
 with open("cpu_validation_info.json", "w") as f:
-        json.dump(validation_info, f, indent=4)
+    json.dump(validation_info, f, indent=4)
 print("all done!")
