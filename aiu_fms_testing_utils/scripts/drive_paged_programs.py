@@ -554,7 +554,10 @@ def get_valid_prompts(
                             # this will get the number of bits for the sequence length and shift to get the power of 2 that is less than or equal to the sequence length
                             tkv_cutoff = 1 << (valid_prompt_shape[1].bit_length() - 1)
                             possible_seq_lengths = [
-                                _ for _ in range(tkv_cutoff, valid_prompt_shape[1], pad_multiple)
+                                _
+                                for _ in range(
+                                    tkv_cutoff, valid_prompt_shape[1], pad_multiple
+                                )
                             ]
                             # favor sequences that are close to the valid prompt length
                             possible_seq_lengths.reverse()
