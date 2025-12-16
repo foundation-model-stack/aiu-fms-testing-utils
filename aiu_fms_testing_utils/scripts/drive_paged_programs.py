@@ -213,7 +213,6 @@ def __prepare_inputs(
     allow_truncation: bool,
     enforce_sizes: List[int] = [],
     seed: int = 0,
-    pad_multiple: int = 64,
 ):
     start = time.time()
     prompts_and_sizes, sample_key = sampler(
@@ -226,7 +225,6 @@ def __prepare_inputs(
         enforce_sizes=enforce_sizes,
         truncation=allow_truncation,
         return_key=True,
-        pad_multiple=pad_multiple,
     )
     end = time.time()
     if local_rank == 0:
@@ -239,6 +237,10 @@ def __prepare_inputs(
             encoded = encoded[:seq_length]
         prompt_list.append(encoded)
 
+    if not prompt_list:
+        raise ValueError(
+            f"No valid prompt sample exists in dataset for input shape (Batch Size={batch_size}, Seq Length={seq_length})"
+        )
     if len(prompt_list) < batch_size:
         dprint(
             f"You requested {batch_size} prompts but we were only able to get {len(prompt_list)} valid prompts. We will be repeating the first prompt."
@@ -292,7 +294,7 @@ def __load_validation_info(
         return None
 
 
-def parse_program_limit(limit_str: str) -> tuple[int, str]:
+def parse_program_limit(limit_str: str) -> tuple[int, str | None]:
     matcher = re.compile(r"^(<|>|<=|>=|==)(\d+)")
 
     # Default limit to min to maintain backwards compat
@@ -483,7 +485,6 @@ def get_valid_prompts(
     allow_truncation: bool,
     custom_shape: Optional[Tuple[int, int]],
     pad_multiple: int,
-    prefill_chunk_size: int,
 ):
     # select prompts that fit the batch size criteria
     valid_prompts = []
@@ -500,7 +501,6 @@ def get_valid_prompts(
                         dataset_path=dataset_path,
                         allow_truncation=allow_truncation,
                         enforce_sizes=enforce_sizes,
-                        pad_multiple=pad_multiple,
                     )
                     valid_prompts = [
                         (
@@ -550,28 +550,14 @@ def get_valid_prompts(
                         # if there does not exist enough sequence sizes between this range, we will cycle back to the beginning
                         # in the event we don't have enough sequences that satisfy the enforce_sizes, we will repeat sequences and warn the user
                         enforce_sizes = [valid_prompt_shape[1]]
-                        if (
-                            enforce_homogeneous_prompt_programs
-                            or prefill_chunk_size > 0
-                        ):
-                            # if enforcing homogeneous prompt programs, this will get the number of bits for the sequence length and shift to get the power of 2 that is less than or equal to the sequence length
-                            tkv_cutoff = (
-                                1 << (valid_prompt_shape[1].bit_length() - 1)
-                                if enforce_homogeneous_prompt_programs
-                                else pad_multiple
-                            )
+                        if enforce_homogeneous_prompt_programs:
+                            # this will get the number of bits for the sequence length and shift to get the power of 2 that is less than or equal to the sequence length
+                            tkv_cutoff = 1 << (valid_prompt_shape[1].bit_length() - 1)
                             possible_seq_lengths = [
-                                _
-                                for _ in range(
-                                    tkv_cutoff, valid_prompt_shape[1], pad_multiple
-                                )
+                                _ for _ in range(tkv_cutoff, valid_prompt_shape[1], pad_multiple)
                             ]
                             # favor sequences that are close to the valid prompt length
                             possible_seq_lengths.reverse()
-                            # add the valid prompt size to the end since it will already exist in the above enforce_sizes
-                            possible_seq_lengths = possible_seq_lengths + [
-                                valid_prompt_shape[1]
-                            ]
                             enforce_sizes = enforce_sizes + list(
                                 itertools.islice(
                                     itertools.cycle(possible_seq_lengths),
@@ -587,7 +573,6 @@ def get_valid_prompts(
                                 dataset_path=dataset_path,
                                 allow_truncation=allow_truncation,
                                 enforce_sizes=enforce_sizes,
-                                pad_multiple=64,  # this should be the smallest granularity to ensure we get the largest enforce_size (if we choose chunked prefill, we want to make sure we pad to the full enforced size)
                             )
                             valid_prompts.append(
                                 (
@@ -783,6 +768,7 @@ def main():
 
     is_fp8 = "fp8" in args.attention_type
     CPU_DTYPE = "fp8" if is_fp8 else "fp32"
+    PAD_MULTIPLE = 64
 
     torch.manual_seed(42)
     torch.set_grad_enabled(False)
@@ -838,13 +824,7 @@ def main():
     # warmup with any input so compiler produces criteria json
     # TODO: Swap this with __prepare_inputs once fix for shape_id is available
     # input_ids, extra_kwargs, sample_key = __prepare_inputs(2, max_tkv, tokenizer)
-    pad_multiple = 64
-    if args.prefill_chunk_size > 0:
-        assert args.prefill_chunk_size % 64 == 0, (
-            "Chunk size must be a multiple of the page size"
-        )
-        pad_multiple = args.prefill_chunk_size
-    prompt_list = [torch.arange(0, pad_multiple, dtype=torch.int64)]
+    prompt_list = [torch.arange(0, PAD_MULTIPLE, dtype=torch.int64)]
     # matching vllm warmup to pad to 2 on fp8, and no pad for fp16
     if is_fp8:
         prompt_list = prompt_list * 2
@@ -895,7 +875,7 @@ def main():
     # FIXME: filter condition for this on prompt and batch
     program_map = get_programs_prompts(
         program_criteria_list=program_criteria_list,
-        multiple=pad_multiple,
+        multiple=PAD_MULTIPLE,
         max_batch_size=max_batch_size,
         max_tkv=max_tkv,
         program_cycles=args.max_new_tokens,
@@ -920,8 +900,7 @@ def main():
         sampler=sampler,
         allow_truncation=allow_truncation,
         custom_shape=custom_shape,
-        pad_multiple=pad_multiple,
-        prefill_chunk_size=args.prefill_chunk_size,
+        pad_multiple=PAD_MULTIPLE,
     )
 
     ## RUN VALIDATION AND TESTS ##
