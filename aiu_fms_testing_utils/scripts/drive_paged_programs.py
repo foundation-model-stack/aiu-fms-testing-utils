@@ -298,7 +298,11 @@ def __prepare_inputs(batch_size, seq_length, tokenizer, enforce_sizes=[], seed=0
         )
         prompt_list = [prompt_list[0]] * (batch_size - len(prompt_list)) + prompt_list
 
-    input_ids, extra_kwargs = pad_input_ids(prompt_list, min_pad_length=seq_length)
+    if dist.get_rank() == 0:
+        torch.set_printoptions(profile="full")
+        print("\n prompt list in prepare input", prompt_list)
+
+    input_ids, extra_kwargs = pad_input_ids(prompt_list, min_pad_length=seq_length, padding_side="right")
     extra_kwargs["mask"] = extra_kwargs["mask"].to(torch.float16)
     return input_ids, extra_kwargs, sample_key
 
@@ -401,7 +405,11 @@ prompt_list = [torch.arange(0, 64, dtype=torch.int64)]
 # matching vllm warmup to pad to 2 on fp8, and no pad for fp16
 if is_fp8:
     prompt_list = prompt_list * 2
-input_ids, extra_kwargs = pad_input_ids(prompt_list, min_pad_length=64)
+input_ids, extra_kwargs = pad_input_ids(prompt_list, min_pad_length=64, padding_side="right")
+if dist.get_rank() == 0:
+    torch.set_printoptions(profile="full")
+    print("\n input ids after 64 mult pad", input_ids)
+
 extra_kwargs["mask"] = extra_kwargs["mask"].to(torch.float16)
 
 extra_kwargs["attn_name"] = ATTN_NAME

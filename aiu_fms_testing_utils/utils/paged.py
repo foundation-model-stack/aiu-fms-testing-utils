@@ -6,6 +6,7 @@ from typing import Any, Callable, List, MutableMapping, Optional, Tuple, Union
 import torch
 import fms.utils.spyre.paged  # noqa
 from aiu_fms_testing_utils.utils import get_pad_size
+import torch.distributed as dist
 
 
 def adjust_inputs_to_batch(input_ids: torch.Tensor, **extra_kwargs):
@@ -323,6 +324,15 @@ def generate(
                         left_padded_prompt_mask_seq_chunk.unsqueeze(0)
                     )
                     block_seq_left_padding = required_extra_pads // BLOCK_SIZE
+                    
+                    if dist.get_rank() == 0:
+                        torch.set_printoptions(profile="full")
+                        print("\n current_tkv", current_tkv)
+                        print("\n left padding", required_extra_pads)
+                        # print("\n input_ids[seq_i][-current_tkv:][chunk_start:chunk_end]:", input_ids[seq_i][-current_tkv:][
+                        #     chunk_start:chunk_end
+                        # ])
+
 
                     # Chunked prefill
                     for chunk_j in range(math.ceil(current_tkv / prefill_chunk_size)):
@@ -338,6 +348,9 @@ def generate(
                         input_ids_seq_chunk = input_ids[seq_i][-current_tkv:][
                             chunk_start:chunk_end
                         ]
+                        if dist.get_rank() == 0:
+                            torch.set_printoptions(profile="full")
+                            print("\n input_ids[seq_i][-current_tkv:][chunk_start:chunk_end]:", input_ids[seq_i][-current_tkv:][chunk_start:chunk_end])
                         slot_mapping_seq_chunk = slot_mapping[seq_i][-current_tkv:][
                             chunk_start:chunk_end
                         ]
