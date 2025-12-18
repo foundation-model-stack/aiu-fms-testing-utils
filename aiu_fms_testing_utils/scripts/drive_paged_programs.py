@@ -406,7 +406,8 @@ extra_kwargs["mask"] = extra_kwargs["mask"].to(torch.float16)
 
 extra_kwargs["attn_name"] = ATTN_NAME
 if (
-    "granite-3.3-8b-instruct" in model_variant
+    ("granite-3.3-8b-instruct" in model_variant
+     or "Mistral-Small-3.1-24B-Instruct" in model_variant)
     and USE_DISTRIBUTED
     and dist.get_world_size() == 4
 ):
@@ -645,7 +646,8 @@ failed_cases = []
 for program_id, valid_prompt, input_ids, extra_kwargs, sample_key in valid_prompts:
     extra_kwargs["attn_name"] = ATTN_NAME
     if (
-        "granite-3.3-8b-instruct" in model_variant
+        ("granite-3.3-8b-instruct" in model_variant
+        or "Mistral-Small-3.1-24B-Instruct" in model_variant)
         and USE_DISTRIBUTED
         and dist.get_world_size() == 4
     ):
