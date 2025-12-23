@@ -518,6 +518,7 @@ program_map = get_programs_prompts(
 for v in program_map.values():
     random.Random(42).shuffle(v)
 
+
 # select prompts that fit the batch size criteria
 def get_program_prompt_list():
     if custom_shape:
