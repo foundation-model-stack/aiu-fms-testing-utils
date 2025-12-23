@@ -5,6 +5,7 @@ import time
 from typing import Any, Callable, List, MutableMapping, Optional, Tuple, Union
 import torch
 import fms.utils.spyre.paged  # noqa
+from aiu_fms_testing_utils.utils import get_pad_size
 
 
 def adjust_inputs_to_batch(input_ids: torch.Tensor, **extra_kwargs):
@@ -226,6 +227,12 @@ def generate(
     # left_padded_prompt_mask - empty_slots + context_lengths
     current_tkv_mask = torch.fill(context_lengths, input_ids.shape[1])
 
+    # if using chunked prefill, reserve a pad block
+    # reserving a pad block is required as writes to pad are done in parallel and could corrupt the real blocks
+    if prefill_chunk_size > 0:
+        pad_block_id = block_numbers.pop(0)
+        pad_slots = [(pad_block_id * BLOCK_SIZE) + pos_i for pos_i in range(BLOCK_SIZE)]
+
     slot_mapping = []
     block_table = []
     # each sequence has the possibility of a different tkv, so loop over that
@@ -244,6 +251,7 @@ def generate(
             slot_mapping_i.append(slot)
         slot_mapping.append(slot_mapping_i)
         block_table.append(block_table_i)
+
     kwargs["current_tkv_mask"] = None
     kwargs["left_padded_prompt_mask"] = None
     kwargs["use_cache"] = use_cache
@@ -300,64 +308,110 @@ def generate(
                 last_n_tokens = kwargs.get("last_n_tokens", 0)
 
                 if prefill_chunk_size > 0:
-                    left_padded_prompt_mask_seq_chunk = None
+                    required_extra_pads = (
+                        get_pad_size(current_tkv.item(), prefill_chunk_size)
+                        - current_tkv.item()
+                    )
+                    left_padded_prompt_mask_seq_chunk = (
+                        (kwargs["position_ids"][seq_i][-current_tkv.item() :] == 0).sum(
+                            dim=0
+                        )
+                        - 1
+                        + required_extra_pads
+                    )
+                    left_padded_prompt_mask_seq_chunk = (
+                        left_padded_prompt_mask_seq_chunk.unsqueeze(0)
+                    )
+                    block_seq_left_padding = required_extra_pads // BLOCK_SIZE
+
                     # Chunked prefill
                     for chunk_j in range(math.ceil(current_tkv / prefill_chunk_size)):
-                        chunk_start = -current_tkv + chunk_j * prefill_chunk_size
-                        chunk_end = -current_tkv + min(
-                            (chunk_j + 1) * prefill_chunk_size, current_tkv
-                        )
+                        # chunk_start and chunk_end are the index mappings from the original sequence
+                        if chunk_j == 0:
+                            chunk_start = 0
+                            chunk_end = prefill_chunk_size - required_extra_pads
+                        else:
+                            required_extra_pads = 0
+                            chunk_start = chunk_end
+                            chunk_end += prefill_chunk_size
 
-                        ids_length = input_ids[seq_i].shape[0]
-                        input_ids_seq_chunk = (
-                            input_ids[seq_i][
-                                chunk_start + ids_length : chunk_end + ids_length
-                            ]
-                            .unsqueeze(0)
-                            .clone()
-                        )
-                        assert input_ids_seq_chunk.size(1) == prefill_chunk_size, (
-                            f"prefill chunk size was not equal to the chunk size. Found {input_ids_seq_chunk.size(0)}"
-                        )
-                        slots_length = len(slot_mapping[seq_i])
+                        input_ids_seq_chunk = input_ids[seq_i][-current_tkv:][
+                            chunk_start:chunk_end
+                        ]
+                        slot_mapping_seq_chunk = slot_mapping[seq_i][-current_tkv:][
+                            chunk_start:chunk_end
+                        ]
+                        position_ids_seq_chunk = kwargs["position_ids"][seq_i][
+                            -current_tkv:
+                        ][chunk_start:chunk_end]
+
+                        # add the extra required padding to chunk
+                        if required_extra_pads > 0:
+                            input_ids_seq_chunk = torch.cat(
+                                (
+                                    torch.zeros(
+                                        required_extra_pads,
+                                        dtype=torch.int64,
+                                        device=input_ids_seq_chunk.device,
+                                    ),
+                                    input_ids_seq_chunk,
+                                )
+                            )
+                            slot_mapping_seq_chunk = (
+                                pad_slots * (required_extra_pads // BLOCK_SIZE)
+                                + slot_mapping_seq_chunk
+                            )
+                            position_ids_seq_chunk = torch.cat(
+                                (
+                                    torch.zeros(
+                                        required_extra_pads,
+                                        dtype=torch.int64,
+                                        device=position_ids_seq_chunk.device,
+                                    ),
+                                    position_ids_seq_chunk,
+                                )
+                            )
+
+                        input_ids_seq_chunk = input_ids_seq_chunk.unsqueeze(0).clone()
+
                         slot_mapping_seq_chunk = (
                             torch.tensor(
-                                slot_mapping[seq_i][
-                                    chunk_start + slots_length : chunk_end
-                                    + slots_length
-                                ],
+                                slot_mapping_seq_chunk,
                                 dtype=torch.int64,
                             )
                             .unsqueeze(0)
                             .clone()
                         )
-                        pids_length = kwargs["position_ids"][seq_i].shape[0]
-                        position_ids_seq_chunk = (
-                            kwargs["position_ids"][seq_i][
-                                chunk_start + pids_length : chunk_end + pids_length
-                            ]
-                            .unsqueeze(0)
-                            .clone()
+
+                        position_ids_seq_chunk = position_ids_seq_chunk.unsqueeze(
+                            0
+                        ).clone()
+
+                        assert input_ids_seq_chunk.size(1) == prefill_chunk_size, (
+                            f"prefill chunk size was not equal to the chunk size for input_ids. Found {input_ids_seq_chunk.size(0)}"
                         )
 
-                        # This view will result in a discontiguous tensor (creates a new graph during compile)
-                        # For this reason, we must explicitly make contiguous
-                        if left_padded_prompt_mask_seq_chunk is None:
-                            left_padded_prompt_mask_seq_chunk = (
-                                position_ids_seq_chunk == 0
-                            ).sum(dim=1) - 1
-                        current_tkv_mask_seq_chunk = torch.min(
-                            torch.tensor(
-                                (chunk_j + 1) * prefill_chunk_size, dtype=torch.int64
-                            ),
-                            current_tkv,
+                        assert slot_mapping_seq_chunk.size(1) == prefill_chunk_size, (
+                            f"prefill chunk size was not equal to the chunk size for slot_mapping. Found {slot_mapping_seq_chunk.size(0)}"
+                        )
+
+                        assert position_ids_seq_chunk.size(1) == prefill_chunk_size, (
+                            f"prefill chunk size was not equal to the chunk size for position_ids. Found {position_ids_seq_chunk.size(0)}"
+                        )
+
+                        current_tkv_mask_seq_chunk = torch.tensor(
+                            (chunk_j + 1) * prefill_chunk_size, dtype=torch.int64
                         ).unsqueeze(0)
 
-                        table_length = len(block_table[seq_i])
-                        block_start = -current_tkv // BLOCK_SIZE + table_length
-                        block_end = chunk_end // BLOCK_SIZE + table_length
+                        block_end = chunk_end // BLOCK_SIZE
+                        # length of padding or index until padding has occured in block table
+                        block_pad_len = (input_ids.shape[1] - current_tkv) // BLOCK_SIZE
                         block_table_seq_chunk = torch.tensor(
-                            block_table[seq_i][block_start:block_end], dtype=torch.int64
+                            [pad_block_id] * (block_seq_left_padding)
+                            + block_table[seq_i][
+                                block_pad_len : block_pad_len + block_end
+                            ],
+                            dtype=torch.int64,
                         ).unsqueeze(0)
 
                         chunked_kwargs = {

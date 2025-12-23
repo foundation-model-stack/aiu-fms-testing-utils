@@ -175,17 +175,25 @@ def execute_dpp(
     test_type,
     skip_validation,
     enforce_homogeneous_prompt_programs,
+    prefill_chunk_size,
     shared_tmp_path,
     isolated_env,
 ):
     isolated_env["VLLM_DT_MAX_BATCH_TKV_LIMIT"] = "1024"
     isolated_env["VLLM_DT_MAX_CONTEXT_LEN"] = "512"
     isolated_env["VLLM_DT_MAX_BATCH_SIZE"] = "2"
+    if prefill_chunk_size > 0:
+        isolated_env["VLLM_DT_CHUNK_LEN"] = f"{prefill_chunk_size}"
     Path(os.path.join(shared_tmp_path, "sendnn_cache")).mkdir(exist_ok=True)
-    os.environ.setdefault(
-        "TORCH_SENDNN_CACHE_DIR", os.path.join(shared_tmp_path, "sendnn_cache")
-    )
-    isolated_env["TORCH_SENDNN_CACHE_ENABLE"] = "1"
+
+    # only enable for non-chunk
+    if prefill_chunk_size == 0:
+        os.environ.setdefault(
+            "TORCH_SENDNN_CACHE_DIR", os.path.join(shared_tmp_path, "sendnn_cache")
+        )
+        isolated_env["TORCH_SENDNN_CACHE_ENABLE"] = "1"
+    else:
+        isolated_env["TORCH_SENDNN_CACHE_ENABLE"] = "0"
 
     command_list = [
         "python3",
@@ -239,6 +247,9 @@ def execute_dpp(
     if enforce_homogeneous_prompt_programs:
         command_list += ["--enforce_homogeneous_prompt_programs"]
 
+    if prefill_chunk_size > 0:
+        command_list += [f"--prefill_chunk_size={prefill_chunk_size}"]
+
     # add program criteria path
     command_list += [
         f"--program_criteria_json_path={os.environ['DT_PROG_CRITERIA_FILEPATH']}"
@@ -249,21 +260,24 @@ def execute_dpp(
 
 dpp_possibilities = []
 dpp_possibilities.append(
-    ("paged", None, 8, "sharegpt", "metrics", False, False)
+    ("paged", None, 8, "sharegpt", "metrics", False, False, 0)
 )  # metrics and run all programs
 dpp_possibilities.append(
-    ("paged", "*:0,==256", 65, "sharegpt", "tokens", False, False)
+    ("paged", "*:0,==256", 65, "sharegpt", "tokens", False, False, 0)
 )  # tokens and run all programs that satisfy 256 sequence length
 dpp_possibilities.append(
-    ("paged", "*:>=2,0", 65, "sharegpt", None, True, True)
+    ("paged", "*:>=2,0", 65, "sharegpt", None, True, True, 0)
 )  # metrics and run all programs that have >=2 batch size
 dpp_possibilities.append(
-    ("paged", None, 8, "custom", "tokens", False, False)
+    ("paged", None, 8, "custom", "tokens", False, False, 0)
 )  # tokens running with specific custom dataset
+dpp_possibilities.append(
+    ("paged", None, 8, "sharegpt", "tokens", False, False, 128)
+)  # metrics and run all programs with chunked prefill
 
 
 @pytest.mark.parametrize(
-    "attn_type,programs,max_new_tokens,dataset_type,test_type,skip_validation,enforce_homogeneous_prompt_programs",
+    "attn_type,programs,max_new_tokens,dataset_type,test_type,skip_validation,enforce_homogeneous_prompt_programs,prefill_chunk_size",
     dpp_possibilities,
 )
 def test_dpp_script(
@@ -274,6 +288,7 @@ def test_dpp_script(
     test_type,
     skip_validation,
     enforce_homogeneous_prompt_programs,
+    prefill_chunk_size,
     shared_tmp_path,
     isolated_env,
 ):
@@ -290,6 +305,7 @@ def test_dpp_script(
         test_type,
         skip_validation,
         enforce_homogeneous_prompt_programs,
+        prefill_chunk_size,
         shared_tmp_path,
         isolated_env,
     )
