@@ -4,6 +4,7 @@ import datetime
 import itertools
 import json
 import os
+from pathlib import Path
 import random
 import time
 from itertools import dropwhile
@@ -143,6 +144,12 @@ parser.add_argument(
     help="The attention type to use",
 )
 parser.add_argument(
+    "--prefill_chunk_size",
+    type=int,
+    default=0,
+    help="if > 0, activate chunked prefill, with chunk_size=this_argument. Only works with paged attention variants.",
+)
+parser.add_argument(
     "--stagger_load",
     type=int,
     default=0,
@@ -218,11 +225,20 @@ if args.dataset_type == "custom":
         dprint(
             "Using custom prompts from user, programs parameter will be ignored as it will be determined by user prompt"
         )
+    directory = Path(DATASET_PATH)
+    if not directory.is_dir():
+        dprint("when using a custom dataset, you must provide a directory")
+        exit()
+
     result = []
-    with open(DATASET_PATH, "r") as file:
-        for line in file:
-            res_line = line.strip()
-            result.append((res_line, get_pad_size(len(tokenizer.encode(res_line)))))
+    for fp in directory.iterdir():
+        if fp.is_file():
+            try:
+                content = fp.read_text()
+                result.append((content, get_pad_size(len(tokenizer.encode(content)))))
+            except Exception as e:
+                print(f"Error while reading {fp} for custom dataset: {e}")
+                exit()
     custom_shape = (len(result), max([_[1] for _ in result]))
 
     def __custom_line_sampler(*args, **kwargs):
@@ -302,6 +318,10 @@ def __prepare_inputs(batch_size, seq_length, tokenizer, enforce_sizes=[], seed=0
             encoded = encoded[:seq_length]
         prompt_list.append(encoded)
 
+    if not prompt_list:
+        raise ValueError(
+            f"No valid prompt sample exists in dataset for input shape (Batch Size={batch_size}, Seq Length={seq_length})"
+        )
     if len(prompt_list) < batch_size:
         dprint(
             f"You requested {batch_size} prompts but we were only able to get {len(prompt_list)} valid prompts. We will be repeating the first prompt."
@@ -434,6 +454,7 @@ if not generate_metrics:
         max_new_tokens=max_new_tokens,
         compile_dynamic_sendnn=True,
         stagger_update_lazyhandle=args.stagger_update_lazyhandle,
+        prefill_chunk_size=args.prefill_chunk_size,
         **extra_kwargs,
     )
 
@@ -728,6 +749,7 @@ for program_id, valid_prompt, input_ids, extra_kwargs, sample_key in valid_promp
                 GoldenTokenHook(cpu_validation_info.get_info("tokens")),
                 last_n_tokens=64,
                 timing=TIMING,
+                prefill_chunk_size=args.prefill_chunk_size,
                 **extra_kwargs,
             )
 
@@ -830,6 +852,7 @@ for program_id, valid_prompt, input_ids, extra_kwargs, sample_key in valid_promp
                 None,
                 last_n_tokens=64,
                 timing=TIMING,
+                prefill_chunk_size=args.prefill_chunk_size,
                 **extra_kwargs,
             )
 
@@ -872,6 +895,7 @@ for program_id, valid_prompt, input_ids, extra_kwargs, sample_key in valid_promp
             None,
             last_n_tokens=64,
             timing=TIMING,
+            prefill_chunk_size=args.prefill_chunk_size,
             **extra_kwargs,
         )
 
