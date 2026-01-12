@@ -66,6 +66,7 @@ class ModelConfig:
                 self.num_blocks = 8192
             else:
                 self.num_blocks = int(env_blocks)
+                dprint(f"Using AFTU_PAGED_KVCACHE_NUM_BLOCKS_HINT from environment: {self.num_blocks}")
 
         if self.tkv_limit is None:
             env_tkv = os.environ.get("VLLM_DT_MAX_BATCH_TKV_LIMIT")
