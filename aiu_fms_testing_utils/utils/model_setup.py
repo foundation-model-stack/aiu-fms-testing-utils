@@ -169,3 +169,4 @@ def print_model_params(model: nn.Module, args: argparse.Namespace) -> None:
         )
     dprint(model)
     dprint("=" * 60 + "\n")
+
