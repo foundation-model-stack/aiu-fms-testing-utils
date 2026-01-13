@@ -381,7 +381,9 @@ model.eval()
 fx_config.backed_size_oblivious = True
 
 model_config = ModelConfig()
-model_config.setup_config(model_variant, USE_DISTRIBUTED, dist.get_world_size(), args.prefill_chunk_size)
+model_config.setup_config(
+    model_variant, USE_DISTRIBUTED, dist.get_world_size(), args.prefill_chunk_size
+)
 with scoped_environ(model_config.env_updates()):
     # Temporarily set environment variables needed for compile
     model.compile(backend="sendnn", options={"sendnn.dynamic": True})

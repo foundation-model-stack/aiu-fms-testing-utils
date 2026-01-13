@@ -695,7 +695,9 @@ def get_programs_prompts(
                 for program_index in range(possible_program_switches):
                     context_length = prompt_len + (multiple * program_index) + 1
 
-                    if program_criteria.is_possible(batch_size, context_length, tkv_limit):
+                    if program_criteria.is_possible(
+                        batch_size, context_length, tkv_limit
+                    ):
                         padding = program_criteria.calculate_padding(
                             batch_size, context_length
                         )
