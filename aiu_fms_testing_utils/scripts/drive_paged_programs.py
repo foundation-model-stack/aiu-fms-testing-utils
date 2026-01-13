@@ -41,6 +41,7 @@ from aiu_fms_testing_utils.utils.paged import (
     get_programs_prompts,
 )
 from aiu_fms_testing_utils.utils.dpp_config import ModelConfig
+from aiu_fms_testing_utils.utils.env_utils import scoped_environ
 from aiu_fms_testing_utils.testing.utils import format_kwargs_to_string
 
 parser = argparse.ArgumentParser(
@@ -378,7 +379,12 @@ with stagger_region(args.stagger_load):
 
 model.eval()
 fx_config.backed_size_oblivious = True
-model.compile(backend="sendnn", options={"sendnn.dynamic": True})
+
+model_config = ModelConfig()
+model_config.setup_config(model_variant, USE_DISTRIBUTED, dist.get_world_size(), args.prefill_chunk_size)
+with scoped_environ(model_config.env_updates()):
+    # Temporarily set environment variables needed for compile
+    model.compile(backend="sendnn", options={"sendnn.dynamic": True})
 
 __maybe_prepare_fp8_weights(model, is_fp8)
 
@@ -402,9 +408,6 @@ prompt_list = [torch.arange(0, 64, dtype=torch.int64)]
 if is_fp8:
     prompt_list = prompt_list * 2
 input_ids, extra_kwargs = pad_input_ids(prompt_list, min_pad_length=64)
-
-model_config = ModelConfig()
-model_config.setup_config(model_variant, USE_DISTRIBUTED, dist.get_world_size(), args.prefill_chunk_size)
 
 extra_kwargs["mask"] = extra_kwargs["mask"].to(torch.float16)
 extra_kwargs["attn_name"] = ATTN_NAME
