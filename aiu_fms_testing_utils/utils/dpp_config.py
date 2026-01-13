@@ -7,10 +7,10 @@ from aiu_fms_testing_utils.utils.aiu_setup import dprint
 @dataclass
 class ModelConfig:
     """Class to configure parameters that may vary with model architecture"""
-    
+
     # populated during setup
     num_blocks: int | None = None
-    tkv_limit: int|None = None
+    tkv_limit: int | None = None
 
     def _get_int_env(self, key: str, default: int, context: str) -> int:
         """
@@ -52,13 +52,18 @@ class ModelConfig:
                 context=context,
             )
 
-    def setup_config(self, model_variant, use_distributed, world_size, prefill_chunk_size):
+    def setup_config(
+        self, model_variant, use_distributed, world_size, prefill_chunk_size
+    ):
         """Set up environment variables and default values if not specified"""
 
         ## configure per model architecture
-        if "granite-3.3-8b-instruct" in model_variant or "granite-4.0-8b" in model_variant:
+        if (
+            "granite-3.3-8b-instruct" in model_variant
+            or "granite-4.0-8b" in model_variant
+        ):
             self.configure_granite_3_8b(use_distributed, world_size, prefill_chunk_size)
-        
+
         ## global defaults (fallback)
         ## TODO: IN future we may remove defaults for unknown configurations \
         ## and require users to set the environment variables
@@ -76,7 +81,6 @@ class ModelConfig:
                 context="Unknown model configuration",
             )
 
-
     def env_updates(self) -> dict[str, str]:
         """Returns a key/value of environment variables needed for model compile"""
         if self.tkv_limit is None:
@@ -85,6 +89,4 @@ class ModelConfig:
                 "Call setup_config(...) first."
             )
 
-        return {
-            "VLLM_DT_MAX_BATCH_TKV_LIMIT": str(self.tkv_limit)
-        }
+        return {"VLLM_DT_MAX_BATCH_TKV_LIMIT": str(self.tkv_limit)}
