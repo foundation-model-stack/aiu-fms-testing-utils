@@ -61,19 +61,20 @@ class ModelConfig:
         ## global defaults (fallback)
         ## TODO: IN future we may remove defaults for unknown configurations \
         ## and require users to set the environment variables
-        context = (
-                "Unknown configuration found."
-            )
-        self.num_blocks = self._get_int_env(
+        if self.num_blocks is None:
+            self.num_blocks = self._get_int_env(
                 key="AFTU_PAGED_KVCACHE_NUM_BLOCKS_HINT",
                 default=8192,
-                context=context,
+                context="Unknown model configuration",
             )
-        self.tkv_limit = self._get_int_env(
+
+        if self.tkv_limit is None:
+            self.tkv_limit = self._get_int_env(
                 key="VLLM_DT_MAX_BATCH_TKV_LIMIT",
                 default=524288,
-                context=context,
+                context="Unknown model configuration",
             )
+
 
     def env_updates(self) -> dict[str, str]:
         """Returns a key/value of environment variables needed for model compile"""
