@@ -1,7 +1,8 @@
-from dataclasses import dataclass, field
 import os
+from dataclasses import dataclass
 
 from aiu_fms_testing_utils.utils.aiu_setup import dprint
+
 
 @dataclass
 class ModelConfig:
@@ -87,6 +88,3 @@ class ModelConfig:
         return {
             "VLLM_DT_MAX_BATCH_TKV_LIMIT": str(self.tkv_limit)
         }
-                
-            
-            

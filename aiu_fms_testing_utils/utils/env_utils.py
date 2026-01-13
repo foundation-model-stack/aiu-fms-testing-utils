@@ -1,9 +1,10 @@
-from contextlib import contextmanager
 import os
-from typing import Dict, Optional
+from contextlib import contextmanager
+from typing import Optional
+
 
 @contextmanager
-def scoped_environ(updates: Dict[str, Optional[str]]):
+def scoped_environ(updates: dict[str, Optional[str]]):
     """
     Temporarily set environment variables.
     Restores original values on exit.
