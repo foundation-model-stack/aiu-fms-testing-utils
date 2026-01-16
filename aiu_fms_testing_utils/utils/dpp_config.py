@@ -5,7 +5,7 @@ from aiu_fms_testing_utils.utils.aiu_setup import dprint
 
 
 @dataclass
-class ModelConfig:
+class DPPRunnerConfig:
     """Class to configure parameters that may vary with model architecture"""
 
     # populated during setup
@@ -22,11 +22,18 @@ class ModelConfig:
             dprint(f"{context}. Using default {key}={default}")
             return default
 
-        parsed = int(value)
+        try:
+            parsed = int(value)
+        except ValueError as e:
+            raise ValueError(
+                f"{context}. Invalid value for environment variable {key}: "
+                f"expected an integer, got '{value}'"
+            ) from e
+
         dprint(f"{context}. Using {key} from environment: {parsed}")
         return parsed
 
-    def configure_granite_3_8b(self, use_distributed, world_size, prefill_chunk_size):
+    def _configure_granite_3_8b(self, use_distributed, world_size, prefill_chunk_size):
         """Configure environment for granite 3 8b architecture \
         We are setting defaults for env variables not provided. \
         Config class is set in wrapper setup_config function."""
@@ -62,7 +69,7 @@ class ModelConfig:
             "granite-3.3-8b-instruct" in model_variant
             or "granite-4.0-8b" in model_variant
         ):
-            self.configure_granite_3_8b(use_distributed, world_size, prefill_chunk_size)
+            self._configure_granite_3_8b(use_distributed, world_size, prefill_chunk_size)
 
         ## global defaults (fallback)
         ## TODO: IN future we may remove defaults for unknown configurations \

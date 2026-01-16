@@ -40,7 +40,7 @@ from aiu_fms_testing_utils.utils.paged import (
     ProgramCriteria,
     get_programs_prompts,
 )
-from aiu_fms_testing_utils.utils.dpp_config import ModelConfig
+from aiu_fms_testing_utils.utils.dpp_config import DPPRunnerConfig
 from aiu_fms_testing_utils.utils.env_utils import scoped_environ
 from aiu_fms_testing_utils.testing.utils import format_kwargs_to_string
 
@@ -380,7 +380,7 @@ with stagger_region(args.stagger_load):
 model.eval()
 fx_config.backed_size_oblivious = True
 
-model_config = ModelConfig()
+model_config = DPPRunnerConfig()
 model_config.setup_config(
     model_variant, USE_DISTRIBUTED, dist.get_world_size(), args.prefill_chunk_size
 )
