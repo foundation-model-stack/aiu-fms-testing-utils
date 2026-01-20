@@ -97,7 +97,7 @@ def process_row(row):
             max_new_tokens,
             LogitsExtractorHook(),
             attn_algorithm="math",
-            eos_token_id=tokenizer.eos_token_id
+            eos_token_id=tokenizer.eos_token_id,
         )
     return {"id": id, "input_ids": input_ids, "validation": cpu_validation_info}
 
