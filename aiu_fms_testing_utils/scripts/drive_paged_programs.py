@@ -753,7 +753,7 @@ for (
                 input_ids,
                 max_new_tokens,
                 None,
-                eos_token_id=tokenizer.eos_token_id
+                eos_token_id=tokenizer.eos_token_id,
                 last_n_tokens=64,
                 timing=TIMING,
                 prefill_chunk_size=args.prefill_chunk_size,
