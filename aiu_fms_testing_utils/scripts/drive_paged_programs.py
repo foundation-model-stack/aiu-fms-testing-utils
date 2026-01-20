@@ -682,6 +682,7 @@ for (
                 max_new_tokens,
                 LogitsExtractorHook(),
                 attn_algorithm="math",
+                eos_token_id=tokenizer.eos_token_id,
                 **extra_kwargs,
             )
             # save the cpu validation info for later consumption
@@ -706,6 +707,7 @@ for (
                 input_ids,
                 max_new_tokens,
                 GoldenTokenHook(cpu_validation_info.get_info("tokens")),
+                eos_token_id=tokenizer.eos_token_id,
                 last_n_tokens=64,
                 timing=TIMING,
                 prefill_chunk_size=args.prefill_chunk_size,
@@ -751,6 +753,7 @@ for (
                 input_ids,
                 max_new_tokens,
                 None,
+                eos_token_id=tokenizer.eos_token_id
                 last_n_tokens=64,
                 timing=TIMING,
                 prefill_chunk_size=args.prefill_chunk_size,
@@ -794,6 +797,7 @@ for (
             input_ids,
             max_new_tokens,
             None,
+            eos_token_id=tokenizer.eos_token_id,
             last_n_tokens=64,
             timing=TIMING,
             prefill_chunk_size=args.prefill_chunk_size,
