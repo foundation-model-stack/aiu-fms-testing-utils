@@ -5,6 +5,7 @@ from functools import partial
 import itertools
 import json
 import os
+from packaging import version
 from pathlib import Path
 import random
 import time
@@ -21,7 +22,7 @@ from fms.models.llama import LLaMAConfig, _llama_factory_factory
 from fms.utils import generation
 from fms.utils.generation import pad_input_ids
 
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, AutoConfig
 
 
 # This example script validates the LLaMA implementation by running inference on a couple of prompts.
@@ -586,7 +587,25 @@ if args.quantization in ["gptq", "int8"]:
     dprint(model)
     dprint("=" * 60 + "\n")
 
-tokenizer = AutoTokenizer.from_pretrained(args.tokenizer)
+if model.config.model_type in ["mistral", "mistral3", "pixtral"]:
+    # Check transformer version in the model to see if the regex fix can be avoided
+    # Ref: https://github.com/huggingface/transformers/blob/de306e8e14672dd8392b4bd344054a6a18de8613/src/transformers/tokenization_utils_tokenizers.py#L1205
+    # Above reference uses 4.57.2 version, but we get validation error from transformers if we do that check,
+    # so adjusted version based on testing
+    transformers_version = AutoConfig.from_pretrained(
+        args.tokenizer
+    ).transformers_version
+
+    if transformers_version and version.parse(transformers_version) < version.parse(
+        "4.52.4"
+    ):
+        tokenizer = AutoTokenizer.from_pretrained(
+            args.tokenizer, fix_mistral_regex=True
+        )
+    else:
+        tokenizer = AutoTokenizer.from_pretrained(args.tokenizer)
+else:
+    tokenizer = AutoTokenizer.from_pretrained(args.tokenizer)
 model.eval()
 torch.set_grad_enabled(False)
 loading_model_time = time.time() - loading_model_time

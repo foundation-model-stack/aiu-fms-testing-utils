@@ -172,7 +172,9 @@ def generate(
 
     if hasattr(model.config, "text_config"):
         head_size = getattr(
-            model.config.text_config, "head_dim", model.config.text_config.emb_dim // model.config.text_config.nheads
+            model.config.text_config,
+            "head_dim",
+            model.config.text_config.emb_dim // model.config.text_config.nheads,
         )
     else:
         head_size = getattr(
