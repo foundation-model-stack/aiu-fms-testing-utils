@@ -612,7 +612,6 @@ def _get_device_validation_information(
         max_new_tokens,
         post_iteration_hook,
         timing=TIMING,
-        eos_token_id=tokenizer.eos_token_id,
         **extra_kwargs,
         **device_dependent_kwargs,
     )
