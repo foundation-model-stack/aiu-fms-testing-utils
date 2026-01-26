@@ -587,7 +587,7 @@ if args.quantization in ["gptq", "int8"]:
     dprint(model)
     dprint("=" * 60 + "\n")
 
-if model.config.model_type in ["mistral", "mistral3", "pixtral"]:
+if hasattr(model.config, "model_type") and model.config.model_type in ["mistral", "mistral3", "pixtral"]:
     # Check transformer version in the model to see if the regex fix can be avoided
     # Ref: https://github.com/huggingface/transformers/blob/de306e8e14672dd8392b4bd344054a6a18de8613/src/transformers/tokenization_utils_tokenizers.py#L1205
     # Above reference uses 4.57.2 version, but we get validation error from transformers if we do that check,
