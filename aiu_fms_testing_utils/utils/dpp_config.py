@@ -76,13 +76,7 @@ class DPPRunnerConfig:
         ## global defaults (fallback)
         ## TODO: IN future we may remove defaults for unknown configurations \
         ## and require users to set the environment variables
-        if self.num_blocks is None:
-            self.num_blocks = self._get_int_env(
-                key="AFTU_PAGED_KVCACHE_NUM_BLOCKS_HINT",
-                default=8192,
-                context="Unknown model configuration",
-            )
-
+        ## num_blocks is set in generate if not set here
         if self.tkv_limit is None:
             self.tkv_limit = self._get_int_env(
                 key="VLLM_DT_MAX_BATCH_TKV_LIMIT",
