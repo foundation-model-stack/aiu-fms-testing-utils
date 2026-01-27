@@ -690,7 +690,6 @@ else:
         ids.to(validation_device),
         args.max_new_tokens,
         LogitsExtractorHook(),
-        eos_token_id=None if args.no_early_termination else tokenizer.eos_token_id,
         attn_algorithm="math",
         **padding_kwargs,
     )

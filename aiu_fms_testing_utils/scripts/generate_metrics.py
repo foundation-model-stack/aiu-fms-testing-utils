@@ -245,7 +245,6 @@ if not args.skip_computation:
         args.max_new_tokens,
         LogitsExtractorHook(),
         attn_algorithm="math",
-        eos_token_id=tokenizer.eos_token_id,
         **padding_kwargs,
     )
     cpu_static_tokens = cpu_validation_info.get_info("tokens")
@@ -260,7 +259,6 @@ if not args.skip_computation:
         ids.to("cuda"),
         args.max_new_tokens,
         None,
-        eos_token_id=tokenizer.eos_token_id,
         last_n_tokens=1,
         **{k: v.to("cuda") for k, v in padding_kwargs.items()},
     )
@@ -327,7 +325,6 @@ for i in range(num_test_tokens_per_sequence // args.max_new_tokens):
                 args.max_new_tokens,
                 LogitsExtractorHook(),
                 attn_algorithm="math",
-                eos_token_id=tokenizer.eos_token_id,
                 **padding_kwargs,
             )
 
@@ -337,7 +334,6 @@ for i in range(num_test_tokens_per_sequence // args.max_new_tokens):
             ids.to("cuda"),
             args.max_new_tokens,
             GoldenTokenHook(cpu_validation_info.get_info("tokens"), "cuda"),
-            eos_token_id=tokenizer.eos_token_id,
             last_n_tokens=1,
             **{k: v.to("cuda") for k, v in padding_kwargs.items()},
         )
