@@ -200,10 +200,10 @@ def generate(
             (
                 torch.zeros(
                     NUM_BLOCKS, BLOCK_SIZE, kvheads, head_size, dtype=model_dtype
-                ),
+                ).to(input_ids.device),
                 torch.zeros(
                     NUM_BLOCKS, BLOCK_SIZE, kvheads, head_size, dtype=model_dtype
-                ),
+                ).to(input_ids.device),
             )
             for _ in range(model.config.nlayers)
         ]
@@ -462,9 +462,9 @@ def generate(
                     torch._dynamo.mark_dynamic(mask_seq, 3)
                     output, current_kv_cache = model(
                         input_ids_seq,
-                        slot_mapping=slot_mapping_seq,
-                        position_ids=position_ids_seq,
-                        mask=mask_seq,
+                        slot_mapping=slot_mapping_seq.to(input_ids.device),
+                        position_ids=position_ids_seq.to(input_ids.device),
+                        mask=mask_seq.to(input_ids.device),
                         past_key_value_states=current_kv_cache,
                         use_cache=kwargs["use_cache"],
                         last_n_tokens=last_n_tokens,
@@ -500,8 +500,10 @@ def generate(
             # mask is no longer used here
             kwargs["mask"] = None
             kwargs["position_ids"] = kwargs["position_ids"][:, -1:] + 1
-            kwargs["position_ids"] = kwargs["position_ids"].clone(
-                memory_format=torch.contiguous_format
+            kwargs["position_ids"] = (
+                kwargs["position_ids"]
+                .clone(memory_format=torch.contiguous_format)
+                .to(device=input_ids.device)
             )
             kwargs["last_n_tokens"] = 1
 
@@ -529,14 +531,20 @@ def generate(
                     for b_seq in block_table
                 ],
                 dtype=torch.int64,
+            ).to(device=input_ids.device)
+            kwargs["left_padded_prompt_mask"] = left_padded_prompt_mask.to(
+                device=input_ids.device
             )
-            kwargs["left_padded_prompt_mask"] = left_padded_prompt_mask
             current_tkv_mask = current_tkv_mask + 1
-            kwargs["current_tkv_mask"] = current_tkv_mask
-            kwargs["slot_mapping"] = torch.tensor(slot_mapping, dtype=torch.int64)
+            kwargs["current_tkv_mask"] = current_tkv_mask.to(device=input_ids.device)
+            kwargs["slot_mapping"] = torch.tensor(slot_mapping, dtype=torch.int64).to(
+                device=input_ids.device
+            )
 
             # batch
-            input_ids = input_ids.clone(memory_format=torch.contiguous_format)
+            input_ids = input_ids.clone(memory_format=torch.contiguous_format).to(
+                device=input_ids.device
+            )
             torch._dynamo.mark_dynamic(input_ids, 0)
             torch._dynamo.mark_dynamic(kwargs["block_table"], 0)
             torch._dynamo.mark_dynamic(kwargs["slot_mapping"], 0)
