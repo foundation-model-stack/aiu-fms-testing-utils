@@ -336,7 +336,7 @@ def test_dpp_script(
             max_batch_size=2,
             max_tkv=512,
             program_cycles=max_new_tokens,
-            tkv_limit = tkv_limit,
+            tkv_limit=tkv_limit,
         )
         programs_split = programs.split(":")
         program_ids_str = programs_split[0]
