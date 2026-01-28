@@ -381,7 +381,7 @@ model.eval()
 fx_config.backed_size_oblivious = True
 
 model_config = DPPRunnerConfig()
-world_size = dist.get_world_size() if dist.is_initialized() else 1
+world_size = dist.get_world_size() if USE_DISTRIBUTED and dist.is_initialized() else 1
 model_config.setup_config(
     model_variant, USE_DISTRIBUTED, world_size, args.prefill_chunk_size
 )
