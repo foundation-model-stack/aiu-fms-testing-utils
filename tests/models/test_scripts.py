@@ -328,12 +328,15 @@ def test_dpp_script(
         program_assertions = [i for i in range(len(program_criteria_list))]
         shape_assertions = [">=0", ">=0"]
     else:
+        # sets default of tkv_limit
+        tkv_limit = int(os.environ.get("VLLM_DT_MAX_BATCH_TKV_LIMIT", 524288))
         program_map = get_programs_prompts(
             program_criteria_list,
             multiple=64,
             max_batch_size=2,
             max_tkv=512,
             program_cycles=max_new_tokens,
+            tkv_limit = tkv_limit,
         )
         programs_split = programs.split(":")
         program_ids_str = programs_split[0]
