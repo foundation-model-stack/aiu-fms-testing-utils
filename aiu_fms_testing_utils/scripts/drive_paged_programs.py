@@ -381,8 +381,9 @@ model.eval()
 fx_config.backed_size_oblivious = True
 
 model_config = DPPRunnerConfig()
+world_size = dist.get_world_size() if dist.is_initialized() else 1
 model_config.setup_config(
-    model_variant, USE_DISTRIBUTED, dist.get_world_size(), args.prefill_chunk_size
+    model_variant, USE_DISTRIBUTED, world_size, args.prefill_chunk_size
 )
 with scoped_environ(model_config.env_updates()):
     # Temporarily set environment variables needed for compile
