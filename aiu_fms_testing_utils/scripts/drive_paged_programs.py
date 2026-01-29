@@ -39,8 +39,9 @@ from aiu_fms_testing_utils.utils.aiu_setup import aiu_dist_setup, dprint, local_
 from aiu_fms_testing_utils.utils.paged import (
     ProgramCriteria,
     get_programs_prompts,
-    KVCACHE_NUM_BLOCKS_HINT,
 )
+from aiu_fms_testing_utils.utils.dpp_config import DPPRunnerConfig
+from aiu_fms_testing_utils.utils.env_utils import scoped_environ
 from aiu_fms_testing_utils.testing.utils import format_kwargs_to_string
 
 parser = argparse.ArgumentParser(
@@ -378,7 +379,15 @@ with stagger_region(args.stagger_load):
 
 model.eval()
 fx_config.backed_size_oblivious = True
-model.compile(backend="sendnn", options={"sendnn.dynamic": True})
+
+model_config = DPPRunnerConfig()
+world_size = dist.get_world_size() if USE_DISTRIBUTED and dist.is_initialized() else 1
+model_config.setup_config(
+    model_variant, USE_DISTRIBUTED, world_size, args.prefill_chunk_size
+)
+with scoped_environ(model_config.env_updates()):
+    # Temporarily set environment variables needed for compile
+    model.compile(backend="sendnn", options={"sendnn.dynamic": True})
 
 __maybe_prepare_fp8_weights(model, is_fp8)
 
@@ -402,15 +411,10 @@ prompt_list = [torch.arange(0, 64, dtype=torch.int64)]
 if is_fp8:
     prompt_list = prompt_list * 2
 input_ids, extra_kwargs = pad_input_ids(prompt_list, min_pad_length=64)
-extra_kwargs["mask"] = extra_kwargs["mask"].to(torch.float16)
 
+extra_kwargs["mask"] = extra_kwargs["mask"].to(torch.float16)
 extra_kwargs["attn_name"] = ATTN_NAME
-if (
-    "granite-3.3-8b-instruct" in model_variant
-    and USE_DISTRIBUTED
-    and dist.get_world_size() == 4
-):
-    extra_kwargs["_kvcache_num_blocks_hint"] = KVCACHE_NUM_BLOCKS_HINT
+extra_kwargs["_kvcache_num_blocks_hint"] = model_config.num_blocks
 warmup_model(
     model,
     input_ids,
@@ -513,6 +517,7 @@ program_map = get_programs_prompts(
     max_batch_size=max_batch_size,
     max_tkv=max_tkv,
     program_cycles=max_new_tokens,
+    tkv_limit=model_config.tkv_limit,
     prioritize_large_batch_sizes=args.prioritize_large_batch_sizes,
 )
 for v in program_map.values():
@@ -649,12 +654,7 @@ for (
     sample_key,
 ) in get_program_prompt_list():
     extra_kwargs["attn_name"] = ATTN_NAME
-    if (
-        "granite-3.3-8b-instruct" in model_variant
-        and USE_DISTRIBUTED
-        and dist.get_world_size() == 4
-    ):
-        extra_kwargs["_kvcache_num_blocks_hint"] = KVCACHE_NUM_BLOCKS_HINT
+    extra_kwargs["_kvcache_num_blocks_hint"] = model_config.num_blocks
 
     if local_rank == 0:
         dprint(f"*** testing program {program_id} ***")

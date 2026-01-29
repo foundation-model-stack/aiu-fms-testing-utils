@@ -130,9 +130,9 @@ def generate(
     _MAX_BATCH = int(os.environ["VLLM_DT_MAX_BATCH_SIZE"])
     _MAX_CONTEXT_LENGTH = int(os.environ["VLLM_DT_MAX_CONTEXT_LEN"])
     # if the user provides a hint to the number of blocks to use, use it directly
-    NUM_BLOCKS = kwargs.get(
-        "_kvcache_num_blocks_hint", (_MAX_BATCH * _MAX_CONTEXT_LENGTH) // BLOCK_SIZE
-    )
+    NUM_BLOCKS = kwargs.get("_kvcache_num_blocks_hint")
+    if NUM_BLOCKS is None:
+        NUM_BLOCKS = (_MAX_BATCH * _MAX_CONTEXT_LENGTH) // BLOCK_SIZE
 
     if hasattr(model, "head"):
         model_dtype = model.head.weight.dtype
@@ -634,14 +634,6 @@ def generate(
     return result
 
 
-# this value is default to 8192 to be consistent with vllm for granite 3.3 8b instruct w/ chunked prefill
-KVCACHE_NUM_BLOCKS_HINT = int(
-    os.environ.get("AFTU_PAGED_KVCACHE_NUM_BLOCKS_HINT", 8192)
-)
-
-VLLM_DT_MAX_BATCH_TKV_LIMIT = int(os.environ.get("VLLM_DT_MAX_BATCH_TKV_LIMIT", 524288))
-
-
 class ProgramCriteria:
     def __init__(
         self, program_id, max_batch, max_tkv, batch_granularity, tkv_granularity
@@ -652,9 +644,9 @@ class ProgramCriteria:
         self.batch_granularity = batch_granularity
         self.tkv_granularity = tkv_granularity
 
-    def is_possible(self, batch_size, tkv):
+    def is_possible(self, batch_size, tkv, tkv_limit):
         return (
-            (batch_size * tkv <= VLLM_DT_MAX_BATCH_TKV_LIMIT)
+            (batch_size * tkv <= tkv_limit)
             and (batch_size <= self.max_batch)
             and (tkv <= self.max_tkv)
         )
@@ -690,6 +682,7 @@ def get_programs_prompts(
     max_batch_size,
     max_tkv,
     program_cycles,
+    tkv_limit,
     prioritize_large_batch_sizes=True,
 ):
     program_map = {}
@@ -702,7 +695,9 @@ def get_programs_prompts(
                 for program_index in range(possible_program_switches):
                     context_length = prompt_len + (multiple * program_index) + 1
 
-                    if program_criteria.is_possible(batch_size, context_length):
+                    if program_criteria.is_possible(
+                        batch_size, context_length, tkv_limit
+                    ):
                         padding = program_criteria.calculate_padding(
                             batch_size, context_length
                         )
