@@ -43,8 +43,6 @@ from aiu_fms_testing_utils.utils.paged import (
     ProgramCriteria,
     get_programs_prompts,
 )
-from aiu_fms_testing_utils.utils.dpp_config import DPPRunnerConfig
-from aiu_fms_testing_utils.utils.env_utils import scoped_environ
 from aiu_fms_testing_utils.testing.utils import format_kwargs_to_string
 
 
@@ -296,106 +294,7 @@ def __load_validation_info(
         return None
 
 
-<<<<<<< HEAD
 def parse_program_limit(limit_str: str) -> tuple[int, str | None]:
-=======
-model_path_kwargs = {}
-if os.path.exists(model_variant):
-    model_path_kwargs = {"model_path": model_variant}
-else:
-    model_path_kwargs = {"variant": model_variant}
-
-distributed_kwargs = {}
-if USE_DISTRIBUTED:
-    if args.dist_timeout > 0:
-        # Default timeout:
-        # https://docs.pytorch.org/docs/stable/distributed.html#torch.distributed.init_process_group
-        dist.init_process_group(timeout=datetime.timedelta(minutes=args.dist_timeout))
-        dprint(f"NOTICE: init_process_group timeout set to {args.dist_timeout} minutes")
-    else:
-        dist.init_process_group()
-    aiu_dist_setup(dist.get_rank(), dist.get_world_size())
-    distributed_kwargs["distributed_strategy"] = "tp"
-    distributed_kwargs["group"] = dist.group.WORLD
-    save_validation_info_outputs = save_validation_info_outputs and (
-        dist.get_rank() == 0
-    )
-
-with stagger_region(args.stagger_load):
-    model = get_model(
-        architecture="hf_pretrained",
-        device_type="cpu",
-        data_type=None if is_fp8 else torch.float16,
-        fused_weights=False,
-        **model_path_kwargs,
-        **distributed_kwargs,
-    )
-
-model.eval()
-fx_config.backed_size_oblivious = True
-
-model_config = DPPRunnerConfig()
-world_size = dist.get_world_size() if USE_DISTRIBUTED and dist.is_initialized() else 1
-model_config.setup_config(
-    model_variant, USE_DISTRIBUTED, world_size, args.prefill_chunk_size
-)
-with scoped_environ(model_config.env_updates()):
-    # Temporarily set environment variables needed for compile
-    model.compile(backend="sendnn", options={"sendnn.dynamic": True})
-
-__maybe_prepare_fp8_weights(model, is_fp8)
-
-if not args.skip_validation:
-    with stagger_region(args.stagger_load):
-        validation_model = get_model(
-            architecture="hf_pretrained",
-            device_type="cpu",
-            data_type=None if is_fp8 else torch.float32,
-            fused_weights=False,
-            **model_path_kwargs,
-            **distributed_kwargs,
-        )
-    validation_model.eval()
-
-# warmup with any input so compiler produces criteria json
-# TODO: Swap this with __prepare_inputs once fix for shape_id is available
-# input_ids, extra_kwargs, sample_key = __prepare_inputs(2, max_tkv, tokenizer)
-prompt_list = [torch.arange(0, 64, dtype=torch.int64)]
-# matching vllm warmup to pad to 2 on fp8, and no pad for fp16
-if is_fp8:
-    prompt_list = prompt_list * 2
-input_ids, extra_kwargs = pad_input_ids(prompt_list, min_pad_length=64)
-
-extra_kwargs["mask"] = extra_kwargs["mask"].to(torch.float16)
-extra_kwargs["attn_name"] = ATTN_NAME
-extra_kwargs["_kvcache_num_blocks_hint"] = model_config.num_blocks
-warmup_model(
-    model,
-    input_ids,
-    max_new_tokens=max_new_tokens,
-    compile_dynamic_sendnn=True,
-    stagger_update_lazyhandle=args.stagger_update_lazyhandle,
-    prefill_chunk_size=args.prefill_chunk_size,
-    **extra_kwargs,
-)
-
-if USE_DISTRIBUTED:
-    # wait for rank0 to be finished as it is the only one generating the criteria json
-    # this is needed since otherwise we may run into a race condition
-    torch.distributed.barrier()
-
-
-@dataclass
-class ProgramInfo:
-    program_id: str
-    batch_size_limit: int
-    batch_size_limit_type: str
-    prompt_length_limit: int
-    prompt_length_limit_type: str
-
-
-def parse_program_limit(limit_str: str) -> tuple[int, str]:
->>>>>>> origin/main
     matcher = re.compile(r"^(<|>|<=|>=|==)(\d+)")
 
     # Default limit to min to maintain backwards compat
@@ -578,7 +477,6 @@ def get_programs_to_test(programs, program_criteria_list):
 
     return programs_to_test
 
-<<<<<<< HEAD
 
 def get_valid_prompts(
     program_map,
@@ -593,24 +491,6 @@ def get_valid_prompts(
     pad_multiple: int,
 ):
     # select prompts that fit the batch size criteria
-=======
-# FIXME: filter condition for this on prompt and batch
-program_map = get_programs_prompts(
-    program_criteria_list,
-    multiple=64,
-    max_batch_size=max_batch_size,
-    max_tkv=max_tkv,
-    program_cycles=max_new_tokens,
-    tkv_limit=model_config.tkv_limit,
-    prioritize_large_batch_sizes=args.prioritize_large_batch_sizes,
-)
-for v in program_map.values():
-    random.Random(42).shuffle(v)
-
-
-# select prompts that fit the batch size criteria
-def get_program_prompt_list():
->>>>>>> origin/main
     if custom_shape:
         prompt_found = 0
         for program_criteria_seq, valid_prompt_shapes in program_map.items():
@@ -618,18 +498,12 @@ def get_program_prompt_list():
                 if valid_prompt_shape == custom_shape:
                     enforce_sizes = [valid_prompt_shape[1]]
                     input_ids, extra_kwargs, sample_key = __prepare_inputs(
-<<<<<<< HEAD
                         batch_size=valid_prompt_shape[0],
                         seq_length=valid_prompt_shape[1],
                         tokenizer=tokenizer,
                         sampler=sampler,
                         dataset_path=dataset_path,
                         allow_truncation=allow_truncation,
-=======
-                        valid_prompt_shape[0],
-                        valid_prompt_shape[1],
-                        tokenizer,
->>>>>>> origin/main
                         enforce_sizes=enforce_sizes,
                     )
                     prompt_found = 1
@@ -644,17 +518,8 @@ def get_program_prompt_list():
             if prompt_found:
                 break
     else:
-<<<<<<< HEAD
         for program_info in programs_to_test:
             program_id = program_info.program_id
-=======
-        for program_info in programs:
-            program_id = program_info.program_id
-            batch_size_limit = program_info.batch_size_limit
-            batch_size_limit_type = program_info.batch_size_limit_type
-            prompt_length_limit = program_info.prompt_length_limit
-            prompt_length_limit_type = program_info.prompt_length_limit_type
->>>>>>> origin/main
 
             filtered_program_map = program_map
             if program_id.isnumeric():
@@ -678,24 +543,16 @@ def get_program_prompt_list():
                     # eval is safe here because we have limited what type and limit can be before
 
                     batch_check = eval(
-<<<<<<< HEAD
                         f"valid_prompt_shape[0] {program_info.batch_size_limit_type} {program_info.batch_size_limit}"
                     )
                     prompt_check = eval(
                         f"valid_prompt_shape[1] {program_info.prompt_length_limit_type} {program_info.prompt_length_limit}"
-=======
-                        f"valid_prompt_shape[0] {batch_size_limit_type} {batch_size_limit}"
-                    )
-                    prompt_check = eval(
-                        f"valid_prompt_shape[1] {prompt_length_limit_type} {prompt_length_limit}"
->>>>>>> origin/main
                     )
                     if batch_check and prompt_check:
                         # when we enforce homogeneous prompt programs, we will cycle through all sizes between the min of a program and the valid prompt sequence length
                         # if there does not exist enough sequence sizes between this range, we will cycle back to the beginning
                         # in the event we don't have enough sequences that satisfy the enforce_sizes, we will repeat sequences and warn the user
                         enforce_sizes = [valid_prompt_shape[1]]
-<<<<<<< HEAD
                         if enforce_homogeneous_prompt_programs:
                             # this will get the number of bits for the sequence length and shift to get the power of 2 that is less than or equal to the sequence length
                             tkv_cutoff = 1 << (valid_prompt_shape[1].bit_length() - 1)
@@ -704,13 +561,6 @@ def get_program_prompt_list():
                                 for _ in range(
                                     tkv_cutoff, valid_prompt_shape[1], pad_multiple
                                 )
-=======
-                        if args.enforce_homogeneous_prompt_programs:
-                            # this will get the number of bits for the sequence length and shift to get the power of 2 that is less than or equal to the sequence length
-                            tkv_cutoff = 1 << (valid_prompt_shape[1].bit_length() - 1)
-                            possible_seq_lengths = [
-                                _ for _ in range(tkv_cutoff, valid_prompt_shape[1], 64)
->>>>>>> origin/main
                             ]
                             # favor sequences that are close to the valid prompt length
                             possible_seq_lengths.reverse()
@@ -722,7 +572,6 @@ def get_program_prompt_list():
                             )
                         try:
                             input_ids, extra_kwargs, sample_key = __prepare_inputs(
-<<<<<<< HEAD
                                 batch_size=valid_prompt_shape[0],
                                 seq_length=valid_prompt_shape[1],
                                 tokenizer=tokenizer,
@@ -762,65 +611,6 @@ def generate_cpu_validation(
     tokenizer: AutoTokenizer,
 ):
     cpu_validation_info: Optional[ValidationInfo] = None
-=======
-                                valid_prompt_shape[0],
-                                valid_prompt_shape[1],
-                                tokenizer,
-                                enforce_sizes=enforce_sizes,
-                            )
-                            used_keys.add(program_seq_key[0])
-                            yield (
-                                program_seq_key[0],
-                                valid_prompt_shape,
-                                input_ids,
-                                extra_kwargs,
-                                sample_key,
-                            )
-                            break
-                        except ValueError:
-                            dprint(
-                                f"No valid sample exists in dataset for this input shape {valid_prompt_shape}"
-                            )
-
-            if len(used_keys) == 0 and local_rank == 0:
-                dprint(
-                    f"no valid prompt shape was found which would result in program {program_id} that satisfied batch{batch_size_limit_type}{batch_size_limit} and prompt_length{prompt_length_limit_type}{prompt_length_limit}"
-                )
-
-
-# metric calculator based on the cross-entropy and mean diff for each decode step
-def __metric_calculator(r: torch.Tensor, t: torch.Tensor):
-    cross_entropy = torch.nn.CrossEntropyLoss()(
-        r, t.softmax(dim=1).to(dtype=torch.float32)
-    )
-    diff = torch.mean(
-        torch.abs(
-            r.softmax(dim=1).to(dtype=torch.float32)
-            - t.softmax(dim=1).to(dtype=torch.float32)
-        )
-    )
-    return (cross_entropy, diff)
-
-
-failed_cases = []
-# for each program and valid prompt (batch size, sequence length)
-for (
-    program_id,
-    valid_prompt,
-    input_ids,
-    extra_kwargs,
-    sample_key,
-) in get_program_prompt_list():
-    extra_kwargs["attn_name"] = ATTN_NAME
-    extra_kwargs["_kvcache_num_blocks_hint"] = model_config.num_blocks
-
-    if local_rank == 0:
-        dprint(f"*** testing program {program_id} ***")
-        dprint(
-            f"program id: {program_id}, valid prompt: {valid_prompt}, input shape: {input_ids.shape}"
-        )
-
->>>>>>> origin/main
     if not args.skip_validation:
         # attempt to load the cpu validation info if it is already computed
         cpu_validation_info = __load_validation_info(
