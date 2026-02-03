@@ -17,7 +17,8 @@ from fms.utils.generation import pad_input_ids
 from torch import distributed as dist
 from torch.fx.experimental import _config as fx_config
 from transformers import AutoTokenizer
-
+from aiu_fms_testing_utils.utils.dpp_config import DPPRunnerConfig
+from aiu_fms_testing_utils.utils.env_utils import scoped_environ
 from aiu_fms_testing_utils.testing.validation import (
     GoldenTokenHook,
     LogitsExtractorHook,
@@ -41,7 +42,6 @@ from aiu_fms_testing_utils.utils.aiu_setup import aiu_dist_setup, dprint, local_
 from aiu_fms_testing_utils.utils.paged import (
     ProgramCriteria,
     get_programs_prompts,
-    KVCACHE_NUM_BLOCKS_HINT,
 )
 from aiu_fms_testing_utils.testing.utils import format_kwargs_to_string
 
@@ -336,7 +336,7 @@ def get_model_kwargs(model_variant: str) -> Dict[str, Any]:
 
 
 def get_distributed_kwargs(
-    is_distributed: bool, dist_timeout: str, save_validation_info_outputs: bool
+    is_distributed: bool, dist_timeout: str,
 ) -> Dict[str, Any]:
     distributed_kwargs = {}
     if is_distributed:
@@ -408,6 +408,7 @@ def load_model(
     model_kwargs: Dict[str, Any],
     distributed_kwargs: Dict[str, Any],
     stagger_load: int,
+    model_config: DPPRunnerConfig,
     is_validation: bool = False,
 ):
     dtype = None if is_fp8 else (torch.float32 if is_validation else torch.float16)
@@ -427,7 +428,10 @@ def load_model(
     # Compile if it's not the validation model
     if not is_validation:
         fx_config.backed_size_oblivious = True
-        model.compile(backend="sendnn", options={"sendnn.dynamic": True})
+        with scoped_environ(model_config.env_updates()):
+            # Temporarily set environment variables needed for compile
+            model.compile(backend="sendnn", options={"sendnn.dynamic": True})
+            
         __maybe_prepare_fp8_weights(model, is_fp8)
 
     return model
@@ -487,8 +491,8 @@ def get_valid_prompts(
     pad_multiple: int,
 ):
     # select prompts that fit the batch size criteria
-    valid_prompts = []
     if custom_shape:
+        prompt_found = 0
         for program_criteria_seq, valid_prompt_shapes in program_map.items():
             for valid_prompt_shape in valid_prompt_shapes:
                 if valid_prompt_shape == custom_shape:
@@ -502,17 +506,16 @@ def get_valid_prompts(
                         allow_truncation=allow_truncation,
                         enforce_sizes=enforce_sizes,
                     )
-                    valid_prompts = [
-                        (
-                            program_criteria_seq[0].program_id,
-                            custom_shape,
-                            input_ids,
-                            extra_kwargs,
-                            sample_key,
-                        )
-                    ]
+                    prompt_found = 1
+                    yield (
+                        program_criteria_seq[0].program_id,
+                        custom_shape,
+                        input_ids,
+                        extra_kwargs,
+                        sample_key,
+                    )
                     break
-            if len(valid_prompts) > 0:
+            if prompt_found:
                 break
     else:
         for program_info in programs_to_test:
@@ -577,16 +580,13 @@ def get_valid_prompts(
                                 allow_truncation=allow_truncation,
                                 enforce_sizes=enforce_sizes,
                             )
-                            valid_prompts.append(
-                                (
+                            yield(
                                     program_seq_key[0],
                                     valid_prompt_shape,
                                     input_ids,
                                     extra_kwargs,
                                     sample_key,
-                                )
                             )
-                            used_keys.add(program_seq_key[0])
                             break
                         except ValueError:
                             dprint(
@@ -597,8 +597,6 @@ def get_valid_prompts(
                 dprint(
                     f"no valid prompt shape was found which would result in program {program_id} that satisfied batch{program_info.batch_size_limit_type}{program_info.batch_size_limit} and prompt_length{program_info.prompt_length_limit_type}{program_info.prompt_length_limit}"
                 )
-
-    return valid_prompts
 
 
 def generate_cpu_validation(
@@ -627,7 +625,6 @@ def generate_cpu_validation(
             validation_info_outputs_dir=args.validation_info_outputs_dir,
             sample_key=sample_key,
         )
-        # if the cpu validation info is not yet computed, compute it
         if cpu_validation_info is None and validation_model is not None:
             cpu_validation_info = extract_validation_information(
                 model=validation_model,
@@ -637,7 +634,6 @@ def generate_cpu_validation(
                 attn_algorithm="math",
                 **extra_kwargs,
             )
-            # save the cpu validation info if requested
             if args.save_validation_info_outputs:
                 cpu_validation_info.save(
                     get_validation_info_path(
@@ -792,11 +788,17 @@ def main():
 
     ## MODEL LOADING ##
 
+    model_config = DPPRunnerConfig()
+    world_size = dist.get_world_size() if args.distributed and dist.is_initialized() else 1
+    model_config.setup_config(
+        args.model_variant, args.distributed, world_size, args.prefill_chunk_size
+    )
+
     model_kwargs = get_model_kwargs(args.model_variant)
 
     # distributed_kwargs is empty if not distributed
     distributed_kwargs = get_distributed_kwargs(
-        args.distributed, args.dist_timeout, args.save_validation_info_outputs
+        args.distributed, args.dist_timeout
     )
     args.save_validation_info_outputs = args.save_validation_info_outputs and (
         dist.get_rank() == 0
@@ -808,6 +810,7 @@ def main():
         model_kwargs=model_kwargs,
         distributed_kwargs=distributed_kwargs,
         stagger_load=args.stagger_load,
+        model_config=model_config,
         is_validation=False,
     )
 
@@ -819,6 +822,7 @@ def main():
             model_kwargs=model_kwargs,
             distributed_kwargs=distributed_kwargs,
             stagger_load=args.stagger_load,
+            model_config=model_config,
             is_validation=True,
         )
 
@@ -832,15 +836,10 @@ def main():
     if is_fp8:
         prompt_list = prompt_list * 2
     input_ids, extra_kwargs = pad_input_ids(prompt_list, min_pad_length=64)
-    extra_kwargs["mask"] = extra_kwargs["mask"].to(torch.float16)
 
+    extra_kwargs["mask"] = extra_kwargs["mask"].to(torch.float16)
     extra_kwargs["attn_name"] = ATTN_NAME
-    if (
-        "granite-3.3-8b-instruct" in args.model_variant
-        and args.distributed
-        and dist.get_world_size() == 4
-    ):
-        extra_kwargs["_kvcache_num_blocks_hint"] = KVCACHE_NUM_BLOCKS_HINT
+    extra_kwargs["_kvcache_num_blocks_hint"] = model_config.num_blocks
 
     warmup_model(
         model=model,
@@ -882,6 +881,7 @@ def main():
         max_batch_size=max_batch_size,
         max_tkv=max_tkv,
         program_cycles=args.max_new_tokens,
+        tkv_limit=model_config.tkv_limit,
         prioritize_large_batch_sizes=args.prioritize_large_batch_sizes,
     )
     for v in program_map.values():
@@ -912,12 +912,7 @@ def main():
     # for each program and valid prompt (batch size, sequence length)
     for program_id, valid_prompt, input_ids, extra_kwargs, sample_key in valid_prompts:
         extra_kwargs["attn_name"] = ATTN_NAME
-        if (
-            "granite-3.3-8b-instruct" in args.model_variant
-            and args.distributed
-            and dist.get_world_size() == 4
-        ):
-            extra_kwargs["_kvcache_num_blocks_hint"] = KVCACHE_NUM_BLOCKS_HINT
+        extra_kwargs["_kvcache_num_blocks_hint"] = model_config.num_blocks
 
         if local_rank == 0:
             dprint(f"*** testing program {program_id} ***")
@@ -925,10 +920,10 @@ def main():
                 f"program id: {program_id}, valid prompt: {valid_prompt}, input shape: {input_ids.shape}"
             )
 
-        # Returns none if skipping validation
+        # Returns none if skipping CPU validation
         cpu_validation_info = generate_cpu_validation(
             args=args,
-            validation_model=validation_model,  # could be None if skipping validation
+            validation_model=validation_model,
             valid_prompt=valid_prompt,
             input_ids=input_ids,
             extra_kwargs=extra_kwargs,
