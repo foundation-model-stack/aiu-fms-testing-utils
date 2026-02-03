@@ -47,6 +47,7 @@ dependencies = [
 # the repo and navigate to the `scripts` folder.
 [project.scripts]
 drive_paged_programs = "aiu_fms_testing_utils.scripts.drive_paged_programs:__main__"
+save_cpu_data = "aiu_fms_testing_utils.scripts.save_cpu_data:__main__"
 generate_layers_metrics = "aiu_fms_testing_utils.scripts.generate_layers_metrics:__main__"
 generate_metrics = "aiu_fms_testing_utils.scripts.generate_metrics:__main__"
 inference = "aiu_fms_testing_utils.scripts.inference:__main__"
