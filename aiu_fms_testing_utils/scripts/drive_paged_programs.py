@@ -214,7 +214,7 @@ def parse_cli_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def __prepare_inputs(
+def _prepare_inputs(
     batch_size: int,
     seq_length: int,
     tokenizer: AutoTokenizer,
@@ -287,7 +287,7 @@ def __prepare_inputs(
     return input_ids, extra_kwargs, sample_key
 
 
-def __maybe_prepare_fp8_weights(model: torch.nn.Module, is_fp8: bool):
+def _maybe_prepare_fp8_weights(model: torch.nn.Module, is_fp8: bool):
     """Converts model weights from bfloat16 to float16 for FP8 attention.
 
     When using FP8 attention variants, this function converts all bfloat16 parameters
@@ -308,7 +308,7 @@ def __maybe_prepare_fp8_weights(model: torch.nn.Module, is_fp8: bool):
                 param.data = param.data.to(dtype=torch.float16)
 
 
-def __load_validation_info(
+def _load_validation_info(
     model_variant,
     batch_size,
     seq_length,
@@ -394,7 +394,7 @@ def parse_program_limit(limit_str: str) -> tuple[int, str | None]:
     return limit_val, limit_type
 
 
-def __metric_calculator(r: torch.Tensor, t: torch.Tensor):
+def _metric_calculator(r: torch.Tensor, t: torch.Tensor):
     """Calculates cross-entropy and mean absolute difference between logit distributions.
 
     Args:
@@ -418,7 +418,7 @@ def __metric_calculator(r: torch.Tensor, t: torch.Tensor):
     return (cross_entropy, diff)
 
 
-def get_model_kwargs(model_variant: str) -> Dict[str, Any]:
+def _get_model_kwargs(model_variant: str) -> Dict[str, Any]:
     """Constructs model loading kwargs based on whether variant is a path or ID.
 
     Determines if the model_variant is a local filesystem path or a HuggingFace
@@ -440,7 +440,7 @@ def get_model_kwargs(model_variant: str) -> Dict[str, Any]:
     return model_kwargs
 
 
-def get_distributed_kwargs(
+def _get_distributed_kwargs(
     is_distributed: bool,
     dist_timeout: str,
 ) -> Dict[str, Any]:
@@ -522,7 +522,7 @@ def get_sampler(dataset_type: str, dataset_path: str, tokenizer: AutoTokenizer):
 
         custom_shape = (len(result), max([_[1] for _ in result]))
 
-        def __custom_line_sampler(**kwargs):
+        def _custom_line_sampler(**kwargs):
             """Custom sampler for user-provided text files.
 
             Returns pre-loaded prompts from custom dataset files without
@@ -541,7 +541,7 @@ def get_sampler(dataset_type: str, dataset_path: str, tokenizer: AutoTokenizer):
                 return result, sample_key
             return result
 
-        sampler = __custom_line_sampler
+        sampler = _custom_line_sampler
         allow_truncation = False
     elif dataset_type == "rag_factoid":
         sampler = sample_rag_factoid_requests
@@ -607,7 +607,7 @@ def load_model(
             # Temporarily set environment variables needed for compile
             model.compile(backend="sendnn", options={"sendnn.dynamic": True})
 
-        __maybe_prepare_fp8_weights(model, is_fp8)
+        _maybe_prepare_fp8_weights(model, is_fp8)
 
     return model
 
@@ -716,7 +716,7 @@ def get_valid_prompts(
             for valid_prompt_shape in valid_prompt_shapes:
                 if valid_prompt_shape == custom_shape:
                     enforce_sizes = [valid_prompt_shape[1]]
-                    input_ids, extra_kwargs, sample_key = __prepare_inputs(
+                    input_ids, extra_kwargs, sample_key = _prepare_inputs(
                         batch_size=valid_prompt_shape[0],
                         seq_length=valid_prompt_shape[1],
                         tokenizer=tokenizer,
@@ -790,7 +790,7 @@ def get_valid_prompts(
                                 )
                             )
                         try:
-                            input_ids, extra_kwargs, sample_key = __prepare_inputs(
+                            input_ids, extra_kwargs, sample_key = _prepare_inputs(
                                 batch_size=valid_prompt_shape[0],
                                 seq_length=valid_prompt_shape[1],
                                 tokenizer=tokenizer,
@@ -853,7 +853,7 @@ def generate_cpu_validation(
     cpu_validation_info: Optional[ValidationInfo] = None
     if not args.skip_validation:
         # attempt to load the cpu validation info if it is already computed
-        cpu_validation_info = __load_validation_info(
+        cpu_validation_info = _load_validation_info(
             model_variant=args.model_variant,
             batch_size=valid_prompt[0],
             seq_length=valid_prompt[1],
@@ -963,7 +963,7 @@ def run_metrics_test(
     level_1_metrics = capture_level_1_metrics(
         cpu_validation_info.get_info("logits"),
         aiu_validation_info.get_info("logits"),
-        top_k_loss_calculator(20, __metric_calculator),
+        top_k_loss_calculator(20, _metric_calculator),
     )
 
     if local_rank == 0:
@@ -1106,10 +1106,10 @@ def main():
         args.model_variant, args.distributed, world_size, args.prefill_chunk_size
     )
 
-    model_kwargs = get_model_kwargs(args.model_variant)
+    model_kwargs = _get_model_kwargs(args.model_variant)
 
     # distributed_kwargs is empty if not distributed
-    distributed_kwargs = get_distributed_kwargs(args.distributed, args.dist_timeout)
+    distributed_kwargs = _get_distributed_kwargs(args.distributed, args.dist_timeout)
     args.save_validation_info_outputs = args.save_validation_info_outputs and (
         dist.get_rank() == 0
     )
@@ -1139,8 +1139,8 @@ def main():
     ## MODEL WARMUP ##
 
     # warmup with any input so compiler produces criteria json
-    # TODO: Swap this with __prepare_inputs once fix for shape_id is available
-    # input_ids, extra_kwargs, sample_key = __prepare_inputs(2, max_tkv, tokenizer)
+    # TODO: Swap this with _prepare_inputs once fix for shape_id is available
+    # input_ids, extra_kwargs, sample_key = _prepare_inputs(2, max_tkv, tokenizer)
     prompt_list = [torch.arange(0, PAD_MULTIPLE, dtype=torch.int64)]
     # matching vllm warmup to pad to 2 on fp8, and no pad for fp16
     if is_fp8:
