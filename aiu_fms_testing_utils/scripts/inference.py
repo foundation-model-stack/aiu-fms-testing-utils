@@ -139,6 +139,13 @@ parser.add_argument(
     choices=["inductor", "eager", "aot_eager"],
 )
 parser.add_argument(
+    "--compile_backend_aiu",
+    type=str,
+    help="Backend for AIU compilation",
+    default="sendnn",
+    choices=["sendnn", "sendnn_compile_only"],
+)
+parser.add_argument(
     "--compile_dynamic",
     action="store_true",
     help="Use dynamic shapes with torch.compile",
@@ -387,7 +394,10 @@ elif is_aiu_backend:
             print("must set AIU_WORLD_RANK_0")
             exit()
         os.environ.setdefault("FLEX_COMPUTE", "SENTIENT")
-        os.environ.setdefault("FLEX_DEVICE", "PF")
+        if args.compile_backend_aiu == "compile_only_backend":
+            os.environ.setdefault("FLEX_DEVICE", "COMPILE")
+        else:
+            os.environ.setdefault("FLEX_DEVICE", "PF")
 
     device = torch.device("cpu")
 else:
@@ -597,7 +607,7 @@ if args.compile:
     fx_config.backed_size_oblivious = "paged" in attn_name
     if is_aiu_backend:
         model.compile(
-            backend="sendnn", options={"sendnn.dynamic": args.compile_dynamic_sendnn}
+            backend=args.compile_backend_aiu, options={"sendnn.dynamic": args.compile_dynamic_sendnn}
         )
     else:
         # compiling can make first inference pass slow
