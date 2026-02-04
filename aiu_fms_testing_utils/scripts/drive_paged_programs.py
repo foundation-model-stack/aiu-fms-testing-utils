@@ -290,11 +290,9 @@ def _prepare_inputs(
 
     input_ids, extra_kwargs = pad_input_ids(prompt_list, min_pad_length=seq_length)
     extra_kwargs["mask"] = extra_kwargs["mask"].to(torch.float16)
-    
+
     return PreparedInputs(
-        input_ids=input_ids, 
-        extra_kwargs=extra_kwargs, 
-        sample_key=sample_key
+        input_ids=input_ids, extra_kwargs=extra_kwargs, sample_key=sample_key
     )
 
 
