@@ -229,7 +229,7 @@ def _prepare_inputs(
     allow_truncation: bool,
     enforce_sizes: List[int] = [],
     seed: int = 0,
-):
+) -> PreparedInputs:
     """Prepares and tokenizes input prompts for model inference.
 
     Samples prompts from a dataset using the provided sampler, tokenizes them,
@@ -298,7 +298,7 @@ def _prepare_inputs(
     )
 
 
-def _maybe_prepare_fp8_weights(model: torch.nn.Module, is_fp8: bool):
+def _maybe_prepare_fp8_weights(model: torch.nn.Module, is_fp8: bool) -> None:
     """Converts model weights from bfloat16 to float16 for FP8 attention.
 
     When using FP8 attention variants, this function converts all bfloat16 parameters
@@ -330,7 +330,7 @@ def _load_validation_info(
     attn_type: str,
     validation_info_outputs_dir: str,
     sample_key: str | None = None,
-):
+) -> ValidationInfo | None:
     """Loads pre-computed CPU validation information from disk if available.
 
     Searches for a previously saved validation info file matching the specified
@@ -921,7 +921,7 @@ def generate_aiu_validation(
     input_ids: torch.Tensor,
     cpu_validation_info: Optional[ValidationInfo],
     extra_kwargs: Dict[str, Any],
-):
+) -> ValidationInfo:
     """Generates AIU validation information by running inference on the compiled model.
 
     Executes the AIU-compiled model to generate tokens and extract logits. If CPU
@@ -962,15 +962,15 @@ def generate_aiu_validation(
     return aiu_validation_info
 
 
-def run_metrics_test(
+def evaluate_cross_entropy_metrics(
     cross_entropy_threshold: float,
     aiu_validation_info: ValidationInfo,
     cpu_validation_info: ValidationInfo,
     program_id: str,
     prompt_shape: Tuple[int, int],
     tokenizer: AutoTokenizer,
-):
-    """Runs metrics-based validation comparing AIU and CPU outputs.
+) -> float:
+    """Evaluates cross-entropy metrics between AIU and CPU outputs.
 
     Computes cross-entropy and mean difference metrics between AIU and CPU logits
     for each generated token. Prints detailed comparison including token IDs and
@@ -1018,14 +1018,14 @@ def run_metrics_test(
     return failure_rate
 
 
-def run_tokens_test(
+def report_token_comparison(
     max_new_tokens: int,
     aiu_validation_info: ValidationInfo,
     cpu_validation_info: ValidationInfo,
     program_id: str,
     tokenizer: AutoTokenizer,
 ) -> None:
-    """Runs token-based validation comparing AIU and CPU generated sequences.
+    """Reports side-by-side comparison of AIU and CPU generated token sequences.
 
     Prints detailed comparison of generated tokens between AIU and CPU models,
     including the original prompt, token IDs, and decoded text. Only executes
@@ -1064,24 +1064,23 @@ def run_tokens_test(
         dprint(f"AIU output:\n{tokenizer.decode(aiu_tokens_generated)}")
 
 
-def main():
+def main() -> None:
     """Main execution function for driving paged program validation tests.
 
     Orchestrates the complete testing workflow:
     1. Parses command-line arguments and sets up environment variables.
-    2. Initializes distributed training if enabled.
-    3. Loads models (both AIU-compiled and CPU validation models).
-    4. Warms up the model to generate program criteria.
-    5. Selects programs and prompts to test based on criteria.
-    6. For each program/prompt combination:
+    2. Loads models (both AIU-compiled and CPU validation models).
+    3. Warms up the model to generate program criteria.
+    4. Selects programs and prompts to test based on criteria.
+    5. For each program/prompt combination:
        - Generates CPU validation data (or loads from cache).
        - Runs AIU inference.
        - Compares outputs using metrics or token-based validation.
-    7. Reports test results and failure cases.
+    6. Reports test results and failure cases.
 
     The function handles both single-node and distributed execution, supports
     multiple attention types (paged, paged_fp8), and can run in either metrics
-    mode (quantitative validation) or tokens mode (qualitative inspection).
+    mode or tokens mode.
 
     Raises:
         SystemExit: If required environment variables are not set.
@@ -1287,7 +1286,7 @@ def main():
         )
 
         if args.test_type == "metrics":
-            failure_rate = run_metrics_test(
+            failure_rate = evaluate_cross_entropy_metrics(
                 cross_entropy_threshold=args.cross_entropy_threshold,
                 aiu_validation_info=aiu_validation_info,
                 cpu_validation_info=cpu_validation_info,
@@ -1299,7 +1298,7 @@ def main():
                 failed_cases.append((program_id, valid_prompt, failure_rate))
 
         elif args.test_type == "tokens":
-            run_tokens_test(
+            report_token_comparison(
                 max_new_tokens=args.max_new_tokens,
                 aiu_validation_info=aiu_validation_info,
                 cpu_validation_info=cpu_validation_info,
