@@ -394,7 +394,7 @@ elif is_aiu_backend:
             print("must set AIU_WORLD_RANK_0")
             exit()
         os.environ.setdefault("FLEX_COMPUTE", "SENTIENT")
-        if args.compile_backend_aiu == "compile_only_backend":
+        if args.compile_backend_aiu == "sendnn_compile_only":
             os.environ.setdefault("FLEX_DEVICE", "COMPILE")
         else:
             os.environ.setdefault("FLEX_DEVICE", "PF")
