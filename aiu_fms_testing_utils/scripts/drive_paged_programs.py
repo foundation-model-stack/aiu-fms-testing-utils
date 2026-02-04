@@ -9,7 +9,7 @@ import random
 import time
 from itertools import dropwhile
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 
 import torch
 from fms.models import get_model
@@ -63,6 +63,12 @@ class ProgramInfo:
     batch_size_limit_type: str
     prompt_length_limit: int
     prompt_length_limit_type: str
+
+
+class PreparedInputs(NamedTuple):
+    input_ids: torch.Tensor
+    extra_kwargs: Dict[str, Any]
+    sample_key: str
 
 
 def parse_cli_args() -> argparse.Namespace:
@@ -129,7 +135,7 @@ def parse_cli_args() -> argparse.Namespace:
         type=str,
         choices=["rag_factoid", "sharegpt", "custom"],
         default="sharegpt",
-        help="selects the correct dataset type for sampling. Must be one of rag_factoid or sharegpt",
+        help="selects the correct dataset type for sampling. Must be one of rag_factoid or sharegpt or custom",
     )
     parser.add_argument(
         "--test_type",
@@ -284,7 +290,12 @@ def _prepare_inputs(
 
     input_ids, extra_kwargs = pad_input_ids(prompt_list, min_pad_length=seq_length)
     extra_kwargs["mask"] = extra_kwargs["mask"].to(torch.float16)
-    return input_ids, extra_kwargs, sample_key
+    
+    return PreparedInputs(
+        input_ids=input_ids, 
+        extra_kwargs=extra_kwargs, 
+        sample_key=sample_key
+    )
 
 
 def _maybe_prepare_fp8_weights(model: torch.nn.Module, is_fp8: bool):
@@ -612,7 +623,7 @@ def load_model(
     return model
 
 
-def get_programs_to_test(programs, program_criteria_list):
+def get_programs_to_test(programs, program_criteria_list) -> list[ProgramInfo]:
     """Parses program specifications into ProgramInfo objects for testing.
 
     Converts command-line program specifications into structured ProgramInfo objects.
@@ -819,7 +830,11 @@ def get_valid_prompts(
 
 
 def generate_cpu_validation(
-    args: argparse.Namespace,
+    skip_validation: bool,
+    model_variant: str,
+    max_new_tokens: int,
+    validation_info_outputs_dir: str,
+    save_validation_info_outputs: bool,
     validation_model: Optional[torch.nn.Module],
     valid_prompt,
     input_ids: torch.Tensor,
@@ -828,7 +843,7 @@ def generate_cpu_validation(
     attn_name: str,
     cpu_dtype: str,
     tokenizer: AutoTokenizer,
-):
+) -> ValidationInfo | None:
     """Generates or loads CPU validation information for reference comparison.
 
     Attempts to load pre-computed CPU validation data from disk. If not found and
@@ -836,7 +851,11 @@ def generate_cpu_validation(
     (tokens and logits). Optionally saves the validation info for future use.
 
     Args:
-        args: Parsed command-line arguments containing validation settings.
+        skip_validation: Whether to skip validation entirely.
+        model_variant: Model identifier or path.
+        max_new_tokens: Maximum number of tokens to generate.
+        validation_info_outputs_dir: Directory for validation info outputs.
+        save_validation_info_outputs: Whether to save validation info to disk.
         validation_model: Optional CPU model for generating validation data.
         valid_prompt: Tuple of (batch_size, seq_length) for the prompt shape.
         input_ids: Tokenized input tensor.
@@ -851,37 +870,37 @@ def generate_cpu_validation(
         (tokens and logits), or None if validation is skipped.
     """
     cpu_validation_info: Optional[ValidationInfo] = None
-    if not args.skip_validation:
+    if not skip_validation:
         # attempt to load the cpu validation info if it is already computed
         cpu_validation_info = _load_validation_info(
-            model_variant=args.model_variant,
+            model_variant=model_variant,
             batch_size=valid_prompt[0],
             seq_length=valid_prompt[1],
-            max_new_tokens=args.max_new_tokens,
+            max_new_tokens=max_new_tokens,
             tokenizer=tokenizer,
             seed=0,
             cpu_dtype=cpu_dtype,
             attn_type=attn_name,
-            validation_info_outputs_dir=args.validation_info_outputs_dir,
+            validation_info_outputs_dir=validation_info_outputs_dir,
             sample_key=sample_key,
         )
         if cpu_validation_info is None and validation_model is not None:
             cpu_validation_info = extract_validation_information(
                 model=validation_model,
                 input_ids=input_ids,
-                max_new_tokens=args.max_new_tokens,
+                max_new_tokens=max_new_tokens,
                 post_iteration_hook=LogitsExtractorHook(),
                 attn_algorithm="math",
                 **extra_kwargs,
             )
-            if args.save_validation_info_outputs:
+            if save_validation_info_outputs:
                 cpu_validation_info.save(
                     get_validation_info_path(
-                        validation_info_dir=args.validation_info_outputs_dir,
-                        model_variant=args.model_variant,
+                        validation_info_dir=validation_info_outputs_dir,
+                        model_variant=model_variant,
                         batch_size=valid_prompt[0],
                         seq_length=valid_prompt[1],
-                        max_new_tokens=args.max_new_tokens,
+                        max_new_tokens=max_new_tokens,
                         seed=0,
                         attn_type=attn_name,
                         dtype=cpu_dtype,
@@ -893,7 +912,11 @@ def generate_cpu_validation(
 
 
 def generate_aiu_validation(
-    args: argparse.Namespace,
+    test_type: str,
+    skip_validation: bool,
+    max_new_tokens: int,
+    timing: str,
+    prefill_chunk_size: int,
     model: torch.nn.Module,
     input_ids: torch.Tensor,
     cpu_validation_info: Optional[ValidationInfo],
@@ -906,7 +929,11 @@ def generate_aiu_validation(
     from CPU validation to ensure consistent decode paths for metric comparison.
 
     Args:
-        args: Parsed command-line arguments containing test configuration.
+        test_type: Type of test being run ("metrics" or "tokens").
+        skip_validation: Whether to skip validation entirely.
+        max_new_tokens: Maximum number of tokens to generate.
+        timing: Whether to collect timing information.
+        prefill_chunk_size: Chunk size for prefill operations.
         model: Compiled AIU model for inference.
         input_ids: Tokenized input tensor.
         cpu_validation_info: Optional CPU validation data for golden token injection.
@@ -917,18 +944,18 @@ def generate_aiu_validation(
         and optional timing information).
     """
     golden_hook = None
-    if args.test_type == "metrics":
-        if not args.skip_validation and cpu_validation_info:
+    if test_type == "metrics":
+        if not skip_validation and cpu_validation_info:
             golden_hook = GoldenTokenHook(cpu_validation_info.get_info("tokens"))
 
     aiu_validation_info = extract_validation_information(
         model=model,
         input_ids=input_ids,
-        max_new_tokens=args.max_new_tokens,
+        max_new_tokens=max_new_tokens,
         post_iteration_hook=golden_hook,
         last_n_tokens=64,
-        timing=args.timing,
-        prefill_chunk_size=args.prefill_chunk_size,
+        timing=timing,
+        prefill_chunk_size=prefill_chunk_size,
         **extra_kwargs,
     )
 
@@ -1232,7 +1259,11 @@ def main():
 
         # Returns none if skipping CPU validation
         cpu_validation_info = generate_cpu_validation(
-            args=args,
+            skip_validation=args.skip_validation,
+            model_variant=args.model_variant,
+            max_new_tokens=args.max_new_tokens,
+            validation_info_outputs_dir=args.validation_info_outputs_dir,
+            save_validation_info_outputs=args.save_validation_info_outputs,
             validation_model=validation_model,
             valid_prompt=valid_prompt,
             input_ids=input_ids,
@@ -1244,7 +1275,11 @@ def main():
         )
 
         aiu_validation_info = generate_aiu_validation(
-            args=args,
+            test_type=args.test_type,
+            skip_validation=args.skip_validation,
+            max_new_tokens=args.max_new_tokens,
+            timing=args.timing,
+            prefill_chunk_size=args.prefill_chunk_size,
             model=model,
             input_ids=input_ids,
             cpu_validation_info=cpu_validation_info,
