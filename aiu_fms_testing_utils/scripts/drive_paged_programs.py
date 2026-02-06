@@ -9,7 +9,7 @@ import random
 import time
 from itertools import dropwhile
 import re
-from typing import Any, Dict, Iterable, List, NamedTuple, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Literal, NamedTuple, Optional, Tuple
 
 import torch
 from fms.models import get_model
@@ -610,42 +610,51 @@ def get_sampler(dataset_type: str, dataset_path: str, tokenizer: AutoTokenizer):
 
 
 def load_model(
-    device_type: str,
+    device_type: Literal["cpu", "spyre"],
     is_fp8: bool,
     model_kwargs: Dict[str, Any],
     distributed_kwargs: Dict[str, Any],
     stagger_load: int,
     model_config: DPPRunnerConfig,
-    is_validation: bool = False,
 ):
     """Loads and optionally compiles a model for inference or validation.
 
-    Loads a model with the specified configuration. For non-validation models,
+    Loads a model with the specified configuration. For Spyre/AIU models,
     compiles the model using the sendnn backend with dynamic compilation enabled.
     The scoped_environ context manager temporarily sets environment variables
     from model_config during compilation to configure the compiler's behavior (e.g.,
     program criteria, batch sizes, context lengths).
 
     Args:
-        device_type: Device to load the model on ("cpu" or "cuda").
+        device_type: Target device for model execution. Options:
+            - "cpu": Load on CPU for validation (fp32, no compilation)
+            - "spyre": Load on CPU, compile for Spyre/AIU execution (fp16, with sendnn compilation)
         is_fp8: If True, uses FP8 quantization (dtype=None for auto-detection).
         model_kwargs: Dictionary with model loading parameters (variant or path).
         distributed_kwargs: Dictionary with distributed training configuration.
         stagger_load: Number of concurrent processes allowed during loading (0=unlimited).
         model_config: DPPRunnerConfig instance with environment variable updates.
-        is_validation: If True, loads model for CPU validation (fp32, no compilation).
-                      If False, loads for AIU inference (fp16, with compilation).
 
     Returns:
-        torch.nn.Module: Loaded model in evaluation mode. Non-validation models
-        are compiled with sendnn backend and may have FP8 weight conversion applied.
+        torch.nn.Module: Loaded model in evaluation mode. Spyre models are compiled
+        with sendnn backend and may have FP8 weight conversion applied.
     """
-    dtype = None if is_fp8 else (torch.float32 if is_validation else torch.float16)
+
+    if device_type not in ["cpu", "spyre"]:
+        raise ValueError(
+            f"device_type must be 'cpu' or 'spyre' for DPP, got '{device_type}'"
+        )
+
+    dtype = (
+        (torch.float32 if device_type == "cpu" else torch.float16)
+        if not is_fp8
+        else None
+    )
 
     with stagger_region(stagger_load):
         model = get_model(
             architecture="hf_pretrained",
-            device_type=device_type,
+            device_type="cpu",
             data_type=dtype,
             fused_weights=False,
             **model_kwargs,
@@ -654,8 +663,7 @@ def load_model(
 
     model.eval()
 
-    # Compile if it's not the validation model
-    if not is_validation:
+    if device_type == "spyre":
         with scoped_environ(model_config.env_updates()):
             # Temporarily set environment variables needed for compile
             model.compile(backend="sendnn", options={"sendnn.dynamic": True})
@@ -1384,13 +1392,12 @@ def main() -> None:
         prefill_chunk_size=args.prefill_chunk_size,
     )
     model = load_model(
-        device_type="cpu",
+        device_type="spyre",
         is_fp8=is_fp8,
         model_kwargs=model_kwargs,
         distributed_kwargs=distributed_kwargs,
         stagger_load=args.stagger_load,
         model_config=model_config,
-        is_validation=False,
     )
     validation_model = None
     if not args.skip_validation:
@@ -1401,7 +1408,6 @@ def main() -> None:
             distributed_kwargs=distributed_kwargs,
             stagger_load=args.stagger_load,
             model_config=model_config,
-            is_validation=True,
         )
 
     # Model Warmup
