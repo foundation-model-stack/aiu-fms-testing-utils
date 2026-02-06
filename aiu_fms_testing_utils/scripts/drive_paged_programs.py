@@ -84,6 +84,21 @@ class EnvConfig(NamedTuple):
     max_tkv: int
 
 
+class MetricResult(NamedTuple):
+    """Result of comparing AIU and CPU logit distributions.
+
+    Attributes:
+        cross_entropy_loss: Cross-entropy loss between the distributions.
+        mean_abs_diff: Mean absolute difference of softmax probabilities.
+    """
+
+    cross_entropy_loss: float
+    mean_abs_diff: float
+
+    def __str__(self) -> str:
+        return f"cross_entropy_loss: {self.cross_entropy_loss:.6f}, mean_abs_diff: {self.mean_abs_diff:.6f}"
+
+
 class PreparedInputs(NamedTuple):
     """Represents prepared model inputs from dataset sampling.
 
@@ -456,20 +471,20 @@ def _metric_calculator(r: torch.Tensor, t: torch.Tensor):
         t: Test logits tensor from AIU inference.
 
     Returns:
-        Tuple containing:
-            - cross_entropy: Cross-entropy loss between the distributions.
-            - diff: Mean absolute difference of softmax probabilities.
+        MetricResult: A named tuple containing the calculated metrics.
     """
-    cross_entropy = torch.nn.CrossEntropyLoss()(
+    cross_entropy_loss = torch.nn.CrossEntropyLoss()(
         r, t.softmax(dim=1).to(dtype=torch.float32)
     )
-    diff = torch.mean(
+    mean_abs_diff = torch.mean(
         torch.abs(
             r.softmax(dim=1).to(dtype=torch.float32)
             - t.softmax(dim=1).to(dtype=torch.float32)
         )
     )
-    return (cross_entropy, diff)
+    return MetricResult(
+        cross_entropy_loss=cross_entropy_loss.item(), mean_abs_diff=mean_abs_diff.item()
+    )
 
 
 def _get_model_kwargs(model_variant: str) -> Dict[str, Any]:
