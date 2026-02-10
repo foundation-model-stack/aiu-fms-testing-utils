@@ -256,6 +256,11 @@ def parse_cli_args() -> argparse.Namespace:
         help="set to true to skip cpu validation",
     )
     parser.add_argument(
+        "--cpu_only",
+        action="store_true",
+        help="set to true to only run CPU validation and save outputs, skipping AIU compilation and testing",
+    )
+    parser.add_argument(
         "--validation_info_outputs_dir",
         type=str,
         default="/home/senuser/models/validation_info",
@@ -1190,10 +1195,35 @@ def prepare_test_prompts(
     custom_shape: Optional[Tuple[int, int]],
     dataset_path: str,
 ):
-    """Parses program criteria and generates the sequence of valid test prompts.
+    """Prepares test prompts by mapping programs to valid prompt configurations.
 
-    This function unrolls the necessary arguments to decouple the logic from
-    the argparse namespace.
+    Loads program criteria from JSON, determines which programs to test based on
+    user input, generates a mapping of programs to valid prompt shapes (batch size
+    and sequence length combinations), and samples concrete prompts from the dataset
+    that satisfy the program requirements.
+
+    Args:
+        program_criteria_json_path: Path to JSON file containing program criteria list
+            with max_batch, max_tkv, batch_granularity, and tkv_granularity for each program.
+        programs: List of program specifications to test. Each element can be a program_id
+            or "<program_id>:<min_batch>,<min_prompt_length>" format.
+        max_new_tokens: Maximum number of tokens to generate per sequence.
+        prioritize_large_batch_sizes: If True, prioritize selecting prompts with larger
+            batch sizes when multiple options are available.
+        enforce_homogeneous_prompt_programs: If True, ensure all prompts hit the same
+            prompt program for a given test.
+        max_batch_size: Maximum batch size constraint for the hardware/configuration.
+        max_tkv: Maximum total key-value cache size constraint.
+        tkv_limit: Optional limit on tokens-per-key-value for program filtering.
+        tokenizer: HuggingFace tokenizer for encoding prompts.
+        sampler: Callable that samples prompts from the dataset.
+        allow_truncation: Whether to allow prompt truncation to fit program constraints.
+        custom_shape: Optional fixed shape to enforce.
+        dataset_path: Path to the dataset file for sampling prompts.
+
+    Returns:
+        List[ValidPrompt]: List of ValidPrompt objects containing program_id, shape,
+            input_ids, extra_kwargs, and sample_key for each test case.
     """
 
     with open(program_criteria_json_path, "r") as f:
@@ -1242,7 +1272,7 @@ def prepare_test_prompts(
 
 def generate_validation_info_and_test(
     valid_prompts: Iterable[ValidPrompt],
-    model: torch.nn.Module,
+    model: Optional[torch.nn.Module],
     validation_model: Optional[torch.nn.Module],
     tokenizer: AutoTokenizer,
     env_config: EnvConfig,
@@ -1257,6 +1287,7 @@ def generate_validation_info_and_test(
     timing: str,
     prefill_chunk_size: int,
     model_variant: str,
+    cpu_only: bool = False,
 ) -> list[Any]:
     """Generates tokens using AIU and CPU models and validates the results.
 
@@ -1294,6 +1325,11 @@ def generate_validation_info_and_test(
             tokenizer=tokenizer,
         )
 
+        if cpu_only:
+            if local_rank == 0:
+                dprint(f"CPU-only mode: Skipping AIU validation for program {valid_prompt.program_id}")
+            continue
+        
         aiu_validation_info = generate_aiu_validation(
             test_type=test_type,
             skip_validation=skip_validation,
@@ -1375,6 +1411,15 @@ def main() -> None:
     # Environment Setup
     args = parse_cli_args()
     is_fp8: bool = "fp8" in args.attention_type
+    
+    if args.cpu_only:
+        if not args.save_validation_info_outputs:
+            dprint("Warning: --cpu_only flag set but --save_validation_info_outputs is not set. Enabling it.")
+            args.save_validation_info_outputs = True
+        if args.skip_validation:
+            raise ValueError("Cannot use --cpu_only with --skip_validation.")
+        dprint("Running in CPU-only mode: skipping AIU compilation and testing")
+    
     if args.skip_validation and args.test_type == "metrics":
         dprint("When skipping validation, only test_type will be ignored")
     env_config: EnvConfig = setup_environment(
@@ -1406,14 +1451,17 @@ def main() -> None:
         world_size=world_size,
         prefill_chunk_size=args.prefill_chunk_size,
     )
-    model = load_model(
-        device_type="spyre",
-        is_fp8=is_fp8,
-        model_kwargs=model_kwargs,
-        distributed_kwargs=distributed_kwargs,
-        stagger_load=args.stagger_load,
-        model_config=model_config,
-    )
+    model = None
+    if not args.cpu_only:
+        model = load_model(
+            device_type="spyre",
+            is_fp8=is_fp8,
+            model_kwargs=model_kwargs,
+            distributed_kwargs=distributed_kwargs,
+            stagger_load=args.stagger_load,
+            model_config=model_config,
+        )
+    
     validation_model = None
     if not args.skip_validation:
         validation_model = load_model(
@@ -1426,30 +1474,31 @@ def main() -> None:
         )
 
     # Model Warmup
-    ## warmup with any input so compiler produces criteria json
-    ## TODO: Swap this with _prepare_inputs once fix for shape_id is available
-    ## input_ids, extra_kwargs, sample_key = _prepare_inputs(2, max_tkv, tokenizer)
-    prompt_list = [torch.arange(0, PAD_MULTIPLE, dtype=torch.int64)]
-    # matching vllm warmup to pad to 2 on fp8, and no pad for fp16
-    if is_fp8:
-        prompt_list = prompt_list * 2
-    input_ids, extra_kwargs = pad_input_ids(prompt_list, min_pad_length=64)
-    extra_kwargs["mask"] = extra_kwargs["mask"].to(torch.float16)
-    extra_kwargs["attn_name"] = env_config.attn_name
-    extra_kwargs["_kvcache_num_blocks_hint"] = model_config.num_blocks
-    warmup_model(
-        model=model,
-        input_ids=input_ids,
-        max_new_tokens=args.max_new_tokens,
-        compile_dynamic_sendnn=True,
-        stagger_update_lazyhandle=args.stagger_update_lazyhandle,
-        prefill_chunk_size=args.prefill_chunk_size,
-        **extra_kwargs,
-    )
-    if args.distributed:
-        # wait for rank0 to be finished as it is the only one generating the criteria json
-        # this is needed since otherwise we may run into a race condition
-        torch.distributed.barrier()
+    if not args.cpu_only:
+        ## warmup with any input so compiler produces criteria json
+        ## TODO: Swap this with _prepare_inputs once fix for shape_id is available
+        ## input_ids, extra_kwargs, sample_key = _prepare_inputs(2, max_tkv, tokenizer)
+        prompt_list = [torch.arange(0, PAD_MULTIPLE, dtype=torch.int64)]
+        # matching vllm warmup to pad to 2 on fp8, and no pad for fp16
+        if is_fp8:
+            prompt_list = prompt_list * 2
+        input_ids, extra_kwargs = pad_input_ids(prompt_list, min_pad_length=64)
+        extra_kwargs["mask"] = extra_kwargs["mask"].to(torch.float16)
+        extra_kwargs["attn_name"] = env_config.attn_name
+        extra_kwargs["_kvcache_num_blocks_hint"] = model_config.num_blocks
+        warmup_model(
+            model=model,
+            input_ids=input_ids,
+            max_new_tokens=args.max_new_tokens,
+            compile_dynamic_sendnn=True,
+            stagger_update_lazyhandle=args.stagger_update_lazyhandle,
+            prefill_chunk_size=args.prefill_chunk_size,
+            **extra_kwargs,
+        )
+        if args.distributed:
+            # wait for rank0 to be finished as it is the only one generating the criteria json
+            # this is needed since otherwise we may run into a race condition
+            torch.distributed.barrier()
 
     # Prompt Preparation
     valid_prompts = prepare_test_prompts(
@@ -1486,17 +1535,20 @@ def main() -> None:
         timing=args.timing,
         prefill_chunk_size=args.prefill_chunk_size,
         model_variant=args.model_variant,
+        cpu_only=args.cpu_only,
     )
 
-    if not args.skip_validation and local_rank == 0:
+    if args.cpu_only and local_rank == 0:
+        dprint("CPU-only mode completed: validation info saved")
+    elif not args.skip_validation and local_rank == 0:
         if len(failed_cases) != 0:
             dprint("The test failed with the following cases:")
             for failed_case in failed_cases:
                 dprint(
                     f"Program ID: {failed_case[0]}, Prompt Shape: {failed_case[1]}, Failure Rate: {failed_case[2]}"
                 )
-    else:
-        dprint("all tests passed")
+        else:
+            dprint("all tests passed")
 
 
 if __name__ == "__main__":
