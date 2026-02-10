@@ -891,12 +891,11 @@ def get_valid_prompts(
 
 
 def generate_cpu_validation(
-    skip_validation: bool,
     model_variant: str,
     max_new_tokens: int,
     validation_info_outputs_dir: str,
     save_validation_info_outputs: bool,
-    validation_model: Optional[torch.nn.Module],
+    validation_model: torch.nn.Module,
     valid_prompt,
     input_ids: torch.Tensor,
     extra_kwargs: Dict[str, Any],
@@ -904,20 +903,19 @@ def generate_cpu_validation(
     attn_name: str,
     cpu_dtype: str,
     tokenizer: AutoTokenizer,
-) -> ValidationInfo | None:
+) -> ValidationInfo:
     """Generates or loads CPU validation information for reference comparison.
 
-    Attempts to load pre-computed CPU validation data from disk. If not found and
-    a validation model is provided, runs CPU inference to generate reference outputs
-    (tokens and logits). Optionally saves the validation info for future use.
+    Attempts to load pre-computed CPU validation data from disk. If not found,
+    runs CPU inference to generate reference outputs (tokens and logits).
+    Optionally saves the validation info for future use.
 
     Args:
-        skip_validation: Whether to skip validation entirely.
         model_variant: Model identifier or path.
         max_new_tokens: Maximum number of tokens to generate.
         validation_info_outputs_dir: Directory for validation info outputs.
         save_validation_info_outputs: Whether to save validation info to disk.
-        validation_model: Optional CPU model for generating validation data.
+        validation_model: CPU model for generating validation data.
         valid_prompt: Tuple of (batch_size, seq_length) for the prompt shape.
         input_ids: Tokenized input tensor.
         extra_kwargs: Dictionary with attention mask and other model inputs.
@@ -927,47 +925,45 @@ def generate_cpu_validation(
         tokenizer: HuggingFace tokenizer for the model.
 
     Returns:
-        Optional[ValidationInfo]: ValidationInfo object containing CPU reference outputs
-        (tokens and logits), or None if validation is skipped.
+        ValidationInfo: ValidationInfo object containing CPU reference outputs
+        (tokens and logits).
     """
-    cpu_validation_info: Optional[ValidationInfo] = None
-    if not skip_validation:
-        # attempt to load the cpu validation info if it is already computed
-        cpu_validation_info = _load_validation_info(
-            model_variant=model_variant,
-            batch_size=valid_prompt[0],
-            seq_length=valid_prompt[1],
+    # attempt to load the cpu validation info if it is already computed
+    cpu_validation_info = _load_validation_info(
+        model_variant=model_variant,
+        batch_size=valid_prompt[0],
+        seq_length=valid_prompt[1],
+        max_new_tokens=max_new_tokens,
+        tokenizer=tokenizer,
+        seed=0,
+        cpu_dtype=cpu_dtype,
+        attn_type=attn_name,
+        validation_info_outputs_dir=validation_info_outputs_dir,
+        sample_key=sample_key,
+    )
+    if cpu_validation_info is None:
+        cpu_validation_info = extract_validation_information(
+            model=validation_model,
+            input_ids=input_ids,
             max_new_tokens=max_new_tokens,
-            tokenizer=tokenizer,
-            seed=0,
-            cpu_dtype=cpu_dtype,
-            attn_type=attn_name,
-            validation_info_outputs_dir=validation_info_outputs_dir,
-            sample_key=sample_key,
+            post_iteration_hook=LogitsExtractorHook(),
+            attn_algorithm="math",
+            **extra_kwargs,
         )
-        if cpu_validation_info is None and validation_model is not None:
-            cpu_validation_info = extract_validation_information(
-                model=validation_model,
-                input_ids=input_ids,
-                max_new_tokens=max_new_tokens,
-                post_iteration_hook=LogitsExtractorHook(),
-                attn_algorithm="math",
-                **extra_kwargs,
-            )
-            if save_validation_info_outputs:
-                cpu_validation_info.save(
-                    get_validation_info_path(
-                        validation_info_dir=validation_info_outputs_dir,
-                        model_variant=model_variant,
-                        batch_size=valid_prompt[0],
-                        seq_length=valid_prompt[1],
-                        max_new_tokens=max_new_tokens,
-                        seed=0,
-                        attn_type=attn_name,
-                        dtype=cpu_dtype,
-                        sample_key=sample_key,
-                    )
+        if save_validation_info_outputs:
+            cpu_validation_info.save(
+                get_validation_info_path(
+                    validation_info_dir=validation_info_outputs_dir,
+                    model_variant=model_variant,
+                    batch_size=valid_prompt[0],
+                    seq_length=valid_prompt[1],
+                    max_new_tokens=max_new_tokens,
+                    seed=0,
+                    attn_type=attn_name,
+                    dtype=cpu_dtype,
+                    sample_key=sample_key,
                 )
+            )
 
     return cpu_validation_info
 
@@ -1277,75 +1273,87 @@ def generate_validation_info_and_test(
                 f"program id: {valid_prompt.program_id}, valid prompt: {valid_prompt.shape}, input shape: {valid_prompt.input_ids.shape}"
             )
 
-        # Returns none if skipping CPU validation
-        cpu_validation_info = generate_cpu_validation(
-            skip_validation=skip_validation,
-            model_variant=model_variant,
-            max_new_tokens=max_new_tokens,
-            validation_info_outputs_dir=validation_info_outputs_dir,
-            save_validation_info_outputs=save_validation_info_outputs,
-            validation_model=validation_model,
-            valid_prompt=valid_prompt.shape,
-            input_ids=valid_prompt.input_ids,
-            extra_kwargs=valid_prompt.extra_kwargs,
-            sample_key=valid_prompt.sample_key,
-            attn_name=env_config.attn_name,
-            cpu_dtype=env_config.cpu_dtype,
-            tokenizer=tokenizer,
-        )
-
-        aiu_validation_info = generate_aiu_validation(
-            test_type=test_type,
-            skip_validation=skip_validation,
-            max_new_tokens=max_new_tokens,
-            timing=timing,
-            prefill_chunk_size=prefill_chunk_size,
-            model=model,
-            input_ids=valid_prompt.input_ids,
-            cpu_validation_info=cpu_validation_info,
-            extra_kwargs=valid_prompt.extra_kwargs,
-        )
-
-        if test_type == "metrics":
-            failure_rate = evaluate_cross_entropy_metrics(
-                cross_entropy_threshold=cross_entropy_threshold,
-                aiu_validation_info=aiu_validation_info,
-                cpu_validation_info=cpu_validation_info,
-                program_id=valid_prompt.program_id,
-                prompt_shape=valid_prompt.shape,
-                tokenizer=tokenizer,
-            )
-            if failure_rate > failure_rate_threshold:
-                failed_cases.append(
-                    (valid_prompt.program_id, valid_prompt.shape, failure_rate)
-                )
-
-        elif test_type == "tokens":
-            report_token_comparison(
+        if not skip_validation:
+            # Generate or load CPU validation info
+            cpu_validation_info = generate_cpu_validation(
+                model_variant=model_variant,
                 max_new_tokens=max_new_tokens,
-                aiu_validation_info=aiu_validation_info,
-                cpu_validation_info=cpu_validation_info,
-                program_id=valid_prompt.program_id,
+                validation_info_outputs_dir=validation_info_outputs_dir,
+                save_validation_info_outputs=save_validation_info_outputs,
+                validation_model=validation_model,
+                valid_prompt=valid_prompt.shape,
+                input_ids=valid_prompt.input_ids,
+                extra_kwargs=valid_prompt.extra_kwargs,
+                sample_key=valid_prompt.sample_key,
+                attn_name=env_config.attn_name,
+                cpu_dtype=env_config.cpu_dtype,
                 tokenizer=tokenizer,
             )
 
-        else:
-            raise ValueError("test type must be one of metrics or tokens")
+            aiu_validation_info = generate_aiu_validation(
+                test_type=test_type,
+                skip_validation=skip_validation,
+                max_new_tokens=max_new_tokens,
+                timing=timing,
+                prefill_chunk_size=prefill_chunk_size,
+                model=model,
+                input_ids=valid_prompt.input_ids,
+                cpu_validation_info=cpu_validation_info,
+                extra_kwargs=valid_prompt.extra_kwargs,
+            )
 
-        if skip_validation and local_rank == 0:
-            for sentence_idx, test_sentence in enumerate(
-                aiu_validation_info.get_info("tokens")
-            ):
-                tokens_prompt = [t.item() for t in test_sentence[:-max_new_tokens]]
-                aiu_tokens_generated = [
-                    t.item() for t in test_sentence[-max_new_tokens:]
-                ]
-                dprint(
-                    f"For Program {valid_prompt.program_id} in sentence {sentence_idx + 1}:"
+            if test_type == "metrics":
+                failure_rate = evaluate_cross_entropy_metrics(
+                    cross_entropy_threshold=cross_entropy_threshold,
+                    aiu_validation_info=aiu_validation_info,
+                    cpu_validation_info=cpu_validation_info,
+                    program_id=valid_prompt.program_id,
+                    prompt_shape=valid_prompt.shape,
+                    tokenizer=tokenizer,
                 )
-                dprint(f"Prompt:\n{tokenizer.decode(tokens_prompt)}")
-                dprint(f"AIU tokens:\n{aiu_tokens_generated}")
-                dprint(f"AIU output:\n{tokenizer.decode(aiu_tokens_generated)}")
+                if failure_rate > failure_rate_threshold:
+                    failed_cases.append(
+                        (valid_prompt.program_id, valid_prompt.shape, failure_rate)
+                    )
+
+            elif test_type == "tokens":
+                report_token_comparison(
+                    max_new_tokens=max_new_tokens,
+                    aiu_validation_info=aiu_validation_info,
+                    cpu_validation_info=cpu_validation_info,
+                    program_id=valid_prompt.program_id,
+                    tokenizer=tokenizer,
+                )
+
+            else:
+                raise ValueError("test type must be one of metrics or tokens")
+        else:
+            aiu_validation_info = generate_aiu_validation(
+                test_type=test_type,
+                skip_validation=skip_validation,
+                max_new_tokens=max_new_tokens,
+                timing=timing,
+                prefill_chunk_size=prefill_chunk_size,
+                model=model,
+                input_ids=valid_prompt.input_ids,
+                cpu_validation_info=None,
+                extra_kwargs=valid_prompt.extra_kwargs,
+            )
+
+            if local_rank == 0:
+                for sentence_idx, test_sentence in enumerate(
+                    aiu_validation_info.get_info("tokens")
+                ):
+                    tokens_prompt = [t.item() for t in test_sentence[:-max_new_tokens]]
+                    aiu_tokens_generated = [
+                        t.item() for t in test_sentence[-max_new_tokens:]
+                    ]
+                    dprint(
+                        f"For Program {valid_prompt.program_id} in sentence {sentence_idx + 1}:"
+                    )
+                    dprint(f"Prompt:\n{tokenizer.decode(tokens_prompt)}")
+                    dprint(f"AIU tokens:\n{aiu_tokens_generated}")
+                    dprint(f"AIU output:\n{tokenizer.decode(aiu_tokens_generated)}")
 
     return failed_cases
 
@@ -1495,8 +1503,8 @@ def main() -> None:
                 dprint(
                     f"Program ID: {failed_case[0]}, Prompt Shape: {failed_case[1]}, Failure Rate: {failed_case[2]}"
                 )
-    else:
-        dprint("all tests passed")
+        else:
+            dprint("all tests passed")
 
 
 if __name__ == "__main__":
