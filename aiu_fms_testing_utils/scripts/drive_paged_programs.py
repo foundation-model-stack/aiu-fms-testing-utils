@@ -970,7 +970,6 @@ def generate_cpu_validation(
 
 def generate_aiu_validation(
     test_type: str,
-    skip_validation: bool,
     max_new_tokens: int,
     timing: str,
     prefill_chunk_size: int,
@@ -987,7 +986,6 @@ def generate_aiu_validation(
 
     Args:
         test_type: Type of test being run ("metrics" or "tokens").
-        skip_validation: Whether to skip validation entirely.
         max_new_tokens: Maximum number of tokens to generate.
         timing: Whether to collect timing information.
         prefill_chunk_size: Chunk size for prefill operations.
@@ -1001,9 +999,8 @@ def generate_aiu_validation(
         and optional timing information).
     """
     golden_hook = None
-    if test_type == "metrics":
-        if not skip_validation and cpu_validation_info:
-            golden_hook = GoldenTokenHook(cpu_validation_info.get_info("tokens"))
+    if test_type == "metrics" and cpu_validation_info:
+        golden_hook = GoldenTokenHook(cpu_validation_info.get_info("tokens"))
 
     aiu_validation_info = extract_validation_information(
         model=model,
@@ -1292,7 +1289,6 @@ def generate_validation_info_and_test(
 
             aiu_validation_info = generate_aiu_validation(
                 test_type=test_type,
-                skip_validation=skip_validation,
                 max_new_tokens=max_new_tokens,
                 timing=timing,
                 prefill_chunk_size=prefill_chunk_size,
@@ -1330,7 +1326,6 @@ def generate_validation_info_and_test(
         else:
             aiu_validation_info = generate_aiu_validation(
                 test_type=test_type,
-                skip_validation=skip_validation,
                 max_new_tokens=max_new_tokens,
                 timing=timing,
                 prefill_chunk_size=prefill_chunk_size,
