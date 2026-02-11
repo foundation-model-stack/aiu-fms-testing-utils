@@ -2,6 +2,7 @@ import argparse
 
 from aiu_fms_testing_utils.testing.dpp.run_drive_paged_programs import run_dpp
 
+
 def main() -> None:
     """Main execution function for driving paged program validation tests.
 
@@ -58,12 +59,12 @@ def main() -> None:
 
     run_dpp(
         programs=programs,
+        dataset_path=dataset_path,
         max_new_tokens=max_new_tokens,
         distributed=distributed,
         model_variant=model_variant,
         timing=timing,
         program_criteria_json_path=program_criteria_json_path,
-        dataset_path=dataset_path,
         test_type=test_type,
         cross_entropy_threshold=cross_entropy_threshold,
         failure_rate_threshold=failure_rate_threshold,
@@ -78,8 +79,6 @@ def main() -> None:
         prioritize_large_batch_sizes=prioritize_large_batch_sizes,
         enforce_homogeneous_prompt_programs=enforce_homogeneous_prompt_programs,
     )
-
-    
 
 
 if __name__ == "__main__":

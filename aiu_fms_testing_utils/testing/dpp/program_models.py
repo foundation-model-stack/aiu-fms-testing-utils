@@ -2,6 +2,7 @@ from typing import Any, Dict, NamedTuple, Tuple
 from dataclasses import dataclass
 import torch
 
+
 @dataclass
 class ProgramInfo:
     """Encapsulates program execution criteria.

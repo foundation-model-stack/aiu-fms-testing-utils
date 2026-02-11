@@ -1,5 +1,9 @@
 from aiu_fms_testing_utils.testing.utils import format_kwargs_to_string
-from aiu_fms_testing_utils.utils import get_pad_size, sample_rag_factoid_requests, sample_sharegpt_requests
+from aiu_fms_testing_utils.utils import (
+    get_pad_size,
+    sample_rag_factoid_requests,
+    sample_sharegpt_requests,
+)
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, local_rank
 
 

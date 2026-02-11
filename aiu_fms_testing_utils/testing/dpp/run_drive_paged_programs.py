@@ -2,7 +2,9 @@ import datetime
 import os
 from huggingface_hub import hf_hub_download
 from torch.fx.experimental import _config as fx_config
-from aiu_fms_testing_utils.testing.dpp.generation import generate_validation_info_and_test
+from aiu_fms_testing_utils.testing.dpp.generation import (
+    generate_validation_info_and_test,
+)
 from aiu_fms_testing_utils.testing.dpp.prepare_prompts import prepare_test_prompts
 from aiu_fms_testing_utils.testing.dpp.program_models import EnvConfig
 from aiu_fms_testing_utils.testing.dpp.sample_prompts import get_sampler
@@ -20,16 +22,32 @@ from torch import distributed as dist
 from transformers import AutoTokenizer
 
 
-from typing import Any, Dict, List, Literal, Optional
-    
+from typing import Any, Dict, List, Literal
+
 
 DEFAULT_CE_THRESHOLD = 2.5
 DEFAULT_FAILURE_RATE_THRESHOLD = 0.1
-SHARE_GPT_DATASET = ("anon8231489123/ShareGPT_Vicuna_unfiltered", "ShareGPT_V3_unfiltered_cleaned_split.json")
+SHARE_GPT_DATASET = (
+    "anon8231489123/ShareGPT_Vicuna_unfiltered",
+    "ShareGPT_V3_unfiltered_cleaned_split.json",
+)
 RAG_FACTOID_DATASET = ("", "")
 
 
-def resolve_dataset_path(dataset_path: Optional[str]) -> tuple[str, str]:
+def resolve_dataset_path(dataset_path: str) -> tuple[str, str]:
+    """Resolves the dataset type and local path based on the provided dataset_path.
+
+    Args:
+        dataset_path: A string indicating the dataset to use. Supported values are:
+                      - "sharegpt": Uses the ShareGPT dataset from HuggingFace.
+                      - "rag_factoid": Uses the RAG Factoid dataset from HuggingFace.
+                      - Any other string is considered a custom dataset path.
+
+    Returns:
+        A tuple containing:
+            - dataset_type: A string indicating the type of dataset ("sharegpt", "rag_factoid", or "custom").
+            - local_dataset_path: The local file path to the dataset."""
+
     if dataset_path == "sharegpt":
         dataset_type = "sharegpt"
         # Fetch from HuggingFace
@@ -54,40 +72,32 @@ def resolve_dataset_path(dataset_path: Optional[str]) -> tuple[str, str]:
     return dataset_type, local_dataset_path
 
 
-def _get_distributed_kwargs(
-    is_distributed: bool,
-    dist_timeout: str,
-) -> Dict[str, Any]:
+def _get_distributed_kwargs(dist_timeout: str) -> Dict[str, Any]:
     """Initializes distributed training configuration and returns kwargs.
 
-    Sets up PyTorch distributed process group with tensor parallelism strategy
-    if distributed mode is enabled. Configures custom timeout if specified.
+    Sets up PyTorch distributed process group with tensor parallelism strategy. Configures custom timeout if specified.
 
     Args:
-        is_distributed: If True, initializes distributed training setup.
         dist_timeout: Timeout in minutes for distributed operations (0 uses default).
 
     Returns:
         Dictionary containing distributed configuration with keys:
             - "distributed_strategy": Set to "tp" (tensor parallelism) if distributed.
-            - "group": PyTorch distributed group (WORLD) if distributed.
-        Returns empty dict if not distributed.
-    """
-    distributed_kwargs = {}
-    if is_distributed:
-        if dist_timeout > 0:
-            # Default timeout:
-            # https://docs.pytorch.org/docs/stable/distributed.html#torch.distributed.init_process_group
-            dist.init_process_group(timeout=datetime.timedelta(minutes=dist_timeout))
-            dprint(f"NOTICE: init_process_group timeout set to {dist_timeout} minutes")
-        else:
-            dist.init_process_group()
+            - "group": PyTorch distributed group (WORLD) if distributed."""
 
-        aiu_dist_setup(dist.get_rank(), dist.get_world_size())
-        distributed_kwargs["distributed_strategy"] = "tp"
-        distributed_kwargs["group"] = dist.group.WORLD
+    if dist_timeout > 0:
+        # Default timeout:
+        # https://docs.pytorch.org/docs/stable/distributed.html#torch.distributed.init_process_group
+        dist.init_process_group(timeout=datetime.timedelta(minutes=dist_timeout))
+        dprint(f"NOTICE: init_process_group timeout set to {dist_timeout} minutes")
+    else:
+        dist.init_process_group()
 
-    return distributed_kwargs
+    aiu_dist_setup(dist.get_rank(), dist.get_world_size())
+    return {
+        "distributed_strategy": "tp",
+        "group": dist.group.WORLD,
+    }
 
 
 def _get_model_kwargs(model_variant: str) -> Dict[str, Any]:
@@ -101,8 +111,8 @@ def _get_model_kwargs(model_variant: str) -> Dict[str, Any]:
 
     Returns:
         Dictionary with either "model_path" (for local paths) or "variant"
-        (for HuggingFace IDs) as the key.
-    """
+        (for HuggingFace IDs) as the key."""
+
     model_kwargs = {}
     if os.path.exists(model_variant):
         model_kwargs["model_path"] = model_variant
@@ -112,7 +122,7 @@ def _get_model_kwargs(model_variant: str) -> Dict[str, Any]:
     return model_kwargs
 
 
-def _maybe_prepare_fp8_weights(model: torch.nn.Module, is_fp8: bool) -> None:
+def _maybe_prepare_fp8_weights(model: torch.nn.Module) -> None:
     """Converts model weights from bfloat16 to float16 for FP8 attention.
 
     When using FP8 attention variants, this function converts all bfloat16 parameters
@@ -120,17 +130,15 @@ def _maybe_prepare_fp8_weights(model: torch.nn.Module, is_fp8: bool) -> None:
     which may cause accuracy loss.
 
     Args:
-        model: PyTorch model whose weights may need conversion.
-        is_fp8: If True, performs the weight conversion.
-    """
-    if is_fp8:
-        for name, param in model.named_parameters():
-            if param.dtype == torch.bfloat16:
-                if param.max() > torch.finfo(torch.float16).max:
-                    dprint(
-                        f"[WARNING] You are casting param {name} to fp16, which will cause loss of accuracy. You can ignore this warning if this is intended."
-                    )
-                param.data = param.data.to(dtype=torch.float16)
+        model: PyTorch model whose weights may need conversion."""
+
+    for name, param in model.named_parameters():
+        if param.dtype == torch.bfloat16:
+            if param.max() > torch.finfo(torch.float16).max:
+                dprint(
+                    f"[WARNING] You are casting param {name} to fp16, which will cause loss of accuracy."
+                )
+            param.data = param.data.to(dtype=torch.float16)
 
 
 def load_model(
@@ -192,7 +200,8 @@ def load_model(
             # Temporarily set environment variables needed for compile
             model.compile(backend="sendnn", options={"sendnn.dynamic": True})
 
-        _maybe_prepare_fp8_weights(model, is_fp8)
+        if is_fp8:
+            _maybe_prepare_fp8_weights(model)
 
     return model
 
@@ -249,12 +258,12 @@ def setup_environment(
 
 def run_dpp(
     program_criteria_json_path: str,
+    dataset_path: str,
     max_new_tokens: int,
     distributed: bool,
     model_variant: str,
     programs: List[str] = None,
     timing: str = "",
-    dataset_path: str = None,
     test_type: str = "metrics",
     cross_entropy_threshold: float = DEFAULT_CE_THRESHOLD,
     failure_rate_threshold: float = DEFAULT_FAILURE_RATE_THRESHOLD,
@@ -292,14 +301,12 @@ def run_dpp(
 
     # Model Loading
     model_kwargs: Dict[str, Any] = _get_model_kwargs(model_variant=model_variant)
-    distributed_kwargs: Dict[str, Any] = _get_distributed_kwargs(
-        is_distributed=distributed, dist_timeout=dist_timeout
+    distributed_kwargs: Dict[str, Any] = (
+        _get_distributed_kwargs(dist_timeout) if distributed else {}
     )
     save_validation_info_outputs = save_validation_info_outputs and dist.get_rank() == 0
     model_config: DPPRunnerConfig = DPPRunnerConfig()
-    world_size = (
-        dist.get_world_size() if distributed and dist.is_initialized() else 1
-    )
+    world_size = dist.get_world_size() if distributed and dist.is_initialized() else 1
     model_config.setup_config(
         model_variant=model_variant,
         use_distributed=distributed,
@@ -394,6 +401,8 @@ def run_dpp(
         if len(failed_cases) != 0:
             dprint("The test failed with the following cases:")
             for failed_case in failed_cases:
-                dprint(f"Program ID: {failed_case[0]}, Prompt Shape: {failed_case[1]}, Failure Rate: {failed_case[2]}")
+                dprint(
+                    f"Program ID: {failed_case[0]}, Prompt Shape: {failed_case[1]}, Failure Rate: {failed_case[2]}"
+                )
         else:
             dprint("all tests passed")

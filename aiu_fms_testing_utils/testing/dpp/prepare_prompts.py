@@ -2,7 +2,11 @@ import itertools
 import json
 import random
 from aiu_fms_testing_utils.testing.dpp.prepare_programs import get_programs_to_test
-from aiu_fms_testing_utils.testing.dpp.program_models import PreparedInputs, ProgramInfo, ValidPrompt
+from aiu_fms_testing_utils.testing.dpp.program_models import (
+    PreparedInputs,
+    ProgramInfo,
+    ValidPrompt,
+)
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, local_rank
 from fms.utils.generation import pad_input_ids
 
