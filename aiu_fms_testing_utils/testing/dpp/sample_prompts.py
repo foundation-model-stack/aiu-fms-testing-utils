@@ -13,6 +13,29 @@ from transformers import AutoTokenizer
 from pathlib import Path
 
 
+def _custom_line_sampler(result: list[tuple[str, int]], **kwargs):
+    """Custom sampler for user-provided text files.
+
+    Returns pre-loaded prompts from custom dataset files without
+    additional sampling logic. Supports optional sample key return.
+
+    Args:
+        result: List of (prompt, padded_size) tuples.
+        **kwargs: Keyword arguments, supports "return_key" flag.
+
+    Returns:
+        List of (prompt, padded_size) tuples, or tuple of (list, sample_key)
+        if return_key=True."""
+
+    return_key = kwargs.get("return_key", False)
+    sample_key = format_kwargs_to_string(**kwargs)
+
+    if return_key:
+        return result, sample_key
+
+    return result
+
+
 def get_sampler(dataset_type: str, dataset_path: str, tokenizer: AutoTokenizer):
     """Selects and configures the sampler based on type.
 
@@ -46,36 +69,18 @@ def get_sampler(dataset_type: str, dataset_path: str, tokenizer: AutoTokenizer):
 
         result = []
         for fp in directory.iterdir():
-            if fp.is_file():
-                try:
-                    content = fp.read_text()
-                    result.append(
-                        (content, get_pad_size(len(tokenizer.encode(content))))
-                    )
-                except Exception as e:
-                    dprint(f"Error while reading {fp} for custom dataset: {e}")
-                    raise
+            if not fp.is_file():
+                continue
+
+            try:
+                content = fp.read_text()
+                pad_size = get_pad_size(len(tokenizer.encode(content)))
+                result.append((content, pad_size))
+            except Exception as e:
+                dprint(f"Error while reading {fp} for custom dataset: {e}")
+                raise
 
         custom_shape = (len(result), max([_[1] for _ in result]))
-
-        def _custom_line_sampler(**kwargs):
-            """Custom sampler for user-provided text files.
-
-            Returns pre-loaded prompts from custom dataset files without
-            additional sampling logic. Supports optional sample key return.
-
-            Args:
-                **kwargs: Keyword arguments, supports "return_key" flag.
-
-            Returns:
-                List of (prompt, padded_size) tuples, or tuple of (list, sample_key)
-                if return_key=True."""
-
-            return_key = kwargs.get("return_key", False)
-            sample_key = format_kwargs_to_string(**kwargs)
-            if return_key:
-                return result, sample_key
-            return result
 
         sampler = _custom_line_sampler
         allow_truncation = False
