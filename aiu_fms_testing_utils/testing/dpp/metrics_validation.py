@@ -175,8 +175,8 @@ def _load_validation_info(
         sample_key: Optional identifier for the specific prompt sample used.
 
     Returns:
-        ValidationInfo object if a matching file is found, None otherwise.
-    """
+        ValidationInfo object if a matching file is found, None otherwise."""
+
     full_path = find_validation_info_path(
         validation_info_dir=validation_info_outputs_dir,
         model_variant=model_variant,
@@ -189,8 +189,9 @@ def _load_validation_info(
         dtype=cpu_dtype,
         sample_key=sample_key,
     )
+
     if full_path is not None:
         dprint(f"cpu validation info found for seed={seed} -- loading it")
         return load_validation_information(full_path, "logits", batch_size, tokenizer)
-    else:
-        return None
+
+    return None

@@ -3,7 +3,8 @@ import os
 from huggingface_hub import hf_hub_download
 from torch.fx.experimental import _config as fx_config
 from aiu_fms_testing_utils.testing.dpp.generation import (
-    generate_validation_info_and_test,
+    generate_aiu_cpu_test,
+    generate_aiu_test,
 )
 from aiu_fms_testing_utils.testing.dpp.prepare_prompts import prepare_test_prompts
 from aiu_fms_testing_utils.testing.dpp.program_models import EnvConfig
@@ -367,8 +368,7 @@ def run_dpp(
         local_dataset_path,
     )
 
-    # Only load the CPU model if we are doing validation
-    validation_model = None
+    # Validation and Testing
     if run_cpu_validation:
         validation_model = load_model(
             device_type="cpu",
@@ -378,28 +378,31 @@ def run_dpp(
             stagger_load=stagger_load,
             model_config=model_config,
         )
+        save_validation_info_outputs = (
+            save_validation_info_outputs and dist.get_rank() == 0
+        )
 
-    # Validation and Testing
-    save_validation_info_outputs = save_validation_info_outputs and dist.get_rank() == 0
-    failed_cases = generate_validation_info_and_test(
-        valid_prompts,
-        model,
-        validation_model,
-        tokenizer,
-        env_config,
-        model_config,
-        test_type,
-        max_new_tokens,
-        save_validation_info_outputs,
-        validation_info_outputs_dir,
-        cross_entropy_threshold,
-        failure_rate_threshold,
-        timing,
-        prefill_chunk_size,
-        model_variant,
-    )
+        failed_cases = generate_aiu_cpu_test(
+            valid_prompts,
+            model,
+            validation_model,
+            tokenizer,
+            env_config,
+            model_config,
+            test_type,
+            max_new_tokens,
+            save_validation_info_outputs,
+            validation_info_outputs_dir,
+            cross_entropy_threshold,
+            failure_rate_threshold,
+            timing,
+            prefill_chunk_size,
+            model_variant,
+        )
 
-    if run_cpu_validation and local_rank == 0:
+        if local_rank != 0:
+            return
+
         if len(failed_cases) != 0:
             dprint("The test failed with the following cases:")
             for failed_case in failed_cases:
@@ -408,3 +411,15 @@ def run_dpp(
                 )
         else:
             dprint("All tests passed")
+    else:
+        generate_aiu_test(
+            valid_prompts,
+            model,
+            tokenizer,
+            env_config,
+            model_config,
+            test_type,
+            max_new_tokens,
+            timing,
+            prefill_chunk_size,
+        )

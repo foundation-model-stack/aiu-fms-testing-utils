@@ -19,7 +19,7 @@ import torch
 from transformers import AutoTokenizer
 
 
-from typing import Any, Dict, Iterable, Optional
+from typing import Any, Iterable, Optional
 
 
 def generate_aiu_validation(
@@ -28,9 +28,8 @@ def generate_aiu_validation(
     timing: str,
     prefill_chunk_size: int,
     model: torch.nn.Module,
-    input_ids: torch.Tensor,
-    cpu_validation_info: Optional[ValidationInfo],
-    extra_kwargs: Dict[str, Any],
+    valid_prompt: ValidPrompt,
+    cpu_validation_info: Optional[ValidationInfo] = None,
 ) -> ValidationInfo:
     """Generates AIU validation information by running inference on the compiled model.
 
@@ -44,27 +43,26 @@ def generate_aiu_validation(
         timing: Whether to collect timing information.
         prefill_chunk_size: Chunk size for prefill operations.
         model: Compiled AIU model for inference.
-        input_ids: Tokenized input tensor.
+        valid_prompt: ValidPrompt object containing prompt input IDs and extra kwargs for model execution.
         cpu_validation_info: Optional CPU validation data for golden token injection.
-        extra_kwargs: Dictionary with attention mask and other model inputs.
 
     Returns:
         ValidationInfo: ValidationInfo object containing AIU outputs (tokens, logits,
-        and optional timing information).
-    """
+        and optional timing information)."""
+
     golden_hook = None
     if test_type == "metrics" and cpu_validation_info:
         golden_hook = GoldenTokenHook(cpu_validation_info.get_info("tokens"))
 
     aiu_validation_info = extract_validation_information(
         model=model,
-        input_ids=input_ids,
+        input_ids=valid_prompt.input_ids,
         max_new_tokens=max_new_tokens,
         post_iteration_hook=golden_hook,
         last_n_tokens=64,
         timing=timing,
         prefill_chunk_size=prefill_chunk_size,
-        **extra_kwargs,
+        **valid_prompt.extra_kwargs,
     )
 
     return aiu_validation_info
@@ -76,12 +74,8 @@ def generate_cpu_validation(
     validation_info_outputs_dir: str,
     save_validation_info_outputs: bool,
     validation_model: torch.nn.Module,
-    valid_prompt,
-    input_ids: torch.Tensor,
-    extra_kwargs: Dict[str, Any],
-    sample_key: str,
-    attn_name: str,
-    cpu_dtype: str,
+    valid_prompt: ValidPrompt,
+    env_config: EnvConfig,
     tokenizer: AutoTokenizer,
 ) -> ValidationInfo:
     """Generates or loads CPU validation information for reference comparison.
@@ -96,62 +90,66 @@ def generate_cpu_validation(
         validation_info_outputs_dir: Directory for validation info outputs.
         save_validation_info_outputs: Whether to save validation info to disk.
         validation_model: CPU model for generating validation data.
-        valid_prompt: Tuple of (batch_size, seq_length) for the prompt shape.
-        input_ids: Tokenized input tensor.
-        extra_kwargs: Dictionary with attention mask and other model inputs.
-        sample_key: String identifier for the sampled prompts.
-        attn_name: Name of the attention algorithm used.
-        cpu_dtype: Data type string for CPU validation ("fp8" or "fp32").
+        valid_prompt: ValidPrompt object containing prompt input IDs and extra kwargs for model execution.
+        env_config: Environment configuration with attention settings and CPU dtype.
         tokenizer: HuggingFace tokenizer for the model.
 
     Returns:
-        ValidationInfo: ValidationInfo object containing CPU reference outputs
-        (tokens and logits).
-    """
+        ValidationInfo: ValidationInfo object containing CPU reference outputs (tokens and logits)."""
+
     # attempt to load the cpu validation info if it is already computed
     cpu_validation_info = _load_validation_info(
+        model_variant=model_variant,
+        batch_size=valid_prompt.shape[0],
+        seq_length=valid_prompt.shape[1],
+        max_new_tokens=max_new_tokens,
+        tokenizer=tokenizer,
+        seed=0,
+        cpu_dtype=env_config.cpu_dtype,
+        attn_type=env_config.attn_name,
+        validation_info_outputs_dir=validation_info_outputs_dir,
+        sample_key=valid_prompt.sample_key,
+    )
+
+    if cpu_validation_info is not None:
+        # Skip CPU generation if validation info is already available
+        dprint(
+            f"Loaded CPU validation info for program {model_variant} with prompt shape {valid_prompt} and sample key {valid_prompt.sample_key}"
+        )
+        return cpu_validation_info
+
+    cpu_validation_info = extract_validation_information(
+        model=validation_model,
+        input_ids=valid_prompt.input_ids,
+        max_new_tokens=max_new_tokens,
+        post_iteration_hook=LogitsExtractorHook(),
+        attn_algorithm="math",
+        **valid_prompt.extra_kwargs,
+    )
+
+    if not save_validation_info_outputs:
+        return cpu_validation_info
+
+    validation_info_path = get_validation_info_path(
+        validation_info_dir=validation_info_outputs_dir,
         model_variant=model_variant,
         batch_size=valid_prompt[0],
         seq_length=valid_prompt[1],
         max_new_tokens=max_new_tokens,
-        tokenizer=tokenizer,
         seed=0,
-        cpu_dtype=cpu_dtype,
-        attn_type=attn_name,
-        validation_info_outputs_dir=validation_info_outputs_dir,
-        sample_key=sample_key,
+        attn_type=env_config.attn_name,
+        dtype=env_config.cpu_dtype,
+        sample_key=valid_prompt.sample_key,
     )
-    if cpu_validation_info is None:
-        cpu_validation_info = extract_validation_information(
-            model=validation_model,
-            input_ids=input_ids,
-            max_new_tokens=max_new_tokens,
-            post_iteration_hook=LogitsExtractorHook(),
-            attn_algorithm="math",
-            **extra_kwargs,
-        )
-        if save_validation_info_outputs:
-            cpu_validation_info.save(
-                get_validation_info_path(
-                    validation_info_dir=validation_info_outputs_dir,
-                    model_variant=model_variant,
-                    batch_size=valid_prompt[0],
-                    seq_length=valid_prompt[1],
-                    max_new_tokens=max_new_tokens,
-                    seed=0,
-                    attn_type=attn_name,
-                    dtype=cpu_dtype,
-                    sample_key=sample_key,
-                )
-            )
+    cpu_validation_info.save(validation_info_path)
 
     return cpu_validation_info
 
 
-def generate_validation_info_and_test(
+def generate_aiu_cpu_test(
     valid_prompts: Iterable[ValidPrompt],
     model: torch.nn.Module,
-    validation_model: Optional[torch.nn.Module],
+    validation_model: torch.nn.Module,
     tokenizer: AutoTokenizer,
     env_config: EnvConfig,
     model_config: DPPRunnerConfig,
@@ -170,7 +168,26 @@ def generate_validation_info_and_test(
     This function iterates through prepared prompts, executes the generation
     cycle for both hardware targets, and evaluates whether the AIU outputs
     match the golden reference.
-    """
+
+    Args:
+        valid_prompts: Iterable of ValidPrompt objects containing input prompts and metadata.
+        model: Compiled AIU model for inference.
+        validation_model: CPU model for generating reference validation data.
+        tokenizer: HuggingFace tokenizer for decoding token outputs.
+        env_config: Environment configuration with attention settings.
+        model_config: Model configuration with architecture details.
+        test_type: Type of test being run ("metrics" or "tokens").
+        max_new_tokens: Maximum number of tokens to generate.
+        save_validation_info_outputs: Whether to save CPU validation info to disk.
+        validation_info_outputs_dir: Directory for saving/loading CPU validation info.
+        cross_entropy_threshold: Threshold for cross-entropy difference to consider a token generation as failed.
+        failure_rate_threshold: Threshold for the failure rate to consider the test case as failed.
+        timing: Whether to collect timing information.
+        prefill_chunk_size: Chunk size for prefill operations.
+        model_variant: Model identifier or path for naming validation info files.
+
+    Returns:
+        List of failed cases with program ID, prompt shape, and failure rate."""
 
     failed_cases = []
     # for each program and valid prompt (batch size, sequence length)
@@ -184,84 +201,114 @@ def generate_validation_info_and_test(
                 f"program id: {valid_prompt.program_id}, valid prompt: {valid_prompt.shape}, input shape: {valid_prompt.input_ids.shape}"
             )
 
-        if validation_model is not None:
-            # Generate or load CPU validation info
-            cpu_validation_info = generate_cpu_validation(
-                model_variant=model_variant,
-                max_new_tokens=max_new_tokens,
-                validation_info_outputs_dir=validation_info_outputs_dir,
-                save_validation_info_outputs=save_validation_info_outputs,
-                validation_model=validation_model,
-                valid_prompt=valid_prompt.shape,
-                input_ids=valid_prompt.input_ids,
-                extra_kwargs=valid_prompt.extra_kwargs,
-                sample_key=valid_prompt.sample_key,
-                attn_name=env_config.attn_name,
-                cpu_dtype=env_config.cpu_dtype,
-                tokenizer=tokenizer,
+        # Generate or load CPU validation info
+        cpu_validation_info = generate_cpu_validation(
+            model_variant,
+            max_new_tokens,
+            validation_info_outputs_dir,
+            save_validation_info_outputs,
+            validation_model,
+            valid_prompt.shape,
+            valid_prompt.input_ids,
+            valid_prompt.extra_kwargs,
+            valid_prompt.sample_key,
+            env_config.attn_name,
+            env_config.cpu_dtype,
+            tokenizer,
+        )
+
+        aiu_validation_info = generate_aiu_validation(
+            test_type,
+            max_new_tokens,
+            timing,
+            prefill_chunk_size,
+            model,
+            valid_prompt,
+            cpu_validation_info=cpu_validation_info,
+        )
+
+        if test_type == "metrics":
+            failure_rate = evaluate_cross_entropy_metrics(
+                cross_entropy_threshold,
+                aiu_validation_info,
+                cpu_validation_info,
+                valid_prompt.program_id,
+                valid_prompt.shape,
+                tokenizer,
             )
-
-            aiu_validation_info = generate_aiu_validation(
-                test_type=test_type,
-                max_new_tokens=max_new_tokens,
-                timing=timing,
-                prefill_chunk_size=prefill_chunk_size,
-                model=model,
-                input_ids=valid_prompt.input_ids,
-                cpu_validation_info=cpu_validation_info,
-                extra_kwargs=valid_prompt.extra_kwargs,
-            )
-
-            if test_type == "metrics":
-                failure_rate = evaluate_cross_entropy_metrics(
-                    cross_entropy_threshold=cross_entropy_threshold,
-                    aiu_validation_info=aiu_validation_info,
-                    cpu_validation_info=cpu_validation_info,
-                    program_id=valid_prompt.program_id,
-                    prompt_shape=valid_prompt.shape,
-                    tokenizer=tokenizer,
-                )
-                if failure_rate > failure_rate_threshold:
-                    failed_cases.append(
-                        (valid_prompt.program_id, valid_prompt.shape, failure_rate)
-                    )
-
-            elif test_type == "tokens":
-                report_token_comparison(
-                    max_new_tokens=max_new_tokens,
-                    aiu_validation_info=aiu_validation_info,
-                    cpu_validation_info=cpu_validation_info,
-                    program_id=valid_prompt.program_id,
-                    tokenizer=tokenizer,
+            if failure_rate > failure_rate_threshold:
+                failed_cases.append(
+                    (valid_prompt.program_id, valid_prompt.shape, failure_rate)
                 )
 
-            else:
-                raise ValueError("test type must be one of metrics or tokens")
+        elif test_type == "tokens":
+            report_token_comparison(
+                max_new_tokens,
+                aiu_validation_info,
+                cpu_validation_info,
+                valid_prompt.program_id,
+                tokenizer,
+            )
+
         else:
-            aiu_validation_info = generate_aiu_validation(
-                test_type=test_type,
-                max_new_tokens=max_new_tokens,
-                timing=timing,
-                prefill_chunk_size=prefill_chunk_size,
-                model=model,
-                input_ids=valid_prompt.input_ids,
-                cpu_validation_info=None,
-                extra_kwargs=valid_prompt.extra_kwargs,
-            )
-
-            if local_rank == 0:
-                for sentence_idx, test_sentence in enumerate(
-                    aiu_validation_info.get_info("tokens")
-                ):
-                    tokens_prompt = [t.item() for t in test_sentence[:-max_new_tokens]]
-                    aiu_tokens_generated = [
-                        t.item() for t in test_sentence[-max_new_tokens:]
-                    ]
-                    dprint(
-                        f"For Program {valid_prompt.program_id} in sentence {sentence_idx + 1}:"
-                    )
-                    dprint(f"Prompt:\n{tokenizer.decode(tokens_prompt)}")
-                    dprint(f"AIU tokens:\n{aiu_tokens_generated}")
-                    dprint(f"AIU output:\n{tokenizer.decode(aiu_tokens_generated)}")
+            raise ValueError("test type must be one of metrics or tokens")
 
     return failed_cases
+
+
+def generate_aiu_test(
+    valid_prompts: Iterable[ValidPrompt],
+    model: torch.nn.Module,
+    tokenizer: AutoTokenizer,
+    env_config: EnvConfig,
+    model_config: DPPRunnerConfig,
+    test_type: str,
+    max_new_tokens: int,
+    timing: str,
+    prefill_chunk_size: int,
+) -> None:
+    """Generates tokens using the AIU model and prints the outputs.
+
+    Args:
+        valid_prompts: Iterable of ValidPrompt objects containing input prompts and metadata.
+        model: Compiled AIU model for inference.
+        tokenizer: HuggingFace tokenizer for decoding token outputs.
+        env_config: Environment configuration with attention settings.
+        model_config: Model configuration with architecture details.
+        test_type: Type of test being run ("metrics" or "tokens").
+        max_new_tokens: Maximum number of tokens to generate.
+        timing: Whether to collect timing information.
+        prefill_chunk_size: Chunk size for prefill operations."""
+
+    # for each program and valid prompt (batch size, sequence length)
+    for valid_prompt in valid_prompts:
+        valid_prompt.extra_kwargs["attn_name"] = env_config.attn_name
+        valid_prompt.extra_kwargs["_kvcache_num_blocks_hint"] = model_config.num_blocks
+
+        if local_rank == 0:
+            dprint(f"*** testing program {valid_prompt.program_id} ***")
+            dprint(
+                f"program id: {valid_prompt.program_id}, valid prompt: {valid_prompt.shape}, input shape: {valid_prompt.input_ids.shape}"
+            )
+
+        aiu_tokens = generate_aiu_validation(
+            test_type,
+            max_new_tokens,
+            timing,
+            prefill_chunk_size,
+            model,
+            valid_prompt,
+        ).get_info("tokens")
+
+        if local_rank != 0:
+            return
+
+        for sentence_idx, test_sentence in enumerate(aiu_tokens):
+            tokens_prompt = [t.item() for t in test_sentence[:-max_new_tokens]]
+            aiu_tokens_generated = [t.item() for t in test_sentence[-max_new_tokens:]]
+            dprint(
+                f"For Program {valid_prompt.program_id} in sentence {sentence_idx + 1}:"
+            )
+            dprint(f"Prompt:\n{tokenizer.decode(tokens_prompt)}")
+            dprint(f"AIU tokens:\n{aiu_tokens_generated}")
+            dprint(f"AIU output:\n{tokenizer.decode(aiu_tokens_generated)}")
