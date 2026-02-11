@@ -20,6 +20,7 @@ from aiu_fms_testing_utils.utils.aiu_setup import aiu_dist_setup, dprint, local_
 from aiu_fms_testing_utils.utils.dpp_config import DPPRunnerConfig
 from aiu_fms_testing_utils.testing.dpp.constants import PAD_MULTIPLE
 from aiu_fms_testing_utils.utils.model_setup import Timing
+from aiu_fms_testing_utils.testing.dpp.program_models import DeviceType
 
 from fms.utils.generation import pad_input_ids
 
@@ -176,7 +177,7 @@ def run_dpp(
     )
 
     model = load_model(
-        device_type="spyre",
+        device_type=DeviceType.SPYRE,
         is_fp8=is_fp8,
         model_kwargs=model_kwargs,
         distributed_kwargs=distributed_kwargs,
@@ -233,7 +234,7 @@ def run_dpp(
     # Validation and Testing
     if run_cpu_validation:
         validation_model = load_model(
-            device_type="cpu",
+            device_type=DeviceType.CPU,
             is_fp8=is_fp8,
             model_kwargs=model_kwargs,
             distributed_kwargs=distributed_kwargs,

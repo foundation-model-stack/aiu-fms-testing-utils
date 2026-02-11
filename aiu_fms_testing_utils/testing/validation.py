@@ -7,6 +7,7 @@ from aiu_fms_testing_utils._version import version_tuple
 import os
 from aiu_fms_testing_utils.testing.utils import format_kwargs_to_string
 from aiu_fms_testing_utils.utils.model_setup import Timing
+from aiu_fms_testing_utils.testing.dpp.program_models import DeviceType
 
 import hashlib
 
@@ -43,10 +44,14 @@ class StaticTokenInjectorHook(
         Tuple[torch.Tensor, MutableMapping[str, Any]],
     ]
 ):
-    def __init__(self, static_tokens: List[torch.Tensor], device_type: str = "cpu"):
+    def __init__(
+        self,
+        static_tokens: List[torch.Tensor],
+        device_type: DeviceType = DeviceType.CPU,
+    ):
         super().__init__()
         self.static_tokens = torch.tensor(
-            static_tokens, device=device_type
+            static_tokens, device=device_type.value
         ).t()  # transposing so batch tokens per token_position
 
     def __call__(
@@ -62,7 +67,7 @@ class GoldenTokenHook(
         Tuple[torch.Tensor, MutableMapping[str, Any]],
     ]
 ):
-    def __init__(self, static_tokens: torch.Tensor, device_type: str = "cpu"):
+    def __init__(self, static_tokens: torch.Tensor, device_type: str = DeviceType.CPU):
         super().__init__()
         self.logits_extractor = LogitsExtractorHook()
         self.extracted_logits = None
@@ -426,7 +431,7 @@ def get_validation_info_path(
     seed: int,
     attn_type: str,
     aftu_version: Optional[Tuple[int, int, int]] = None,
-    device_type: str = "cpu",
+    device_type: DeviceType = DeviceType.CPU,
     dtype: str = "fp16",
     **kwargs,
 ):
@@ -435,7 +440,7 @@ def get_validation_info_path(
 
     sample_key = kwargs.get("sample_key", None)
 
-    validation_file_name = f"{get_default_validation_prefix(aftu_version='.'.join([str(_) for _ in aftu_version[:3]]), model_id=model_variant, max_new_tokens=max_new_tokens, batch_size=batch_size, seq_length=seq_length, dtype=dtype, attn_type=attn_type, sample_key=sample_key)}.{device_type}_validation_info.{seed}.out"
+    validation_file_name = f"{get_default_validation_prefix(aftu_version='.'.join([str(_) for _ in aftu_version[:3]]), model_id=model_variant, max_new_tokens=max_new_tokens, batch_size=batch_size, seq_length=seq_length, dtype=dtype, attn_type=attn_type, sample_key=sample_key)}.{device_type.value}_validation_info.{seed}.out"
     full_path = os.path.join(validation_info_dir, validation_file_name)
     return full_path
 
@@ -465,7 +470,7 @@ def find_validation_info_path(
     attn_type: str,
     aftu_version: Optional[Tuple[int, int, int]] = None,
     version_allow_decrement: bool = False,
-    device_type: str = "cpu",
+    device_type: DeviceType = DeviceType.CPU,
     dtype: str = "fp16",
     **kwargs,
 ):

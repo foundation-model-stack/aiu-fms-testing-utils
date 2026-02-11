@@ -2,12 +2,13 @@ import os
 from typing import Any, Dict
 import torch
 
-from fms.models import get_model, Literal
+from fms.models import get_model
 
 from aiu_fms_testing_utils.utils import stagger_region
 from aiu_fms_testing_utils.utils.aiu_setup import dprint
 from aiu_fms_testing_utils.utils.dpp_config import DPPRunnerConfig
 from aiu_fms_testing_utils.utils.env_utils import scoped_environ
+from aiu_fms_testing_utils.testing.dpp.program_models import DeviceType
 
 
 def _get_model_kwargs(model_variant: str) -> Dict[str, Any]:
@@ -52,7 +53,7 @@ def _prepare_fp8_weights(model: torch.nn.Module) -> None:
 
 
 def load_model(
-    device_type: Literal["cpu", "spyre"],  # noqa: F821
+    device_type: DeviceType,
     is_fp8: bool,
     model_kwargs: Dict[str, Any],
     distributed_kwargs: Dict[str, Any],
@@ -68,9 +69,7 @@ def load_model(
     program criteria, batch sizes, context lengths).
 
     Args:
-        device_type: Target device for model execution. Options:
-            - "cpu": Load on CPU for validation (fp32, no compilation)
-            - "spyre": Load on CPU, compile for Spyre/AIU execution (fp16, with sendnn compilation)
+        device_type: Target device for model execution.
         is_fp8: If True, uses FP8 quantization (dtype=None for auto-detection).
         model_kwargs: Dictionary with model loading parameters (variant or path).
         distributed_kwargs: Dictionary with distributed training configuration.
@@ -81,12 +80,7 @@ def load_model(
         torch.nn.Module: Loaded model in evaluation mode. Spyre models are compiled
         with sendnn backend and may have FP8 weight conversion applied."""
 
-    if device_type not in ["cpu", "spyre"]:
-        raise ValueError(
-            f"device_type must be 'cpu' or 'spyre' for DPP, got '{device_type}'"
-        )
-
-    dtype = torch.float32 if device_type == "cpu" else torch.float16
+    dtype = torch.float32 if device_type == DeviceType.CPU else torch.float16
     if is_fp8:
         dtype = None  # Let the model loading logic decide the appropriate FP8 dtype
 
@@ -102,7 +96,7 @@ def load_model(
 
     model.eval()
 
-    if device_type != "spyre":
+    if device_type != DeviceType.SPYRE:
         return model
 
     with scoped_environ(model_config.env_updates()):

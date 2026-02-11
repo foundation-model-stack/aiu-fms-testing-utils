@@ -14,7 +14,7 @@ class TestType(Enum):
     TOKENS = "tokens"
 
 
-class ATTN_TYPE(Enum):
+class AttnType(Enum):
     SDPA = "sdpa"
     PAGED = "paged"
     MATH_FP8 = "math_fp8"
@@ -30,8 +30,7 @@ class ProgramInfo:
         batch_size_limit: Numeric threshold for batch size constraint.
         batch_size_limit_type: Comparison operator for batch size (e.g., ">=", "<=", "==").
         prompt_length_limit: Numeric threshold for prompt length constraint.
-        prompt_length_limit_type: Comparison operator for prompt length (e.g., ">=", "<=", "==").
-    """
+        prompt_length_limit_type: Comparison operator for prompt length (e.g., ">=", "<=", "==")."""
 
     program_id: str
     batch_size_limit: int
@@ -47,8 +46,7 @@ class EnvConfig(NamedTuple):
         attn_name: The internal name of the attention algorithm (e.g., 'spyre_paged_attn').
         cpu_dtype: Data type for CPU validation ('fp8' or 'fp32').
         max_batch_size: Maximum batch size.
-        max_tkv: Maximum total key-value (context) length.
-    """
+        max_tkv: Maximum total key-value (context) length."""
 
     attn_name: str
     cpu_dtype: str
@@ -61,8 +59,7 @@ class MetricResult(NamedTuple):
 
     Attributes:
         cross_entropy_loss: Cross-entropy loss between the distributions.
-        mean_abs_diff: Mean absolute difference of softmax probabilities.
-    """
+        mean_abs_diff: Mean absolute difference of softmax probabilities."""
 
     cross_entropy_loss: float
     mean_abs_diff: float
@@ -77,8 +74,7 @@ class PreparedInputs(NamedTuple):
     Attributes:
         input_ids: Padded tensor of tokenized input IDs with shape (batch_size, seq_length).
         extra_kwargs: Dictionary with attention mask and other model inputs.
-        sample_key: String identifier for the sampled prompts.
-    """
+        sample_key: String identifier for the sampled prompts."""
 
     input_ids: torch.Tensor
     extra_kwargs: Dict[str, Any]
@@ -93,8 +89,7 @@ class ValidPrompt(NamedTuple):
         shape: Tuple of (batch_size, seq_length) for this prompt.
         input_ids: Tokenized and padded input tensor.
         extra_kwargs: Dictionary with attention mask and other model inputs.
-        sample_key: String identifier for the sampled prompts.
-    """
+        sample_key: String identifier for the sampled prompts."""
 
     program_id: str
     shape: Tuple[int, int]
