@@ -13,7 +13,7 @@ from aiu_fms_testing_utils.testing.dpp.prepare_model import (
     get_model_kwargs,
     load_model,
 )
-from aiu_fms_testing_utils.testing.dpp.program_models import EnvConfig
+from aiu_fms_testing_utils.testing.dpp.program_models import EnvConfig, ValidPrompt
 from aiu_fms_testing_utils.testing.dpp.sample_prompts import get_sampler
 from aiu_fms_testing_utils.utils import warmup_model
 from aiu_fms_testing_utils.utils.aiu_setup import (
@@ -38,7 +38,7 @@ from torch import distributed as dist
 from transformers import AutoTokenizer
 
 
-from typing import Any, Dict, List
+from typing import Any, Dict, Iterable, List
 
 
 DEFAULT_CE_THRESHOLD = 2.5
@@ -73,7 +73,7 @@ def _get_distributed_kwargs(dist_timeout: str) -> Dict[str, Any]:
     }
 
 
-def setup_environment(
+def _setup_environment(
     program_criteria_json_path: str, attention_type: AttnType
 ) -> EnvConfig:
     """Set up global process state and environment variables.
@@ -117,6 +117,57 @@ def setup_environment(
     )
 
 
+def _run_aiu_cpu_tests(
+    model: torch.nn.Module,
+    validation_model: torch.nn.Module,
+    tokenizer: AutoTokenizer,
+    valid_prompts: Iterable[ValidPrompt],
+    env_config: EnvConfig,
+    model_config: DPPRunnerConfig,
+    test_type: TestType,
+    max_new_tokens: int,
+    validation_info_outputs_dir: str,
+    cross_entropy_threshold: float,
+    failure_rate_threshold: float,
+    timing: Timing,
+    prefill_chunk_size: int,
+    model_variant: str,
+    save_validation_info_outputs: bool = False,
+):
+    """Runs tests comparing AIU and CPU outputs for given prompts."""
+
+    # Validation and Testing
+    failed_cases = generate_aiu_cpu_test(
+        valid_prompts,
+        model,
+        validation_model,
+        tokenizer,
+        env_config,
+        model_config,
+        test_type,
+        max_new_tokens,
+        save_validation_info_outputs and dist.get_rank() == 0,
+        validation_info_outputs_dir,
+        cross_entropy_threshold,
+        failure_rate_threshold,
+        timing,
+        prefill_chunk_size,
+        model_variant,
+    )
+
+    if local_rank != 0:
+        return
+
+    if len(failed_cases) != 0:
+        dprint("The test failed with the following cases:")
+        for failed_case in failed_cases:
+            dprint(
+                f"Program ID: {failed_case[0]}, Prompt Shape: {failed_case[1]}, Failure Rate: {failed_case[2]}"
+            )
+    else:
+        dprint("All tests passed")
+
+
 def run_dpp(
     program_criteria_json_path: str,
     dataset_path: str,
@@ -139,6 +190,9 @@ def run_dpp(
     prioritize_large_batch_sizes: bool = False,
     enforce_homogeneous_prompt_programs: bool = False,
 ):
+    if programs is None:
+        programs = []
+
     if not os.path.exists(program_criteria_json_path):
         raise FileNotFoundError(
             f"Program criteria JSON file not found at {program_criteria_json_path}"
@@ -149,9 +203,6 @@ def run_dpp(
             f"Validation info outputs directory not found at {validation_info_outputs_dir}"
         )
 
-    if programs is None:
-        programs = []
-
     dataset_type, local_dataset_path = resolve_dataset_path(dataset_path)
 
     is_fp8 = attention_type == AttnType.PAGED_FP8
@@ -159,7 +210,7 @@ def run_dpp(
         dprint("When skipping validation, only test_type will be ignored")
 
     # Environment Setup
-    env_config = setup_environment(
+    env_config = _setup_environment(
         program_criteria_json_path=program_criteria_json_path,
         attention_type=attention_type,
     )
@@ -237,7 +288,7 @@ def run_dpp(
         local_dataset_path,
     )
 
-    # Validation and Testing
+    # Test Execution
     if run_cpu_validation:
         validation_model = load_model(
             device_type=DeviceType.CPU,
@@ -247,39 +298,23 @@ def run_dpp(
             stagger_load=stagger_load,
             model_config=model_config,
         )
-        save_validation_info_outputs = (
-            save_validation_info_outputs and dist.get_rank() == 0
-        )
-
-        failed_cases = generate_aiu_cpu_test(
-            valid_prompts,
+        _run_aiu_cpu_tests(
             model,
             validation_model,
             tokenizer,
+            valid_prompts,
             env_config,
             model_config,
             test_type,
             max_new_tokens,
-            save_validation_info_outputs,
             validation_info_outputs_dir,
             cross_entropy_threshold,
             failure_rate_threshold,
             timing,
             prefill_chunk_size,
             model_variant,
+            save_validation_info_outputs,
         )
-
-        if local_rank != 0:
-            return
-
-        if len(failed_cases) != 0:
-            dprint("The test failed with the following cases:")
-            for failed_case in failed_cases:
-                dprint(
-                    f"Program ID: {failed_case[0]}, Prompt Shape: {failed_case[1]}, Failure Rate: {failed_case[2]}"
-                )
-        else:
-            dprint("All tests passed")
     else:
         generate_aiu_test(
             valid_prompts,
