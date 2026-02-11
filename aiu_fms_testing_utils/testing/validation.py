@@ -6,6 +6,7 @@ from aiu_fms_testing_utils.utils.aiu_setup import dprint
 from aiu_fms_testing_utils._version import version_tuple
 import os
 from aiu_fms_testing_utils.testing.utils import format_kwargs_to_string
+from aiu_fms_testing_utils.utils.model_setup import Timing
 
 import hashlib
 
@@ -263,7 +264,7 @@ def extract_validation_information(
     attn_algorithm=None,
     eos_token_id=None,
     last_n_tokens=0,
-    timing="",
+    timing=Timing.NONE,
     prefill_chunk_size=0,
     **extra_kwargs,
 ):
@@ -278,6 +279,8 @@ def extract_validation_information(
 
         attention_specific_kwargs["contiguous_cache"] = True
         attention_specific_kwargs["max_seq_len"] = input_ids.shape[1] + max_new_tokens
+        # Timing enum has yet to be implemented into FMS generation, so we convert it to string here
+        timing = timing.value if timing != Timing.NONE else ""
 
     # Add last_n_tokens optimization
     extra_generation_kwargs = {**extra_kwargs}
@@ -299,14 +302,14 @@ def extract_validation_information(
         **attention_specific_kwargs,
     )
 
-    if timing != "":
+    if timing != Timing.NONE:
         dprint(
             "=== This timing information might be inaccurate due to extra work being done in generate() for validation"
         )
         result, timings = result
-        if timing == "e2e":
+        if timing == Timing.E2E:
             dprint(f"E2E timing information: {timings[0]:.3f}s")
-        elif timing == "per-token":
+        elif timing == Timing.PER_TOKEN:
             timings = [f"{t * 1000:.3f}" for t in timings]
             dprint(f"Per-token timing information: {', '.join(timings)} ms")
 

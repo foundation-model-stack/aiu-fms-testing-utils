@@ -13,6 +13,7 @@ from aiu_fms_testing_utils.testing.validation import (
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, local_rank
 from aiu_fms_testing_utils.utils.dpp_config import DPPRunnerConfig
 from aiu_fms_testing_utils.testing.dpp.metrics_validation import _load_validation_info
+from aiu_fms_testing_utils.utils.model_setup import Timing
 
 
 import torch
@@ -25,7 +26,7 @@ from typing import Any, Iterable, Optional
 def generate_aiu_validation(
     test_type: str,
     max_new_tokens: int,
-    timing: str,
+    timing: Timing,
     prefill_chunk_size: int,
     model: torch.nn.Module,
     valid_prompt: ValidPrompt,
@@ -159,7 +160,7 @@ def generate_aiu_cpu_test(
     validation_info_outputs_dir: str,
     cross_entropy_threshold: float,
     failure_rate_threshold: float,
-    timing: str,
+    timing: Timing,
     prefill_chunk_size: int,
     model_variant: str,
 ) -> list[Any]:
@@ -264,7 +265,7 @@ def generate_aiu_test(
     model_config: DPPRunnerConfig,
     test_type: str,
     max_new_tokens: int,
-    timing: str,
+    timing: Timing,
     prefill_chunk_size: int,
 ) -> None:
     """Generates tokens using the AIU model and prints the outputs.

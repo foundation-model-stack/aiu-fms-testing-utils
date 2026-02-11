@@ -1,6 +1,24 @@
 from typing import Any, Dict, NamedTuple, Tuple
 from dataclasses import dataclass
+from enum import Enum
 import torch
+
+
+class DeviceType(Enum):
+    CPU = "cpu"
+    SPYRE = "spyre"
+
+
+class TestType(Enum):
+    METRICS = "metrics"
+    TOKENS = "tokens"
+
+
+class ATTN_TYPE(Enum):
+    SDPA = "sdpa"
+    PAGED = "paged"
+    MATH_FP8 = "math_fp8"
+    PAGED_FP8 = "paged_fp8"
 
 
 @dataclass

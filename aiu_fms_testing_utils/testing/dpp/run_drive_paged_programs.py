@@ -19,6 +19,7 @@ from aiu_fms_testing_utils.utils import warmup_model
 from aiu_fms_testing_utils.utils.aiu_setup import aiu_dist_setup, dprint, local_rank
 from aiu_fms_testing_utils.utils.dpp_config import DPPRunnerConfig
 from aiu_fms_testing_utils.testing.dpp.constants import PAD_MULTIPLE
+from aiu_fms_testing_utils.utils.model_setup import Timing
 
 from fms.utils.generation import pad_input_ids
 
@@ -126,7 +127,7 @@ def run_dpp(
     distributed: bool,
     model_variant: str,
     programs: List[str] = None,
-    timing: str = "",
+    timing: Timing = Timing.NONE,
     test_type: str = "metrics",
     cross_entropy_threshold: float = DEFAULT_CE_THRESHOLD,
     failure_rate_threshold: float = DEFAULT_FAILURE_RATE_THRESHOLD,
