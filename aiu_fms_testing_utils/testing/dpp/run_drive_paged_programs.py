@@ -139,6 +139,16 @@ def run_dpp(
     prioritize_large_batch_sizes: bool = False,
     enforce_homogeneous_prompt_programs: bool = False,
 ):
+    if not os.path.exists(program_criteria_json_path):
+        raise FileNotFoundError(
+            f"Program criteria JSON file not found at {program_criteria_json_path}"
+        )
+
+    if not os.path.exists(validation_info_outputs_dir):
+        raise FileNotFoundError(
+            f"Validation info outputs directory not found at {validation_info_outputs_dir}"
+        )
+
     if programs is None:
         programs = []
 

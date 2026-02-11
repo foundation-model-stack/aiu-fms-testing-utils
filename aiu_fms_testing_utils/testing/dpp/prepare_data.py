@@ -1,5 +1,6 @@
 import itertools
 import json
+import os
 import random
 
 from huggingface_hub import hf_hub_download
@@ -416,7 +417,7 @@ def resolve_dataset_path(dataset_path: str) -> tuple[str, str]:
             - local_dataset_path: The local file path to the dataset."""
 
     if dataset_path == "sharegpt":
-        dprint("Using ShareGPT dataset from HuggingFace")
+        r0dprint("Using ShareGPT dataset from HuggingFace")
         dataset_type = "sharegpt"
         # Fetch from HuggingFace
         local_dataset_path = hf_hub_download(
@@ -425,7 +426,7 @@ def resolve_dataset_path(dataset_path: str) -> tuple[str, str]:
             repo_type="dataset",
         )
     elif dataset_path == "rag_factoid":
-        dprint("Using RAG Factoid dataset from HuggingFace")
+        r0dprint("Using RAG Factoid dataset from HuggingFace")
         dataset_type = "rag_factoid"
         # Fetch from HuggingFace
         local_dataset_path = hf_hub_download(
@@ -434,10 +435,13 @@ def resolve_dataset_path(dataset_path: str) -> tuple[str, str]:
             repo_type="dataset",
         )
     elif dataset_path is None:
-        dprint(f"Using a custom dataset at {dataset_path}")
+        r0dprint(f"Using a custom dataset at {dataset_path}")
         dataset_type = "custom"
         local_dataset_path = dataset_path
     else:
         raise ValueError(f"Unsupported dataset_path: {dataset_path}")
+
+    if not os.path.exists(local_dataset_path):
+        raise FileNotFoundError(f"Dataset file not found at {local_dataset_path}")
 
     return dataset_type, local_dataset_path
