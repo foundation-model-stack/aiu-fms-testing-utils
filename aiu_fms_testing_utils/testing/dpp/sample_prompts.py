@@ -31,8 +31,7 @@ def get_sampler(dataset_type: str, dataset_path: str, tokenizer: AutoTokenizer):
                            None for other dataset types.
 
     Raises:
-        ValueError: If dataset_type is not one of the supported types.
-        SystemExit: If custom dataset path is not a directory or file reading fails."""
+        ValueError: If dataset_type is not one of the supported types."""
 
     custom_shape = None
     if dataset_type == "custom":
@@ -41,8 +40,9 @@ def get_sampler(dataset_type: str, dataset_path: str, tokenizer: AutoTokenizer):
         )
         directory = Path(dataset_path)
         if not directory.is_dir():
-            dprint("when using a custom dataset, you must provide a directory")
-            exit()
+            raise NotADirectoryError(
+                f"Custom dataset path {dataset_path} is not a directory"
+            )
 
         result = []
         for fp in directory.iterdir():
@@ -54,7 +54,7 @@ def get_sampler(dataset_type: str, dataset_path: str, tokenizer: AutoTokenizer):
                     )
                 except Exception as e:
                     dprint(f"Error while reading {fp} for custom dataset: {e}")
-                    exit()
+                    raise
 
         custom_shape = (len(result), max([_[1] for _ in result]))
 
