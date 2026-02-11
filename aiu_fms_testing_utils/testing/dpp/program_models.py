@@ -15,10 +15,11 @@ class TestType(Enum):
 
 
 class AttnType(Enum):
-    SDPA = "sdpa"
-    PAGED = "paged"
+    SDPA = "sdpa_causal"
+    MATH = "math"
+    PAGED = "spyre_paged_attn"
     MATH_FP8 = "math_fp8"
-    PAGED_FP8 = "paged_fp8"
+    PAGED_FP8 = "spyre_paged_attn_fp8"
 
 
 @dataclass
@@ -43,12 +44,12 @@ class EnvConfig(NamedTuple):
     """Represents global configuration derived from environment and CLI.
 
     Attributes:
-        attn_name: The internal name of the attention algorithm (e.g., 'spyre_paged_attn').
+        attn_name: The internal name of the attention algorithm.
         cpu_dtype: Data type for CPU validation ('fp8' or 'fp32').
         max_batch_size: Maximum batch size.
         max_tkv: Maximum total key-value (context) length."""
 
-    attn_name: str
+    attn_type: AttnType
     cpu_dtype: str
     max_batch_size: int
     max_tkv: int

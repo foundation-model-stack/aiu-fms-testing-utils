@@ -14,7 +14,7 @@ from aiu_fms_testing_utils.utils.aiu_setup import dprint, local_rank
 from aiu_fms_testing_utils.utils.dpp_config import DPPRunnerConfig
 from aiu_fms_testing_utils.testing.dpp.metrics_validation import _load_validation_info
 from aiu_fms_testing_utils.utils.model_setup import Timing
-from aiu_fms_testing_utils.testing.dpp.program_models import TestType
+from aiu_fms_testing_utils.testing.dpp.program_models import TestType, AttnType
 
 
 import torch
@@ -53,7 +53,7 @@ def generate_aiu_validation(
         and optional timing information)."""
 
     golden_hook = None
-    if test_type == TestType.METRICS and cpu_validation_info:
+    if test_type == TestType.METRICS and cpu_validation_info is not None:
         golden_hook = GoldenTokenHook(cpu_validation_info.get_info("tokens"))
 
     aiu_validation_info = extract_validation_information(
@@ -108,7 +108,7 @@ def generate_cpu_validation(
         tokenizer=tokenizer,
         seed=0,
         cpu_dtype=env_config.cpu_dtype,
-        attn_type=env_config.attn_name,
+        attn_type=env_config.attn_type,
         validation_info_outputs_dir=validation_info_outputs_dir,
         sample_key=valid_prompt.sample_key,
     )
@@ -125,7 +125,7 @@ def generate_cpu_validation(
         input_ids=valid_prompt.input_ids,
         max_new_tokens=max_new_tokens,
         post_iteration_hook=LogitsExtractorHook(),
-        attn_algorithm="math",
+        attn_algorithm=AttnType.MATH,
         **valid_prompt.extra_kwargs,
     )
 
@@ -135,11 +135,11 @@ def generate_cpu_validation(
     validation_info_path = get_validation_info_path(
         validation_info_dir=validation_info_outputs_dir,
         model_variant=model_variant,
-        batch_size=valid_prompt[0],
-        seq_length=valid_prompt[1],
+        batch_size=valid_prompt.shape[0],
+        seq_length=valid_prompt.shape[1],
         max_new_tokens=max_new_tokens,
         seed=0,
-        attn_type=env_config.attn_name,
+        attn_type=env_config.attn_type,
         dtype=env_config.cpu_dtype,
         sample_key=valid_prompt.sample_key,
     )
@@ -194,7 +194,7 @@ def generate_aiu_cpu_test(
     failed_cases = []
     # for each program and valid prompt (batch size, sequence length)
     for valid_prompt in valid_prompts:
-        valid_prompt.extra_kwargs["attn_name"] = env_config.attn_name
+        valid_prompt.extra_kwargs["attn_name"] = env_config.attn_type
         valid_prompt.extra_kwargs["_kvcache_num_blocks_hint"] = model_config.num_blocks
 
         if local_rank == 0:
@@ -214,7 +214,7 @@ def generate_aiu_cpu_test(
             valid_prompt.input_ids,
             valid_prompt.extra_kwargs,
             valid_prompt.sample_key,
-            env_config.attn_name,
+            env_config.attn_type,
             env_config.cpu_dtype,
             tokenizer,
         )
@@ -284,7 +284,7 @@ def generate_aiu_test(
 
     # for each program and valid prompt (batch size, sequence length)
     for valid_prompt in valid_prompts:
-        valid_prompt.extra_kwargs["attn_name"] = env_config.attn_name
+        valid_prompt.extra_kwargs["attn_name"] = env_config.attn_type.value
         valid_prompt.extra_kwargs["_kvcache_num_blocks_hint"] = model_config.num_blocks
 
         if local_rank == 0:

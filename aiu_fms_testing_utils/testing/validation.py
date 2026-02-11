@@ -7,7 +7,7 @@ from aiu_fms_testing_utils._version import version_tuple
 import os
 from aiu_fms_testing_utils.testing.utils import format_kwargs_to_string
 from aiu_fms_testing_utils.utils.model_setup import Timing
-from aiu_fms_testing_utils.testing.dpp.program_models import DeviceType
+from aiu_fms_testing_utils.testing.dpp.program_models import DeviceType, AttnType
 
 import hashlib
 
@@ -266,7 +266,7 @@ def extract_validation_information(
     input_ids,
     max_new_tokens,
     post_iteration_hook,
-    attn_algorithm=None,
+    attn_algorithm: Optional[AttnType] = None,
     eos_token_id=None,
     last_n_tokens=0,
     timing=Timing.NONE,
@@ -292,7 +292,7 @@ def extract_validation_information(
     if last_n_tokens != 0:
         extra_generation_kwargs["last_n_tokens"] = last_n_tokens
     if attn_algorithm is not None:
-        extra_generation_kwargs["attn_algorithm"] = attn_algorithm
+        extra_generation_kwargs["attn_algorithm"] = attn_algorithm.value
 
     result = generate(
         model,
@@ -429,7 +429,7 @@ def get_validation_info_path(
     seq_length: int,
     max_new_tokens: int,
     seed: int,
-    attn_type: str,
+    attn_type: AttnType,
     aftu_version: Optional[Tuple[int, int, int]] = None,
     device_type: DeviceType = DeviceType.CPU,
     dtype: str = "fp16",
@@ -440,7 +440,7 @@ def get_validation_info_path(
 
     sample_key = kwargs.get("sample_key", None)
 
-    validation_file_name = f"{get_default_validation_prefix(aftu_version='.'.join([str(_) for _ in aftu_version[:3]]), model_id=model_variant, max_new_tokens=max_new_tokens, batch_size=batch_size, seq_length=seq_length, dtype=dtype, attn_type=attn_type, sample_key=sample_key)}.{device_type.value}_validation_info.{seed}.out"
+    validation_file_name = f"{get_default_validation_prefix(aftu_version='.'.join([str(_) for _ in aftu_version[:3]]), model_id=model_variant, max_new_tokens=max_new_tokens, batch_size=batch_size, seq_length=seq_length, dtype=dtype, attn_type=attn_type.value, sample_key=sample_key)}.{device_type.value}_validation_info.{seed}.out"
     full_path = os.path.join(validation_info_dir, validation_file_name)
     return full_path
 
@@ -467,7 +467,7 @@ def find_validation_info_path(
     seq_length: int,
     max_new_tokens: int,
     seed: int,
-    attn_type: str,
+    attn_type: AttnType,
     aftu_version: Optional[Tuple[int, int, int]] = None,
     version_allow_decrement: bool = False,
     device_type: DeviceType = DeviceType.CPU,

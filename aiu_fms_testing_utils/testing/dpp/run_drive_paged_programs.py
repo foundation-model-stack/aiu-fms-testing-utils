@@ -84,7 +84,7 @@ def setup_environment(
 
     Returns:
         EnvConfig: Immutable configuration containing:
-            - attn_name: Mapped attention implementation name
+            - attn_type: Mapped attention implementation name
             - cpu_dtype: Data type for CPU operations ("fp8" or "fp32")
             - max_batch_size: Maximum batch size from VLLM_DT_MAX_BATCH_SIZE
             - max_tkv: Maximum token-key-value context length from VLLM_DT_MAX_CONTEXT_LEN
@@ -110,15 +110,8 @@ def setup_environment(
     torch.set_grad_enabled(False)
     fx_config.backed_size_oblivious = True
 
-    attention_map = {
-        AttnType.SDPA: "sdpa_causal",
-        AttnType.PAGED: "spyre_paged_attn",
-        AttnType.MATH_FP8: "math_fp8",
-        AttnType.PAGED_FP8: "spyre_paged_attn_fp8",
-    }
-
     return EnvConfig(
-        attn_name=attention_map[attention_type],
+        attn_type=attention_type,
         cpu_dtype="fp8" if "fp8" in attention_type.value else "fp32",
         max_batch_size=int(os.environ["VLLM_DT_MAX_BATCH_SIZE"]),
         max_tkv=int(os.environ["VLLM_DT_MAX_CONTEXT_LEN"]),
@@ -201,7 +194,7 @@ def run_dpp(
 
     input_ids, extra_kwargs = pad_input_ids(prompt_list, min_pad_length=64)
     extra_kwargs["mask"] = extra_kwargs["mask"].to(torch.float16)
-    extra_kwargs["attn_name"] = env_config.attn_name
+    extra_kwargs["attn_name"] = env_config.attn_type.value
     extra_kwargs["_kvcache_num_blocks_hint"] = model_config.num_blocks
     warmup_model(
         model,

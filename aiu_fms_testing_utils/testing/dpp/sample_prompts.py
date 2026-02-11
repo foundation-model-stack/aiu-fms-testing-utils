@@ -32,8 +32,8 @@ def get_sampler(dataset_type: str, dataset_path: str, tokenizer: AutoTokenizer):
 
     Raises:
         ValueError: If dataset_type is not one of the supported types.
-        SystemExit: If custom dataset path is not a directory or file reading fails.
-    """
+        SystemExit: If custom dataset path is not a directory or file reading fails."""
+
     custom_shape = None
     if dataset_type == "custom":
         if local_rank == 0:
@@ -70,8 +70,8 @@ def get_sampler(dataset_type: str, dataset_path: str, tokenizer: AutoTokenizer):
 
             Returns:
                 List of (prompt, padded_size) tuples, or tuple of (list, sample_key)
-                if return_key=True.
-            """
+                if return_key=True."""
+
             return_key = kwargs.get("return_key", False)
             sample_key = format_kwargs_to_string(**kwargs)
             if return_key:

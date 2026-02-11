@@ -57,6 +57,13 @@ def main() -> None:
     prioritize_large_batch_sizes = True
     enforce_homogeneous_prompt_programs = True
 
+    attention_map = {
+        "sdpa": "sdpa_causal",
+        "paged": "spyre_paged_attn",
+        "math_fp8": "math_fp8",
+        "paged_fp8": "spyre_paged_attn_fp8",
+    }
+
     run_dpp(
         programs=programs,
         dataset_path=dataset_path,
@@ -68,7 +75,7 @@ def main() -> None:
         test_type=test_type,
         cross_entropy_threshold=cross_entropy_threshold,
         failure_rate_threshold=failure_rate_threshold,
-        attention_type=attention_type,
+        attention_type=attention_map[attention_type],
         prefill_chunk_size=prefill_chunk_size,
         stagger_load=stagger_load,
         stagger_update_lazyhandle=stagger_update_lazyhandle,

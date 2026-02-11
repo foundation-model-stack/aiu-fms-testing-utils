@@ -9,6 +9,7 @@ from aiu_fms_testing_utils.testing.validation import (
     top_k_loss_calculator,
 )
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, local_rank
+from aiu_fms_testing_utils.testing.dpp.program_models import AttnType
 
 
 import torch
@@ -152,7 +153,7 @@ def _load_validation_info(
     tokenizer,
     seed,
     cpu_dtype: str,
-    attn_type: str,
+    attn_type: AttnType,
     validation_info_outputs_dir: str,
     sample_key: str | None = None,
 ) -> ValidationInfo | None:
