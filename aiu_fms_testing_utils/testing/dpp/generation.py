@@ -14,6 +14,7 @@ from aiu_fms_testing_utils.utils.aiu_setup import dprint, local_rank
 from aiu_fms_testing_utils.utils.dpp_config import DPPRunnerConfig
 from aiu_fms_testing_utils.testing.dpp.metrics_validation import _load_validation_info
 from aiu_fms_testing_utils.utils.model_setup import Timing
+from aiu_fms_testing_utils.testing.dpp.program_models import TestType
 
 
 import torch
@@ -24,7 +25,7 @@ from typing import Any, Iterable, Optional
 
 
 def generate_aiu_validation(
-    test_type: str,
+    test_type: TestType,
     max_new_tokens: int,
     timing: Timing,
     prefill_chunk_size: int,
@@ -39,7 +40,7 @@ def generate_aiu_validation(
     from CPU validation to ensure consistent decode paths for metric comparison.
 
     Args:
-        test_type: Type of test being run ("metrics" or "tokens").
+        test_type: Type of test being run.
         max_new_tokens: Maximum number of tokens to generate.
         timing: Whether to collect timing information.
         prefill_chunk_size: Chunk size for prefill operations.
@@ -52,7 +53,7 @@ def generate_aiu_validation(
         and optional timing information)."""
 
     golden_hook = None
-    if test_type == "metrics" and cpu_validation_info:
+    if test_type == TestType.METRICS and cpu_validation_info:
         golden_hook = GoldenTokenHook(cpu_validation_info.get_info("tokens"))
 
     aiu_validation_info = extract_validation_information(
@@ -154,7 +155,7 @@ def generate_aiu_cpu_test(
     tokenizer: AutoTokenizer,
     env_config: EnvConfig,
     model_config: DPPRunnerConfig,
-    test_type: str,
+    test_type: TestType,
     max_new_tokens: int,
     save_validation_info_outputs: bool,
     validation_info_outputs_dir: str,
@@ -177,7 +178,7 @@ def generate_aiu_cpu_test(
         tokenizer: HuggingFace tokenizer for decoding token outputs.
         env_config: Environment configuration with attention settings.
         model_config: Model configuration with architecture details.
-        test_type: Type of test being run ("metrics" or "tokens").
+        test_type: Type of test being run.
         max_new_tokens: Maximum number of tokens to generate.
         save_validation_info_outputs: Whether to save CPU validation info to disk.
         validation_info_outputs_dir: Directory for saving/loading CPU validation info.
@@ -228,7 +229,7 @@ def generate_aiu_cpu_test(
             cpu_validation_info=cpu_validation_info,
         )
 
-        if test_type == "metrics":
+        if test_type == TestType.METRICS:
             failure_rate = evaluate_cross_entropy_metrics(
                 cross_entropy_threshold,
                 aiu_validation_info,
@@ -242,7 +243,7 @@ def generate_aiu_cpu_test(
                     (valid_prompt.program_id, valid_prompt.shape, failure_rate)
                 )
 
-        elif test_type == "tokens":
+        elif test_type == TestType.TOKENS:
             report_token_comparison(
                 max_new_tokens,
                 aiu_validation_info,
@@ -263,7 +264,7 @@ def generate_aiu_test(
     tokenizer: AutoTokenizer,
     env_config: EnvConfig,
     model_config: DPPRunnerConfig,
-    test_type: str,
+    test_type: TestType,
     max_new_tokens: int,
     timing: Timing,
     prefill_chunk_size: int,
@@ -276,7 +277,7 @@ def generate_aiu_test(
         tokenizer: HuggingFace tokenizer for decoding token outputs.
         env_config: Environment configuration with attention settings.
         model_config: Model configuration with architecture details.
-        test_type: Type of test being run ("metrics" or "tokens").
+        test_type: Type of test being run.
         max_new_tokens: Maximum number of tokens to generate.
         timing: Whether to collect timing information.
         prefill_chunk_size: Chunk size for prefill operations."""

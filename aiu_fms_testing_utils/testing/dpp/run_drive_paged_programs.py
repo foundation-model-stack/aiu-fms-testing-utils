@@ -20,7 +20,7 @@ from aiu_fms_testing_utils.utils.aiu_setup import aiu_dist_setup, dprint, local_
 from aiu_fms_testing_utils.utils.dpp_config import DPPRunnerConfig
 from aiu_fms_testing_utils.testing.dpp.constants import PAD_MULTIPLE
 from aiu_fms_testing_utils.utils.model_setup import Timing
-from aiu_fms_testing_utils.testing.dpp.program_models import DeviceType
+from aiu_fms_testing_utils.testing.dpp.program_models import DeviceType, TestType
 
 from fms.utils.generation import pad_input_ids
 
@@ -129,7 +129,7 @@ def run_dpp(
     model_variant: str,
     programs: List[str] = None,
     timing: Timing = Timing.NONE,
-    test_type: str = "metrics",
+    test_type: TestType = TestType.METRICS,
     cross_entropy_threshold: float = DEFAULT_CE_THRESHOLD,
     failure_rate_threshold: float = DEFAULT_FAILURE_RATE_THRESHOLD,
     attention_type: str = "paged",
@@ -149,7 +149,7 @@ def run_dpp(
     dataset_type, local_dataset_path = resolve_dataset_path(dataset_path)
 
     is_fp8 = attention_type == "paged_fp8"
-    if not run_cpu_validation and test_type == "metrics":
+    if not run_cpu_validation and test_type == TestType.METRICS:
         dprint("When skipping validation, only test_type will be ignored")
 
     # Environment Setup
