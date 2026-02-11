@@ -43,11 +43,6 @@ from typing import Any, Dict, List
 
 DEFAULT_CE_THRESHOLD = 2.5
 DEFAULT_FAILURE_RATE_THRESHOLD = 0.1
-SHARE_GPT_DATASET = (
-    "anon8231489123/ShareGPT_Vicuna_unfiltered",
-    "ShareGPT_V3_unfiltered_cleaned_split.json",
-)
-RAG_FACTOID_DATASET = ("", "")
 
 
 def _get_distributed_kwargs(dist_timeout: str) -> Dict[str, Any]:

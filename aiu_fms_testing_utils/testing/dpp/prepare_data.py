@@ -9,10 +9,6 @@ from aiu_fms_testing_utils.testing.dpp.program_models import (
     ProgramInfo,
     ValidPrompt,
 )
-from aiu_fms_testing_utils.testing.dpp.run_drive_paged_programs import (
-    RAG_FACTOID_DATASET,
-    SHARE_GPT_DATASET,
-)
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, r0dprint
 from fms.utils.generation import pad_input_ids
 
@@ -26,6 +22,13 @@ from typing import Any, List, Optional, Tuple, Callable, Generator
 
 from aiu_fms_testing_utils.utils.paged import ProgramCriteria, get_programs_prompts
 from aiu_fms_testing_utils.testing.dpp.constants import PAD_MULTIPLE
+
+
+SHARE_GPT_DATASET = (
+    "anon8231489123/ShareGPT_Vicuna_unfiltered",
+    "ShareGPT_V3_unfiltered_cleaned_split.json",
+)
+RAG_FACTOID_DATASET = ("", "")
 
 
 def _prepare_inputs(
