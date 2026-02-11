@@ -1,12 +1,14 @@
 import datetime
 import os
-from huggingface_hub import hf_hub_download
 from torch.fx.experimental import _config as fx_config
 from aiu_fms_testing_utils.testing.dpp.generation import (
     generate_aiu_cpu_test,
     generate_aiu_test,
 )
-from aiu_fms_testing_utils.testing.dpp.prepare_prompts import prepare_test_prompts
+from aiu_fms_testing_utils.testing.dpp.prepare_data import (
+    prepare_test_prompts,
+    resolve_dataset_path,
+)
 from aiu_fms_testing_utils.testing.dpp.program_models import EnvConfig
 from aiu_fms_testing_utils.testing.dpp.sample_prompts import get_sampler
 from aiu_fms_testing_utils.utils import stagger_region, warmup_model
@@ -33,44 +35,6 @@ SHARE_GPT_DATASET = (
     "ShareGPT_V3_unfiltered_cleaned_split.json",
 )
 RAG_FACTOID_DATASET = ("", "")
-
-
-def resolve_dataset_path(dataset_path: str) -> tuple[str, str]:
-    """Resolves the dataset type and local path based on the provided dataset_path.
-
-    Args:
-        dataset_path: A string indicating the dataset to use. Supported values are:
-                      - "sharegpt": Uses the ShareGPT dataset from HuggingFace.
-                      - "rag_factoid": Uses the RAG Factoid dataset from HuggingFace.
-                      - Any other string is considered a custom dataset path.
-
-    Returns:
-        A tuple containing:
-            - dataset_type: A string indicating the type of dataset ("sharegpt", "rag_factoid", or "custom").
-            - local_dataset_path: The local file path to the dataset."""
-
-    if dataset_path == "sharegpt":
-        dataset_type = "sharegpt"
-        # Fetch from HuggingFace
-        local_dataset_path = hf_hub_download(
-            repo_id=SHARE_GPT_DATASET[0],
-            filename=SHARE_GPT_DATASET[1],
-            repo_type="dataset",
-        )
-    elif dataset_path == "rag_factoid":
-        dataset_type = "rag_factoid"
-        local_dataset_path = hf_hub_download(
-            repo_id=RAG_FACTOID_DATASET[0],
-            filename=RAG_FACTOID_DATASET[1],
-            repo_type="dataset",
-        )
-    elif dataset_path is None:
-        dataset_type = "custom"
-        local_dataset_path = dataset_path
-    else:
-        raise ValueError(f"Unsupported dataset_path: {dataset_path}")
-
-    return dataset_type, local_dataset_path
 
 
 def _get_distributed_kwargs(dist_timeout: str) -> Dict[str, Any]:
