@@ -101,8 +101,9 @@ def load_model(
 
     with scoped_environ(model_config.env_updates()):
         # Temporarily set environment variables needed for compile
-        dprint(f"Compiling model for Spyre execution with config: {model_config}")
-        model.compile(backend="sendnn", dynamic=True)
+        dprint(f"Compiling model for Spyre execution with DPP config: {model_config}")
+        # Ignore autograd warning; this is needed
+        model.compile(backend="sendnn", options={"sendnn.dynamic": True})
 
     if is_fp8:
         dprint("Converting model weights for FP8 attention...")
