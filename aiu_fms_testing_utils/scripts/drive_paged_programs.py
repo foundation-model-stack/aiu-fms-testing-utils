@@ -2,7 +2,7 @@ import argparse
 
 from aiu_fms_testing_utils.testing.dpp.run_drive_paged_programs import run_dpp
 from aiu_fms_testing_utils.testing.dpp.program_models import AttnType, TestType
-from aiu_fms_testing_utils.testing.dpp.program_models import Timing
+from aiu_fms_testing_utils.utils.model_setup import Timing
 
 
 def parse_cli_args() -> argparse.Namespace:

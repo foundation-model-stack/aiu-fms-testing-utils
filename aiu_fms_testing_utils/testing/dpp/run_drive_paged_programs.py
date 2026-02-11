@@ -216,11 +216,16 @@ def run_dpp(
             f"Validation info outputs directory not found at {validation_info_outputs_dir}"
         )
 
+    if distributed:
+        r0dprint(f"Running DPP in distributed mode with {dist.get_world_size()} ranks")
+    else:
+        r0dprint("Running DPP in single-process mode")
+
     dataset_type, local_dataset_path = resolve_dataset_path(dataset_path)
 
     is_fp8 = attention_type == AttnType.PAGED_FP8
     if not run_cpu_validation and test_type == TestType.METRICS:
-        dprint("When skipping validation, only test_type will be ignored")
+        r0dprint("When skipping validation, only test_type will be ignored")
 
     # Environment Setup
     env_config = _setup_environment(
