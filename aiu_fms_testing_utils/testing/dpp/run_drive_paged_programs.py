@@ -20,7 +20,11 @@ from aiu_fms_testing_utils.utils.aiu_setup import aiu_dist_setup, dprint, local_
 from aiu_fms_testing_utils.utils.dpp_config import DPPRunnerConfig
 from aiu_fms_testing_utils.testing.dpp.constants import PAD_MULTIPLE
 from aiu_fms_testing_utils.utils.model_setup import Timing
-from aiu_fms_testing_utils.testing.dpp.program_models import DeviceType, TestType
+from aiu_fms_testing_utils.testing.dpp.program_models import (
+    DeviceType,
+    TestType,
+    AttnType,
+)
 
 from fms.utils.generation import pad_input_ids
 
@@ -70,13 +74,13 @@ def _get_distributed_kwargs(dist_timeout: str) -> Dict[str, Any]:
 
 
 def setup_environment(
-    program_criteria_json_path: str, attention_type: str
+    program_criteria_json_path: str, attention_type: AttnType
 ) -> EnvConfig:
     """Set up global process state and environment variables.
 
     Args:
         program_criteria_json_path: Path to the JSON file containing program criteria definitions.
-        attention_type: Type of attention mechanism to use. Must be one of sdpa, paged, math_fp8, paged_fp8.
+        attention_type: Type of attention mechanism to use.
 
     Returns:
         EnvConfig: Immutable configuration containing:
@@ -107,15 +111,15 @@ def setup_environment(
     fx_config.backed_size_oblivious = True
 
     attention_map = {
-        "sdpa": "sdpa_causal",
-        "paged": "spyre_paged_attn",
-        "math_fp8": "math_fp8",
-        "paged_fp8": "spyre_paged_attn_fp8",
+        AttnType.SDPA: "sdpa_causal",
+        AttnType.PAGED: "spyre_paged_attn",
+        AttnType.MATH_FP8: "math_fp8",
+        AttnType.PAGED_FP8: "spyre_paged_attn_fp8",
     }
 
     return EnvConfig(
         attn_name=attention_map[attention_type],
-        cpu_dtype="fp8" if "fp8" in attention_type else "fp32",
+        cpu_dtype="fp8" if "fp8" in attention_type.value else "fp32",
         max_batch_size=int(os.environ["VLLM_DT_MAX_BATCH_SIZE"]),
         max_tkv=int(os.environ["VLLM_DT_MAX_CONTEXT_LEN"]),
     )
@@ -132,7 +136,7 @@ def run_dpp(
     test_type: TestType = TestType.METRICS,
     cross_entropy_threshold: float = DEFAULT_CE_THRESHOLD,
     failure_rate_threshold: float = DEFAULT_FAILURE_RATE_THRESHOLD,
-    attention_type: str = "paged",
+    attention_type: AttnType = AttnType.PAGED,
     prefill_chunk_size: int = 0,
     stagger_load: int = 0,
     stagger_update_lazyhandle: int = 0,
@@ -148,7 +152,7 @@ def run_dpp(
 
     dataset_type, local_dataset_path = resolve_dataset_path(dataset_path)
 
-    is_fp8 = attention_type == "paged_fp8"
+    is_fp8 = attention_type == AttnType.PAGED_FP8
     if not run_cpu_validation and test_type == TestType.METRICS:
         dprint("When skipping validation, only test_type will be ignored")
 
