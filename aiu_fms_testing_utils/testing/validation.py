@@ -440,7 +440,19 @@ def get_validation_info_path(
 
     sample_key = kwargs.get("sample_key", None)
 
-    validation_file_name = f"{get_default_validation_prefix(aftu_version='.'.join([str(_) for _ in aftu_version[:3]]), model_id=model_variant, max_new_tokens=max_new_tokens, batch_size=batch_size, seq_length=seq_length, dtype=dtype, attn_type=attn_type.value, sample_key=sample_key)}.{device_type.value}_validation_info.{seed}.out"
+    val_prefix = get_default_validation_prefix(
+        aftu_version=".".join([str(_) for _ in aftu_version[:3]]),
+        model_id=model_variant,
+        max_new_tokens=max_new_tokens,
+        batch_size=batch_size,
+        seq_length=seq_length,
+        dtype=dtype,
+        attn_type=attn_type.value,
+        sample_key=sample_key,
+    )
+    validation_file_name = (
+        f"{val_prefix}.{device_type.value}_validation_info.{seed}.out"
+    )
     full_path = os.path.join(validation_info_dir, validation_file_name)
     return full_path
 
