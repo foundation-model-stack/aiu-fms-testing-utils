@@ -3,13 +3,18 @@ from typing import List, Tuple, Callable, MutableMapping, Any, Optional
 
 import torch
 from aiu_fms_testing_utils.utils.aiu_setup import dprint
-from aiu_fms_testing_utils._version import version_tuple
 import os
 from aiu_fms_testing_utils.testing.utils import format_kwargs_to_string
 from aiu_fms_testing_utils.utils.model_setup import Timing
 from aiu_fms_testing_utils.testing.dpp.program_models import DeviceType, AttnType
 
 import hashlib
+
+
+try:
+    from aiu_fms_testing_utils._version import version_tuple
+except ImportError:
+    version_tuple = (0, 0, 0)
 
 
 class LogitsExtractorHook(
