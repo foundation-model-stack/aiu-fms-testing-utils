@@ -22,7 +22,7 @@ from transformers import AutoTokenizer
 
 
 import time
-from typing import Any, List, Optional, Tuple
+from typing import Any, List, Optional, Tuple, Callable, Generator
 
 from aiu_fms_testing_utils.utils.paged import ProgramCriteria, get_programs_prompts
 from aiu_fms_testing_utils.testing.dpp.constants import PAD_MULTIPLE
@@ -61,8 +61,8 @@ def _prepare_inputs(
             - sample_key: String identifier for the sampled prompts.
 
     Raises:
-        ValueError: If no valid prompts exist in the dataset for the requested shape.
-    """
+        ValueError: If no valid prompts exist in the dataset for the requested shape."""
+
     start = time.time()
     prompts_and_sizes, sample_key = sampler(
         dataset_path,
@@ -103,18 +103,18 @@ def _prepare_inputs(
     )
 
 
-def get_valid_prompts(
+def _get_valid_prompts(
     program_map,
     dataset_path: str,
     enforce_homogeneous_prompt_programs: bool,
     programs_to_test: List[ProgramInfo],
     program_criteria_list: List[ProgramCriteria],
     tokenizer: AutoTokenizer,
-    sampler,
+    sampler: Callable,
     allow_truncation: bool,
     custom_shape: Optional[Tuple[int, int]],
     pad_multiple: int,
-):
+) -> Generator[ValidPrompt, None, None]:
     """Generator that yields valid prompts matching program criteria and constraints.
 
     Iterates through programs to test and finds prompts from the dataset that satisfy
@@ -138,8 +138,8 @@ def get_valid_prompts(
 
     Yields:
         ValidPrompt: A named tuple containing program_id, shape, input_ids,
-                     extra_kwargs, and sample_key.
-    """
+                     extra_kwargs, and sample_key."""
+
     # select prompts that fit the batch size criteria
     if custom_shape:
         prompt_found = 0
@@ -257,18 +257,29 @@ def prepare_test_prompts(
     enforce_homogeneous_prompt_programs: bool,
     max_batch_size: int,
     max_tkv: int,
-    tkv_limit: int | None,
+    tkv_limit: Optional[int],
     tokenizer: AutoTokenizer,
     sampler: Any,
     allow_truncation: bool,
     custom_shape: Optional[Tuple[int, int]],
     dataset_path: str,
-):
+) -> Generator[ValidPrompt, None, None]:
     """Parses program criteria and generates the sequence of valid test prompts.
 
-    This function unrolls the necessary arguments to decouple the logic from
-    the argparse namespace.
-    """
+    Args:
+        program_criteria_json_path: Path to JSON file containing program criteria definitions.
+        programs: List of program specifications from command line arguments.
+        max_new_tokens: Maximum number of tokens to generate for each prompt.
+        prioritize_large_batch_sizes: If True, prioritizes larger batch sizes when selecting prompts.
+        enforce_homogeneous_prompt_programs: If True, ensures all prompts in a batch use the same decode program.
+        max_batch_size: Maximum batch size to consider when selecting prompts.
+        max_tkv: Maximum total key-value size to consider when selecting prompts.
+        tkv_limit: Optional limit on total key-value size for prompts.
+        tokenizer: HuggingFace tokenizer for encoding prompts.
+        sampler: Callable for sampling prompts from the dataset.
+        allow_truncation: If True, allows truncating prompts that exceed max sequence length.
+        custom_shape: Optional tuple of (batch_size, seq_length) for custom datasets.
+        dataset_path: Path to the dataset for sampling prompts."""
 
     with open(program_criteria_json_path, "r") as f:
         program_criteria_json_list = json.load(f)["programs"]
@@ -296,11 +307,12 @@ def prepare_test_prompts(
         tkv_limit=tkv_limit,
         prioritize_large_batch_sizes=prioritize_large_batch_sizes,
     )
+
     for v in program_map.values():
         random.Random(42).shuffle(v)
 
     # Select concrete prompts and program associations
-    return get_valid_prompts(
+    return _get_valid_prompts(
         program_map=program_map,
         dataset_path=dataset_path,
         enforce_homogeneous_prompt_programs=enforce_homogeneous_prompt_programs,
@@ -322,7 +334,6 @@ def resolve_dataset_path(dataset_path: str) -> tuple[str, str]:
                       - "sharegpt": Uses the ShareGPT dataset from HuggingFace.
                       - "rag_factoid": Uses the RAG Factoid dataset from HuggingFace.
                       - Any other string is considered a custom dataset path.
-
     Returns:
         A tuple containing:
             - dataset_type: A string indicating the type of dataset ("sharegpt", "rag_factoid", or "custom").

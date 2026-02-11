@@ -22,8 +22,7 @@ def main() -> None:
         - Model loading (e.g., OOM, invalid model variant)
         - Distributed initialization (e.g., timeout, network issues)
         - File I/O (e.g., missing program criteria JSON)
-        - Validation (e.g., shape mismatches)
-    """
+        - Validation (e.g., shape mismatches)"""
 
     parser = argparse.ArgumentParser(
         description="Script which will drive paged programs for debugging"

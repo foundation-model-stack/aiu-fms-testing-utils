@@ -11,7 +11,26 @@ from aiu_fms_testing_utils.utils.env_utils import scoped_environ
 from aiu_fms_testing_utils.testing.dpp.program_models import DeviceType
 
 
-def _get_model_kwargs(model_variant: str) -> Dict[str, Any]:
+def _prepare_fp8_weights(model: torch.nn.Module) -> None:
+    """Converts model weights from bfloat16 to float16 for FP8 attention.
+
+    When using FP8 attention variants, this function converts all bfloat16 parameters
+    to float16. Issues a warning if any parameter values exceed the float16 range,
+    which may cause accuracy loss.
+
+    Args:
+        model: PyTorch model whose weights may need conversion."""
+
+    for name, param in model.named_parameters():
+        if param.dtype == torch.bfloat16:
+            if param.max() > torch.finfo(torch.float16).max:
+                dprint(
+                    f"[WARNING] You are casting param {name} to fp16, which will cause loss of accuracy."
+                )
+            param.data = param.data.to(dtype=torch.float16)
+
+
+def get_model_kwargs(model_variant: str) -> Dict[str, Any]:
     """Constructs model loading kwargs based on whether variant is a path or ID.
 
     Determines if the model_variant is a local filesystem path or a HuggingFace
@@ -31,25 +50,6 @@ def _get_model_kwargs(model_variant: str) -> Dict[str, Any]:
         model_kwargs["variant"] = model_variant
 
     return model_kwargs
-
-
-def _prepare_fp8_weights(model: torch.nn.Module) -> None:
-    """Converts model weights from bfloat16 to float16 for FP8 attention.
-
-    When using FP8 attention variants, this function converts all bfloat16 parameters
-    to float16. Issues a warning if any parameter values exceed the float16 range,
-    which may cause accuracy loss.
-
-    Args:
-        model: PyTorch model whose weights may need conversion."""
-
-    for name, param in model.named_parameters():
-        if param.dtype == torch.bfloat16:
-            if param.max() > torch.finfo(torch.float16).max:
-                dprint(
-                    f"[WARNING] You are casting param {name} to fp16, which will cause loss of accuracy."
-                )
-            param.data = param.data.to(dtype=torch.float16)
 
 
 def load_model(

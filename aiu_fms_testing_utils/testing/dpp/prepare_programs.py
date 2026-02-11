@@ -2,7 +2,7 @@ import re
 from aiu_fms_testing_utils.testing.dpp.program_models import ProgramInfo
 
 
-def parse_program_limit(limit_str: str) -> tuple[int, str | None]:
+def _parse_program_limit(limit_str: str) -> tuple[int, str | None]:
     """Parses a program limit string into a numeric value and comparison operator.
 
     Accepts either a plain integer (defaults to ">=" for backward compatibility)
@@ -18,8 +18,8 @@ def parse_program_limit(limit_str: str) -> tuple[int, str | None]:
             - limit_type: The comparison operator string (">=", "<=", "<", ">", "==").
 
     Raises:
-        ValueError: If the limit string format is invalid.
-    """
+        ValueError: If the limit string format is invalid."""
+
     matcher = re.compile(r"^(<|>|<=|>=|==)(\d+)")
 
     # Default limit to min to maintain backwards compat
@@ -50,8 +50,8 @@ def get_programs_to_test(programs, program_criteria_list) -> list[ProgramInfo]:
         program_criteria_list: List of ProgramCriteria objects defining available programs.
 
     Returns:
-        List of ProgramInfo objects representing programs to test with their constraints.
-    """
+        List of ProgramInfo objects representing programs to test with their constraints."""
+
     programs_to_test = []
     for program_str in programs:
         enforce_prompt_split = program_str.split(":")
@@ -66,11 +66,11 @@ def get_programs_to_test(programs, program_criteria_list) -> list[ProgramInfo]:
             )
 
             # Default limit to min to maintain backwards compat
-            enforce_batch_size_val, enforce_batch_size_type = parse_program_limit(
+            enforce_batch_size_val, enforce_batch_size_type = _parse_program_limit(
                 enforce_batch_size
             )
-            enforce_prompt_length_val, enforce_prompt_length_type = parse_program_limit(
-                enforce_prompt_length
+            enforce_prompt_length_val, enforce_prompt_length_type = (
+                _parse_program_limit(enforce_prompt_length)
             )
 
             programs_to_test.append(

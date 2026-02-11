@@ -12,7 +12,7 @@ from aiu_fms_testing_utils.testing.validation import (
 )
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, r0dprint, local_rank
 from aiu_fms_testing_utils.utils.dpp_config import DPPRunnerConfig
-from aiu_fms_testing_utils.testing.dpp.metrics_validation import _load_validation_info
+from aiu_fms_testing_utils.testing.dpp.metrics_validation import load_validation_info
 from aiu_fms_testing_utils.utils.model_setup import Timing
 from aiu_fms_testing_utils.testing.dpp.program_models import TestType, AttnType
 
@@ -24,7 +24,7 @@ from transformers import AutoTokenizer
 from typing import Any, Iterable, Optional
 
 
-def generate_aiu_validation(
+def _generate_aiu_validation(
     test_type: TestType,
     max_new_tokens: int,
     timing: Timing,
@@ -70,7 +70,7 @@ def generate_aiu_validation(
     return aiu_validation_info
 
 
-def generate_cpu_validation(
+def _generate_cpu_validation(
     model_variant: str,
     max_new_tokens: int,
     validation_info_outputs_dir: str,
@@ -100,7 +100,7 @@ def generate_cpu_validation(
         ValidationInfo: ValidationInfo object containing CPU reference outputs (tokens and logits)."""
 
     # attempt to load the cpu validation info if it is already computed
-    cpu_validation_info = _load_validation_info(
+    cpu_validation_info = load_validation_info(
         model_variant=model_variant,
         batch_size=valid_prompt.shape[0],
         seq_length=valid_prompt.shape[1],
@@ -203,7 +203,7 @@ def generate_aiu_cpu_test(
         )
 
         # Generate or load CPU validation info
-        cpu_validation_info = generate_cpu_validation(
+        cpu_validation_info = _generate_cpu_validation(
             model_variant,
             max_new_tokens,
             validation_info_outputs_dir,
@@ -218,7 +218,7 @@ def generate_aiu_cpu_test(
             tokenizer,
         )
 
-        aiu_validation_info = generate_aiu_validation(
+        aiu_validation_info = _generate_aiu_validation(
             test_type,
             max_new_tokens,
             timing,
@@ -291,7 +291,7 @@ def generate_aiu_test(
             f"program id: {valid_prompt.program_id}, valid prompt: {valid_prompt.shape}, input shape: {valid_prompt.input_ids.shape}"
         )
 
-        aiu_tokens = generate_aiu_validation(
+        aiu_tokens = _generate_aiu_validation(
             test_type,
             max_new_tokens,
             timing,

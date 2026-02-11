@@ -19,23 +19,23 @@ from transformers import AutoTokenizer
 from typing import Tuple
 
 
-def _metric_calculator(r: torch.Tensor, t: torch.Tensor):
+def _metric_calculator(reference_tensor: torch.Tensor, test_tensor: torch.Tensor):
     """Calculates cross-entropy and mean absolute difference between logit distributions.
 
     Args:
-        r: Reference logits tensor from CPU validation.
-        t: Test logits tensor from AIU inference.
+        reference_tensor: Reference logits tensor from CPU validation.
+        test_tensor: Test logits tensor from AIU inference.
 
     Returns:
-        MetricResult: A named tuple containing the calculated metrics.
-    """
+        MetricResult: A named tuple containing the calculated metrics."""
+
     cross_entropy_loss = torch.nn.CrossEntropyLoss()(
-        r, t.softmax(dim=1).to(dtype=torch.float32)
+        reference_tensor, test_tensor.softmax(dim=1).to(dtype=torch.float32)
     )
     mean_abs_diff = torch.mean(
         torch.abs(
-            r.softmax(dim=1).to(dtype=torch.float32)
-            - t.softmax(dim=1).to(dtype=torch.float32)
+            reference_tensor.softmax(dim=1).to(dtype=torch.float32)
+            - test_tensor.softmax(dim=1).to(dtype=torch.float32)
         )
     )
     return MetricResult(
@@ -66,8 +66,8 @@ def evaluate_cross_entropy_metrics(
         tokenizer: HuggingFace tokenizer for decoding tokens.
 
     Returns:
-        float: Failure rate (number of failed tokens / total tokens).
-    """
+        float: Failure rate (number of failed tokens / total tokens)."""
+
     level_1_metrics = capture_level_1_metrics(
         cpu_validation_info.get_info("logits"),
         aiu_validation_info.get_info("logits"),
@@ -118,8 +118,8 @@ def report_token_comparison(
         aiu_validation_info: ValidationInfo from AIU inference.
         cpu_validation_info: ValidationInfo from CPU reference.
         program_id: ID of the program being tested.
-        tokenizer: HuggingFace tokenizer for decoding tokens.
-    """
+        tokenizer: HuggingFace tokenizer for decoding tokens."""
+
     if local_rank != 0:
         return
 
@@ -145,7 +145,7 @@ def report_token_comparison(
         dprint(f"AIU output:\n{tokenizer.decode(aiu_tokens_generated)}")
 
 
-def _load_validation_info(
+def load_validation_info(
     model_variant,
     batch_size,
     seq_length,

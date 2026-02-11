@@ -10,7 +10,7 @@ from aiu_fms_testing_utils.testing.dpp.prepare_data import (
     resolve_dataset_path,
 )
 from aiu_fms_testing_utils.testing.dpp.prepare_model import (
-    _get_model_kwargs,
+    get_model_kwargs,
     load_model,
 )
 from aiu_fms_testing_utils.testing.dpp.program_models import EnvConfig
@@ -166,7 +166,7 @@ def run_dpp(
     )
 
     # Model Loading
-    model_kwargs = _get_model_kwargs(model_variant)
+    model_kwargs = get_model_kwargs(model_variant)
     distributed_kwargs = _get_distributed_kwargs(dist_timeout) if distributed else {}
 
     # Setup model config
