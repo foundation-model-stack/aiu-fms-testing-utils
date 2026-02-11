@@ -103,8 +103,159 @@ def _prepare_inputs(
     )
 
 
+def _get_valid_prompts_by_custom_shape(
+    program_map: dict,
+    custom_shape: Tuple[int, int],
+    tokenizer: AutoTokenizer,
+    sampler: Callable,
+    dataset_path: str,
+    allow_truncation: bool,
+) -> Generator[ValidPrompt, None, None]:
+    """Selects prompts matching a custom shape for user-provided datasets.
+
+    Args:
+        program_map: Dictionary mapping program sequences to valid prompt shapes.
+        custom_shape: Tuple of (batch_size, seq_length) specified by the user for custom datasets.
+        tokenizer: HuggingFace tokenizer for encoding prompts.
+        sampler: Callable for sampling prompts from the dataset.
+        dataset_path: Path to the dataset for sampling prompts.
+        allow_truncation: If True, allows truncating prompts that exceed max sequence length.
+    Yields:
+        ValidPrompt: A named tuple for prompts matching the custom shape."""
+
+    found_valid_shape = False
+    for program_criteria_seq, valid_prompt_shapes in program_map.items():
+        for valid_prompt_shape in valid_prompt_shapes:
+            if valid_prompt_shape != custom_shape:
+                continue
+
+            input_ids, extra_kwargs, sample_key = _prepare_inputs(
+                valid_prompt_shape[0],
+                valid_prompt_shape[1],
+                tokenizer,
+                sampler,
+                dataset_path,
+                allow_truncation,
+                enforce_sizes=[valid_prompt_shape[1]],
+            )
+            yield ValidPrompt(
+                program_id=program_criteria_seq[0].program_id,
+                shape=custom_shape,
+                input_ids=input_ids,
+                extra_kwargs=extra_kwargs,
+                sample_key=sample_key,
+            )
+            found_valid_shape = True
+            break
+
+        if found_valid_shape:
+            break
+
+    if not found_valid_shape:
+        r0dprint(
+            f"No valid prompt shape was found which would result in program {program_criteria_seq[0].program_id} that satisfied the custom shape {custom_shape}"
+        )
+
+
+def _get_valid_prompts_by_shape(
+    program_map: dict,
+    program_info: ProgramInfo,
+    tokenizer: AutoTokenizer,
+    sampler: Callable,
+    dataset_path: str,
+    allow_truncation: bool,
+    pad_multiple: int,
+    enforce_homogeneous_prompt_programs: bool,
+) -> Generator[ValidPrompt, None, None]:
+    """Selects valid prompts matching program criteria and constraints.
+
+    Args:
+        program_map: Dictionary mapping program sequences to valid prompt shapes.
+        program_info: ProgramInfo object specifying the program and its constraints.
+        tokenizer: HuggingFace tokenizer for encoding prompts.
+        sampler: Callable for sampling prompts from the dataset.
+        dataset_path: Path to the dataset for sampling prompts.
+        allow_truncation: If True, allows truncating prompts that exceed max sequence length.
+        pad_multiple: Padding granularity for sequence lengths (typically 64).
+        enforce_homogeneous_prompt_programs: If True, ensures all prompts in a batch use the same decode program.
+    Yields:
+        ValidPrompt: A named tuple matching the program criteria and constraints for testing."""
+
+    used_keys = set()
+    # for each program, we need to check if we have a shape that satisfies the --programs request
+    for program_criteria_seq, valid_prompt_shapes in program_map.items():
+        # if ? or numeric => we need to check if we have found at least one valid key to stop
+        if (
+            program_info.program_id == "?" or program_info.program_id.isnumeric()
+        ) and len(used_keys) > 0:
+            break
+        # if * => we need to see if we have found the first key to see if we should skip
+        elif program_info.program_id == "*" and program_criteria_seq[0] in used_keys:
+            continue
+
+        for valid_prompt_shape in valid_prompt_shapes:
+            # make sure the criteria for batch limit and prompt limit is satisfied
+            # eval is safe here because we have limited what type and limit can be before
+
+            batch_check = eval(
+                f"valid_prompt_shape[0] {program_info.batch_size_limit_type} {program_info.batch_size_limit}"
+            )
+            prompt_check = eval(
+                f"valid_prompt_shape[1] {program_info.prompt_length_limit_type} {program_info.prompt_length_limit}"
+            )
+            if not batch_check or not prompt_check:
+                continue
+
+            # when we enforce homogeneous prompt programs, we will cycle through all sizes between the min of a program and the valid prompt sequence length
+            # if there does not exist enough sequence sizes between this range, we will cycle back to the beginning
+            # in the event we don't have enough sequences that satisfy the enforce_sizes, we will repeat sequences and warn the user
+            enforce_sizes = [valid_prompt_shape[1]]
+            if enforce_homogeneous_prompt_programs:
+                # this will get the number of bits for the sequence length and shift to get the power of 2 that is less than or equal to the sequence length
+                tkv_cutoff = 1 << (valid_prompt_shape[1].bit_length() - 1)
+                possible_seq_lengths = [
+                    _ for _ in range(tkv_cutoff, valid_prompt_shape[1], pad_multiple)
+                ]
+                # favor sequences that are close to the valid prompt length
+                possible_seq_lengths.reverse()
+                enforce_sizes = enforce_sizes + list(
+                    itertools.islice(
+                        itertools.cycle(possible_seq_lengths),
+                        valid_prompt_shape[0] - 1,
+                    )
+                )
+
+            try:
+                input_ids, extra_kwargs, sample_key = _prepare_inputs(
+                    batch_size=valid_prompt_shape[0],
+                    seq_length=valid_prompt_shape[1],
+                    tokenizer=tokenizer,
+                    sampler=sampler,
+                    dataset_path=dataset_path,
+                    allow_truncation=allow_truncation,
+                    enforce_sizes=enforce_sizes,
+                )
+                yield ValidPrompt(
+                    program_id=program_criteria_seq[0],
+                    shape=valid_prompt_shape,
+                    input_ids=input_ids,
+                    extra_kwargs=extra_kwargs,
+                    sample_key=sample_key,
+                )
+                break
+            except ValueError:
+                dprint(
+                    f"No valid sample exists in dataset for this input shape {valid_prompt_shape}"
+                )
+
+    if len(used_keys) == 0:
+        r0dprint(
+            f"No valid prompt shape was found which would result in program {program_info.program_id} that satisfied batch{program_info.batch_size_limit_type}{program_info.batch_size_limit} and prompt_length{program_info.prompt_length_limit_type}{program_info.prompt_length_limit}"
+        )
+
+
 def _get_valid_prompts(
-    program_map,
+    program_map: dict,
     dataset_path: str,
     enforce_homogeneous_prompt_programs: bool,
     programs_to_test: List[ProgramInfo],
@@ -112,7 +263,6 @@ def _get_valid_prompts(
     tokenizer: AutoTokenizer,
     sampler: Callable,
     allow_truncation: bool,
-    custom_shape: Optional[Tuple[int, int]],
     pad_multiple: int,
 ) -> Generator[ValidPrompt, None, None]:
     """Generator that yields valid prompts matching program criteria and constraints.
@@ -133,120 +283,32 @@ def _get_valid_prompts(
         tokenizer: HuggingFace tokenizer for encoding prompts.
         sampler: Callable for sampling prompts from the dataset.
         allow_truncation: If True, allows truncating prompts exceeding max length.
-        custom_shape: Optional tuple of (batch_size, seq_length) for custom datasets.
         pad_multiple: Padding granularity for sequence lengths (typically 64).
 
     Yields:
-        ValidPrompt: A named tuple containing program_id, shape, input_ids,
-                     extra_kwargs, and sample_key."""
+        ValidPrompt: A named tuple matching the program criteria and constraints for testing."""
 
-    # select prompts that fit the batch size criteria
-    if custom_shape:
-        prompt_found = 0
-        for program_criteria_seq, valid_prompt_shapes in program_map.items():
-            for valid_prompt_shape in valid_prompt_shapes:
-                if valid_prompt_shape == custom_shape:
-                    enforce_sizes = [valid_prompt_shape[1]]
-                    input_ids, extra_kwargs, sample_key = _prepare_inputs(
-                        batch_size=valid_prompt_shape[0],
-                        seq_length=valid_prompt_shape[1],
-                        tokenizer=tokenizer,
-                        sampler=sampler,
-                        dataset_path=dataset_path,
-                        allow_truncation=allow_truncation,
-                        enforce_sizes=enforce_sizes,
-                    )
-                    prompt_found = 1
-                    yield ValidPrompt(
-                        program_id=program_criteria_seq[0].program_id,
-                        shape=custom_shape,
-                        input_ids=input_ids,
-                        extra_kwargs=extra_kwargs,
-                        sample_key=sample_key,
-                    )
-                    break
-            if prompt_found:
-                break
-    else:
-        for program_info in programs_to_test:
-            program_id = program_info.program_id
+    for program_info in programs_to_test:
+        program_id = program_info.program_id
 
-            filtered_program_map = program_map
-            if program_id.isnumeric():
-                filtered_program_map = {
-                    k: v
-                    for k, v in program_map.items()
-                    if k[0] == program_criteria_list[int(program_id)]
-                }
-            used_keys = set()
-            # for each program, we need to check if we have a shape that satisfies the --programs request
-            for program_seq_key, valid_prompt_shapes in filtered_program_map.items():
-                # if ? or numeric => we need to check if we have found at least one valid key to stop
-                if (program_id == "?" or program_id.isnumeric()) and len(used_keys) > 0:
-                    break
-                # if * => we need to see if we have found the first key to see if we should skip
-                elif program_id == "*" and program_seq_key[0] in used_keys:
-                    continue
+        filtered_program_map = program_map
+        if program_id.isnumeric():
+            filtered_program_map = {
+                k: v
+                for k, v in program_map.items()
+                if k[0] == program_criteria_list[int(program_id)]
+            }
 
-                for valid_prompt_shape in valid_prompt_shapes:
-                    # make sure the criteria for batch limit and prompt limit is satisfied
-                    # eval is safe here because we have limited what type and limit can be before
-
-                    batch_check = eval(
-                        f"valid_prompt_shape[0] {program_info.batch_size_limit_type} {program_info.batch_size_limit}"
-                    )
-                    prompt_check = eval(
-                        f"valid_prompt_shape[1] {program_info.prompt_length_limit_type} {program_info.prompt_length_limit}"
-                    )
-                    if batch_check and prompt_check:
-                        # when we enforce homogeneous prompt programs, we will cycle through all sizes between the min of a program and the valid prompt sequence length
-                        # if there does not exist enough sequence sizes between this range, we will cycle back to the beginning
-                        # in the event we don't have enough sequences that satisfy the enforce_sizes, we will repeat sequences and warn the user
-                        enforce_sizes = [valid_prompt_shape[1]]
-                        if enforce_homogeneous_prompt_programs:
-                            # this will get the number of bits for the sequence length and shift to get the power of 2 that is less than or equal to the sequence length
-                            tkv_cutoff = 1 << (valid_prompt_shape[1].bit_length() - 1)
-                            possible_seq_lengths = [
-                                _
-                                for _ in range(
-                                    tkv_cutoff, valid_prompt_shape[1], pad_multiple
-                                )
-                            ]
-                            # favor sequences that are close to the valid prompt length
-                            possible_seq_lengths.reverse()
-                            enforce_sizes = enforce_sizes + list(
-                                itertools.islice(
-                                    itertools.cycle(possible_seq_lengths),
-                                    valid_prompt_shape[0] - 1,
-                                )
-                            )
-                        try:
-                            input_ids, extra_kwargs, sample_key = _prepare_inputs(
-                                batch_size=valid_prompt_shape[0],
-                                seq_length=valid_prompt_shape[1],
-                                tokenizer=tokenizer,
-                                sampler=sampler,
-                                dataset_path=dataset_path,
-                                allow_truncation=allow_truncation,
-                                enforce_sizes=enforce_sizes,
-                            )
-                            yield ValidPrompt(
-                                program_id=program_seq_key[0],
-                                shape=valid_prompt_shape,
-                                input_ids=input_ids,
-                                extra_kwargs=extra_kwargs,
-                                sample_key=sample_key,
-                            )
-                            break
-                        except ValueError:
-                            dprint(
-                                f"No valid sample exists in dataset for this input shape {valid_prompt_shape}"
-                            )
-
-            if len(used_keys) == 0:
-                r0dprint(
-                    f"no valid prompt shape was found which would result in program {program_id} that satisfied batch{program_info.batch_size_limit_type}{program_info.batch_size_limit} and prompt_length{program_info.prompt_length_limit_type}{program_info.prompt_length_limit}"
-                )
+        yield from _get_valid_prompts_by_shape(
+            filtered_program_map,
+            program_info,
+            tokenizer,
+            sampler,
+            dataset_path,
+            allow_truncation,
+            pad_multiple,
+            enforce_homogeneous_prompt_programs,
+        )
 
 
 def prepare_test_prompts(
@@ -310,6 +372,17 @@ def prepare_test_prompts(
 
     for v in program_map.values():
         random.Random(42).shuffle(v)
+
+    if custom_shape:
+        # Exit early if the user has selected a custom shape
+        return _get_valid_prompts_by_custom_shape(
+            program_map,
+            custom_shape,
+            tokenizer,
+            sampler,
+            dataset_path,
+            allow_truncation,
+        )
 
     # Select concrete prompts and program associations
     return _get_valid_prompts(
