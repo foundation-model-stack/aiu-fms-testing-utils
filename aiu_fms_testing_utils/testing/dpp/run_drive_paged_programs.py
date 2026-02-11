@@ -122,7 +122,7 @@ def _get_model_kwargs(model_variant: str) -> Dict[str, Any]:
     return model_kwargs
 
 
-def _maybe_prepare_fp8_weights(model: torch.nn.Module) -> None:
+def _prepare_fp8_weights(model: torch.nn.Module) -> None:
     """Converts model weights from bfloat16 to float16 for FP8 attention.
 
     When using FP8 attention variants, this function converts all bfloat16 parameters
@@ -169,19 +169,16 @@ def load_model(
 
     Returns:
         torch.nn.Module: Loaded model in evaluation mode. Spyre models are compiled
-        with sendnn backend and may have FP8 weight conversion applied.
-    """
+        with sendnn backend and may have FP8 weight conversion applied."""
 
     if device_type not in ["cpu", "spyre"]:
         raise ValueError(
             f"device_type must be 'cpu' or 'spyre' for DPP, got '{device_type}'"
         )
 
-    dtype = (
-        (torch.float32 if device_type == "cpu" else torch.float16)
-        if not is_fp8
-        else None
-    )
+    dtype = torch.float32 if device_type == "cpu" else torch.float16
+    if is_fp8:
+        dtype = None  # Let the model loading logic decide the appropriate FP8 dtype
 
     with stagger_region(stagger_load):
         model = get_model(
@@ -195,13 +192,15 @@ def load_model(
 
     model.eval()
 
-    if device_type == "spyre":
-        with scoped_environ(model_config.env_updates()):
-            # Temporarily set environment variables needed for compile
-            model.compile(backend="sendnn", options={"sendnn.dynamic": True})
+    if device_type != "spyre":
+        return model
 
-        if is_fp8:
-            _maybe_prepare_fp8_weights(model)
+    with scoped_environ(model_config.env_updates()):
+        # Temporarily set environment variables needed for compile
+        model.compile(backend="sendnn", options={"sendnn.dynamic": True})
+
+    if is_fp8:
+        _prepare_fp8_weights(model)
 
     return model
 
@@ -223,9 +222,9 @@ def setup_environment(
             - max_tkv: Maximum token-key-value context length from VLLM_DT_MAX_CONTEXT_LEN
 
     Raises:
-        SystemExit: If required environment variables VLLM_DT_MAX_CONTEXT_LEN or
-                    VLLM_DT_MAX_BATCH_SIZE are not set.
-    """
+        ValueError: If required environment variables VLLM_DT_MAX_CONTEXT_LEN or
+                    VLLM_DT_MAX_BATCH_SIZE are not set."""
+
     os.environ["COMPILATION_MODE"] = "offline_decoder"
     os.environ["DT_PROG_CRITERIA_FILEPATH"] = program_criteria_json_path
 
@@ -235,7 +234,9 @@ def setup_environment(
     ):
         if local_rank == 0:
             dprint("Missing required VLLM environment variables.")
-        exit(1)
+        raise ValueError(
+            "Environment variables VLLM_DT_MAX_CONTEXT_LEN and VLLM_DT_MAX_BATCH_SIZE must be set before running DPP."
+        )
 
     torch.manual_seed(42)
     torch.set_grad_enabled(False)
@@ -278,17 +279,17 @@ def run_dpp(
     prioritize_large_batch_sizes: bool = False,
     enforce_homogeneous_prompt_programs: bool = False,
 ):
-
     if programs is None:
         programs = []
 
     dataset_type, local_dataset_path = resolve_dataset_path(dataset_path)
 
-    # Environment Setup
-    is_fp8: bool = attention_type == "paged_fp8"
+    is_fp8 = attention_type == "paged_fp8"
     if not run_cpu_validation and test_type == "metrics":
         dprint("When skipping validation, only test_type will be ignored")
-    env_config: EnvConfig = setup_environment(
+
+    # Environment Setup
+    env_config = setup_environment(
         program_criteria_json_path=program_criteria_json_path,
         attention_type=attention_type,
     )
@@ -300,17 +301,14 @@ def run_dpp(
     )
 
     # Model Loading
-    model_kwargs: Dict[str, Any] = _get_model_kwargs(model_variant=model_variant)
-    distributed_kwargs: Dict[str, Any] = (
-        _get_distributed_kwargs(dist_timeout) if distributed else {}
-    )
-    save_validation_info_outputs = save_validation_info_outputs and dist.get_rank() == 0
-    model_config: DPPRunnerConfig = DPPRunnerConfig()
-    world_size = dist.get_world_size() if distributed and dist.is_initialized() else 1
+    model_kwargs = _get_model_kwargs(model_variant=model_variant)
+    distributed_kwargs = _get_distributed_kwargs(dist_timeout) if distributed else {}
+
+    # Setup model config
+    model_config = DPPRunnerConfig()
     model_config.setup_config(
         model_variant=model_variant,
         use_distributed=distributed,
-        world_size=world_size,
         prefill_chunk_size=prefill_chunk_size,
     )
 
@@ -323,6 +321,53 @@ def run_dpp(
         model_config=model_config,
     )
 
+    # Model Warmup
+    ## warmup with any input so compiler produces criteria json
+    ## TODO: Swap this with _prepare_inputs once fix for shape_id is available
+    ## input_ids, extra_kwargs, sample_key = _prepare_inputs(2, max_tkv, tokenizer)
+    prompt_list = [torch.arange(0, PAD_MULTIPLE, dtype=torch.int64)]
+
+    # matching vllm warmup to pad to 2 on fp8, and no pad for fp16
+    if is_fp8:
+        prompt_list = prompt_list * 2
+
+    input_ids, extra_kwargs = pad_input_ids(prompt_list, min_pad_length=64)
+    extra_kwargs["mask"] = extra_kwargs["mask"].to(torch.float16)
+    extra_kwargs["attn_name"] = env_config.attn_name
+    extra_kwargs["_kvcache_num_blocks_hint"] = model_config.num_blocks
+    warmup_model(
+        model,
+        input_ids,
+        max_new_tokens,
+        compile_dynamic_sendnn=True,
+        stagger_update_lazyhandle=stagger_update_lazyhandle,
+        prefill_chunk_size=prefill_chunk_size,
+        **extra_kwargs,
+    )
+
+    if distributed:
+        # wait for rank0 to be finished as it is the only one generating the criteria json
+        # this is needed since otherwise we may run into a race condition
+        torch.distributed.barrier()
+
+    # Prompt Preparation
+    valid_prompts = prepare_test_prompts(
+        program_criteria_json_path,
+        programs,
+        max_new_tokens,
+        prioritize_large_batch_sizes,
+        enforce_homogeneous_prompt_programs,
+        env_config.max_batch_size,
+        env_config.max_tkv,
+        model_config.tkv_limit,
+        tokenizer,
+        sampler,
+        allow_truncation,
+        custom_shape,
+        local_dataset_path,
+    )
+
+    # Only load the CPU model if we are doing validation
     validation_model = None
     if run_cpu_validation:
         validation_model = load_model(
@@ -334,67 +379,24 @@ def run_dpp(
             model_config=model_config,
         )
 
-    # Model Warmup
-    ## warmup with any input so compiler produces criteria json
-    ## TODO: Swap this with _prepare_inputs once fix for shape_id is available
-    ## input_ids, extra_kwargs, sample_key = _prepare_inputs(2, max_tkv, tokenizer)
-    prompt_list = [torch.arange(0, PAD_MULTIPLE, dtype=torch.int64)]
-    # matching vllm warmup to pad to 2 on fp8, and no pad for fp16
-    if is_fp8:
-        prompt_list = prompt_list * 2
-    input_ids, extra_kwargs = pad_input_ids(prompt_list, min_pad_length=64)
-    extra_kwargs["mask"] = extra_kwargs["mask"].to(torch.float16)
-    extra_kwargs["attn_name"] = env_config.attn_name
-    extra_kwargs["_kvcache_num_blocks_hint"] = model_config.num_blocks
-    warmup_model(
-        model=model,
-        input_ids=input_ids,
-        max_new_tokens=max_new_tokens,
-        compile_dynamic_sendnn=True,
-        stagger_update_lazyhandle=stagger_update_lazyhandle,
-        prefill_chunk_size=prefill_chunk_size,
-        **extra_kwargs,
-    )
-    if distributed:
-        # wait for rank0 to be finished as it is the only one generating the criteria json
-        # this is needed since otherwise we may run into a race condition
-        torch.distributed.barrier()
-
-    # Prompt Preparation
-    valid_prompts = prepare_test_prompts(
-        program_criteria_json_path=program_criteria_json_path,
-        programs=programs,
-        max_new_tokens=max_new_tokens,
-        prioritize_large_batch_sizes=prioritize_large_batch_sizes,
-        enforce_homogeneous_prompt_programs=enforce_homogeneous_prompt_programs,
-        max_batch_size=env_config.max_batch_size,
-        max_tkv=env_config.max_tkv,
-        tkv_limit=model_config.tkv_limit,
-        tokenizer=tokenizer,
-        sampler=sampler,
-        allow_truncation=allow_truncation,
-        custom_shape=custom_shape,
-        dataset_path=local_dataset_path,
-    )
-
     # Validation and Testing
+    save_validation_info_outputs = save_validation_info_outputs and dist.get_rank() == 0
     failed_cases = generate_validation_info_and_test(
-        valid_prompts=valid_prompts,
-        model=model,
-        validation_model=validation_model,
-        tokenizer=tokenizer,
-        env_config=env_config,
-        model_config=model_config,
-        test_type=test_type,
-        max_new_tokens=max_new_tokens,
-        skip_validation=not run_cpu_validation,
-        save_validation_info_outputs=save_validation_info_outputs,
-        validation_info_outputs_dir=validation_info_outputs_dir,
-        cross_entropy_threshold=cross_entropy_threshold,
-        failure_rate_threshold=failure_rate_threshold,
-        timing=timing,
-        prefill_chunk_size=prefill_chunk_size,
-        model_variant=model_variant,
+        valid_prompts,
+        model,
+        validation_model,
+        tokenizer,
+        env_config,
+        model_config,
+        test_type,
+        max_new_tokens,
+        save_validation_info_outputs,
+        validation_info_outputs_dir,
+        cross_entropy_threshold,
+        failure_rate_threshold,
+        timing,
+        prefill_chunk_size,
+        model_variant,
     )
 
     if run_cpu_validation and local_rank == 0:
@@ -405,4 +407,4 @@ def run_dpp(
                     f"Program ID: {failed_case[0]}, Prompt Shape: {failed_case[1]}, Failure Rate: {failed_case[2]}"
                 )
         else:
-            dprint("all tests passed")
+            dprint("All tests passed")

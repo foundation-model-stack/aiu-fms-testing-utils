@@ -2,6 +2,7 @@ import os
 from dataclasses import dataclass
 
 from aiu_fms_testing_utils.utils.aiu_setup import dprint
+from torch import distributed as dist
 
 
 @dataclass
@@ -60,7 +61,7 @@ class DPPRunnerConfig:
             )
 
     def setup_config(
-        self, model_variant, use_distributed, world_size, prefill_chunk_size
+        self, model_variant: str, use_distributed: bool, prefill_chunk_size: int
     ):
         """Set up environment variables and default values if not specified"""
 
@@ -69,6 +70,11 @@ class DPPRunnerConfig:
             "granite-3.3-8b-instruct" in model_variant
             or "granite-4.0-8b" in model_variant
         ):
+            world_size = (
+                dist.get_world_size()
+                if use_distributed and dist.is_initialized()
+                else 1
+            )
             self._configure_granite_3_8b(
                 use_distributed, world_size, prefill_chunk_size
             )

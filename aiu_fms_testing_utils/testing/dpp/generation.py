@@ -157,7 +157,6 @@ def generate_validation_info_and_test(
     model_config: DPPRunnerConfig,
     test_type: str,
     max_new_tokens: int,
-    skip_validation: bool,
     save_validation_info_outputs: bool,
     validation_info_outputs_dir: str,
     cross_entropy_threshold: float,
@@ -185,7 +184,7 @@ def generate_validation_info_and_test(
                 f"program id: {valid_prompt.program_id}, valid prompt: {valid_prompt.shape}, input shape: {valid_prompt.input_ids.shape}"
             )
 
-        if not skip_validation:
+        if validation_model is not None:
             # Generate or load CPU validation info
             cpu_validation_info = generate_cpu_validation(
                 model_variant=model_variant,
