@@ -190,6 +190,19 @@ def run_dpp(
     prioritize_large_batch_sizes: bool = False,
     enforce_homogeneous_prompt_programs: bool = False,
 ):
+    """Main execution function for driving paged program validation tests.
+
+    Workflow:
+    1. Sets and configures environment.
+    2. Loads models (both AIU-compiled and CPU validation).
+    3. Warms up the model.
+    4. Selects programs and prompts to test based on criteria.
+    5. For each program/prompt combination:
+       - Generates CPU validation data (or loads from cache).
+       - Runs AIU inference.
+       - Compares outputs using metrics or token-based validation.
+    6. Prints results and failure cases."""
+
     if programs is None:
         programs = []
 
