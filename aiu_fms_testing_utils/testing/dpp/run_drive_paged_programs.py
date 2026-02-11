@@ -16,7 +16,12 @@ from aiu_fms_testing_utils.testing.dpp.prepare_model import (
 from aiu_fms_testing_utils.testing.dpp.program_models import EnvConfig
 from aiu_fms_testing_utils.testing.dpp.sample_prompts import get_sampler
 from aiu_fms_testing_utils.utils import warmup_model
-from aiu_fms_testing_utils.utils.aiu_setup import aiu_dist_setup, dprint, local_rank
+from aiu_fms_testing_utils.utils.aiu_setup import (
+    aiu_dist_setup,
+    dprint,
+    r0dprint,
+    local_rank,
+)
 from aiu_fms_testing_utils.utils.dpp_config import DPPRunnerConfig
 from aiu_fms_testing_utils.testing.dpp.constants import PAD_MULTIPLE
 from aiu_fms_testing_utils.utils.model_setup import Timing
@@ -100,8 +105,7 @@ def setup_environment(
         "VLLM_DT_MAX_CONTEXT_LEN" not in os.environ
         or "VLLM_DT_MAX_BATCH_SIZE" not in os.environ
     ):
-        if local_rank == 0:
-            dprint("Missing required VLLM environment variables.")
+        r0dprint("Missing required VLLM environment variables.")
         raise ValueError(
             "Environment variables VLLM_DT_MAX_CONTEXT_LEN and VLLM_DT_MAX_BATCH_SIZE must be set before running DPP."
         )

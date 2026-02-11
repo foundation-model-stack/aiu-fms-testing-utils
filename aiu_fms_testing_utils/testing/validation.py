@@ -417,7 +417,7 @@ def print_failed_cases(failed_cases, aiu_tokens, validation_tokens, tokenizer):
 
         aiu_str = tokenizer.decode(aiu_token)
         validation_str = tokenizer.decode(validation_token)
-        print(
+        dprint(
             f"In sentence {sentence_index + 1}/{len(aiu_tokens)}, token {token_index}, AIU outputs {aiu_token} instead of {validation_token} -- AIU val={aiu_str} -- CPU val={validation_str}"
         )
 

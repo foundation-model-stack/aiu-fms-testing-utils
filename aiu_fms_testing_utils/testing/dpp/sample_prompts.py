@@ -4,7 +4,7 @@ from aiu_fms_testing_utils.utils import (
     sample_rag_factoid_requests,
     sample_sharegpt_requests,
 )
-from aiu_fms_testing_utils.utils.aiu_setup import dprint, local_rank
+from aiu_fms_testing_utils.utils.aiu_setup import dprint, r0dprint
 
 
 from transformers import AutoTokenizer
@@ -36,10 +36,9 @@ def get_sampler(dataset_type: str, dataset_path: str, tokenizer: AutoTokenizer):
 
     custom_shape = None
     if dataset_type == "custom":
-        if local_rank == 0:
-            dprint(
-                "Using custom prompts from user, programs parameter will be ignored as it will be determined by user prompt"
-            )
+        r0dprint(
+            "Using custom prompts from user, programs parameter will be ignored as it will be determined by user prompt"
+        )
         directory = Path(dataset_path)
         if not directory.is_dir():
             dprint("when using a custom dataset, you must provide a directory")
@@ -54,7 +53,7 @@ def get_sampler(dataset_type: str, dataset_path: str, tokenizer: AutoTokenizer):
                         (content, get_pad_size(len(tokenizer.encode(content))))
                     )
                 except Exception as e:
-                    print(f"Error while reading {fp} for custom dataset: {e}")
+                    dprint(f"Error while reading {fp} for custom dataset: {e}")
                     exit()
 
         custom_shape = (len(result), max([_[1] for _ in result]))

@@ -8,7 +8,7 @@ from aiu_fms_testing_utils.testing.validation import (
     load_validation_information,
     top_k_loss_calculator,
 )
-from aiu_fms_testing_utils.utils.aiu_setup import dprint, local_rank
+from aiu_fms_testing_utils.utils.aiu_setup import r0dprint, dprint, local_rank
 from aiu_fms_testing_utils.testing.dpp.program_models import AttnType
 
 
@@ -87,7 +87,7 @@ def evaluate_cross_entropy_metrics(
             cpu_str = tokenizer.decode(cpu_token).replace(
                 "\n", "<NEWLINE>"
             )  # remove newlines for readability
-            dprint(
+            r0dprint(
                 f'For Program {program_id} in sentence {sentence_idx + 1}: the metric for token {token_idx} is {metrics_value}, AIU ID="{aiu_token.item()}" | STR="{aiu_str}" -- CPU ID="{cpu_token.item()}" | CPU STR="{cpu_str}"'
             )
 

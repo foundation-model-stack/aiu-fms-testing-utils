@@ -13,7 +13,7 @@ from aiu_fms_testing_utils.testing.dpp.run_drive_paged_programs import (
     RAG_FACTOID_DATASET,
     SHARE_GPT_DATASET,
 )
-from aiu_fms_testing_utils.utils.aiu_setup import dprint, local_rank
+from aiu_fms_testing_utils.utils.aiu_setup import dprint, r0dprint
 from fms.utils.generation import pad_input_ids
 
 
@@ -76,8 +76,7 @@ def _prepare_inputs(
         return_key=True,
     )
     end = time.time()
-    if local_rank == 0:
-        dprint(f"extracted prompts in {(end - start):.4f} seconds")
+    r0dprint(f"extracted prompts in {(end - start):.4f} seconds")
     prompt_list = []
     for prompt, size in prompts_and_sizes:
         encoded = tokenizer.encode(prompt, return_tensors="pt").squeeze(0)
@@ -244,8 +243,8 @@ def get_valid_prompts(
                                 f"No valid sample exists in dataset for this input shape {valid_prompt_shape}"
                             )
 
-            if len(used_keys) == 0 and local_rank == 0:
-                dprint(
+            if len(used_keys) == 0:
+                r0dprint(
                     f"no valid prompt shape was found which would result in program {program_id} that satisfied batch{program_info.batch_size_limit_type}{program_info.batch_size_limit} and prompt_length{program_info.prompt_length_limit_type}{program_info.prompt_length_limit}"
                 )
 

@@ -10,7 +10,7 @@ from aiu_fms_testing_utils.testing.validation import (
     extract_validation_information,
     get_validation_info_path,
 )
-from aiu_fms_testing_utils.utils.aiu_setup import dprint, local_rank
+from aiu_fms_testing_utils.utils.aiu_setup import dprint, r0dprint, local_rank
 from aiu_fms_testing_utils.utils.dpp_config import DPPRunnerConfig
 from aiu_fms_testing_utils.testing.dpp.metrics_validation import _load_validation_info
 from aiu_fms_testing_utils.utils.model_setup import Timing
@@ -197,11 +197,10 @@ def generate_aiu_cpu_test(
         valid_prompt.extra_kwargs["attn_name"] = env_config.attn_type
         valid_prompt.extra_kwargs["_kvcache_num_blocks_hint"] = model_config.num_blocks
 
-        if local_rank == 0:
-            dprint(f"*** testing program {valid_prompt.program_id} ***")
-            dprint(
-                f"program id: {valid_prompt.program_id}, valid prompt: {valid_prompt.shape}, input shape: {valid_prompt.input_ids.shape}"
-            )
+        r0dprint(f"*** testing program {valid_prompt.program_id} ***")
+        r0dprint(
+            f"program id: {valid_prompt.program_id}, valid prompt: {valid_prompt.shape}, input shape: {valid_prompt.input_ids.shape}"
+        )
 
         # Generate or load CPU validation info
         cpu_validation_info = generate_cpu_validation(
@@ -287,11 +286,10 @@ def generate_aiu_test(
         valid_prompt.extra_kwargs["attn_name"] = env_config.attn_type.value
         valid_prompt.extra_kwargs["_kvcache_num_blocks_hint"] = model_config.num_blocks
 
-        if local_rank == 0:
-            dprint(f"*** testing program {valid_prompt.program_id} ***")
-            dprint(
-                f"program id: {valid_prompt.program_id}, valid prompt: {valid_prompt.shape}, input shape: {valid_prompt.input_ids.shape}"
-            )
+        r0dprint(f"*** testing program {valid_prompt.program_id} ***")
+        r0dprint(
+            f"program id: {valid_prompt.program_id}, valid prompt: {valid_prompt.shape}, input shape: {valid_prompt.input_ids.shape}"
+        )
 
         aiu_tokens = generate_aiu_validation(
             test_type,
