@@ -99,3 +99,8 @@ class DPPRunnerConfig:
             )
 
         return {"VLLM_DT_MAX_BATCH_TKV_LIMIT": str(self.tkv_limit)}
+
+    def __str__(self) -> str:
+        return (
+            f"DPPRunnerConfig(num_blocks={self.num_blocks}, tkv_limit={self.tkv_limit})"
+        )

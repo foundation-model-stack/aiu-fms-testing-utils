@@ -101,9 +101,11 @@ def load_model(
 
     with scoped_environ(model_config.env_updates()):
         # Temporarily set environment variables needed for compile
-        model.compile(backend="sendnn", options={"sendnn.dynamic": True})
+        dprint(f"Compiling model for Spyre execution with config: {model_config}")
+        model.compile(backend="sendnn", dynamic=True)
 
     if is_fp8:
+        dprint("Converting model weights for FP8 attention...")
         _prepare_fp8_weights(model)
 
     return model
