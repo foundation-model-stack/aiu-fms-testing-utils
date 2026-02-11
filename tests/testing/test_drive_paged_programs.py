@@ -1,6 +1,7 @@
 import argparse
 
 from aiu_fms_testing_utils.testing.dpp.run_drive_paged_programs import run_dpp
+from aiu_fms_testing_utils.testing.dpp.program_models import AttnType
 
 
 def main() -> None:
@@ -74,7 +75,7 @@ def main() -> None:
         test_type=test_type,
         cross_entropy_threshold=cross_entropy_threshold,
         failure_rate_threshold=failure_rate_threshold,
-        attention_type=attention_map[attention_type],
+        attention_type=AttnType(attention_map[attention_type]),
         prefill_chunk_size=prefill_chunk_size,
         stagger_load=stagger_load,
         stagger_update_lazyhandle=stagger_update_lazyhandle,
