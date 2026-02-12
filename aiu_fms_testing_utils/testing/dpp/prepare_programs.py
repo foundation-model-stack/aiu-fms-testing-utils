@@ -55,6 +55,16 @@ def get_programs_to_test(
     Returns:
         List of ProgramInfo objects representing programs to test with their constraints."""
 
+    if not isinstance(programs, list):
+        raise ValueError(
+            "Programs argument must be a list of program criteria strings."
+        )
+
+    if not isinstance(program_criteria_list, list):
+        raise ValueError(
+            "Program criteria list must be a list of ProgramCriteria objects."
+        )
+
     programs_to_test = []
     for program_str in programs:
         enforce_prompt_split = program_str.split(":")
@@ -86,10 +96,10 @@ def get_programs_to_test(
                 )
             )
 
-    if len(programs_to_test) == 0:
-        programs_to_test = [
-            ProgramInfo(str(p.program_id), 0, ">=", 0, ">=")
-            for p in program_criteria_list
-        ]
+    if not programs_to_test:
+        # If no programs specified, test all programs with any valid prompt
+        for program_criteria in program_criteria_list:
+            pid = str(program_criteria.program_id)
+            programs_to_test.append(ProgramInfo(pid, 0, ">=", 0, ">="))
 
     return programs_to_test
