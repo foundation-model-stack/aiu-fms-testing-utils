@@ -4,6 +4,14 @@ from aiu_fms_testing_utils.testing.dpp.program_models import TestType
 from aiu_fms_testing_utils.utils.model_setup import Timing
 from aiu_fms_testing_utils.utils.aiu_setup import r0dprint
 import os
+import pytest
+from pathlib import Path
+
+
+@pytest.fixture(scope="module")
+def dpp_criterion_json_path():
+    test_path = Path(__file__).parent.parent / "fixtures" / "dpp-all-criterion.json"
+    return str(test_path)
 
 
 def setup_environment():
@@ -27,7 +35,7 @@ def setup_environment():
     r0dprint("Chunk Length:", os.environ["VLLM_DT_CHUNK_LEN"])
 
 
-def test_drive_paged_programs(program_criteria_json_path: str):
+def test_drive_paged_programs(dpp_criterion_json_path: str):
     """Test driving paged programs with specified configurations."""
 
     setup_environment()
@@ -39,7 +47,7 @@ def test_drive_paged_programs(program_criteria_json_path: str):
     cross_entropy_threshold = 2.6
     failure_rate_threshold = 0.1
 
-    r0dprint(f"Loading criteria from path: {program_criteria_json_path}")
+    r0dprint(f"Loading criteria from path: {dpp_criterion_json_path}")
 
     run_dpp(
         programs=programs,
@@ -47,7 +55,7 @@ def test_drive_paged_programs(program_criteria_json_path: str):
         max_new_tokens=max_new_tokens,
         model_variant=model_variant,
         timing=Timing.NONE,
-        program_criteria_json_path=program_criteria_json_path,
+        program_criteria_json_path=dpp_criterion_json_path,
         test_type=TestType.TOKENS,
         cross_entropy_threshold=cross_entropy_threshold,
         failure_rate_threshold=failure_rate_threshold,
