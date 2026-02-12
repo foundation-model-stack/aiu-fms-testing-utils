@@ -15,6 +15,7 @@ import os
 from aiu_fms_testing_utils.testing.utils import format_kwargs_to_string
 from aiu_fms_testing_utils.utils import sample_sharegpt_requests
 from transformers import AutoTokenizer
+from aiu_fms_testing_utils.testing.dpp.program_models import AttnType
 
 from aiu_fms_testing_utils._version import version_tuple
 from fms.models import get_model
@@ -86,7 +87,13 @@ def test_get_validation_info_path(tmp_path):
 
     assert (
         get_validation_info_path(
-            tmp_path, "ibm-granite/granite-3.3-8b-instruct", 4, 64, 128, 0, "sdpa"
+            tmp_path,
+            "ibm-granite/granite-3.3-8b-instruct",
+            4,
+            64,
+            128,
+            0,
+            AttnType.SDPA,
         )
         == f"{tmp_path}/{hex_digest}_{'.'.join([str(_) for _ in version_tuple[:3]])}.cpu_validation_info.0.out"
     )
@@ -103,7 +110,7 @@ def test_get_validation_info_path(tmp_path):
             64,
             128,
             0,
-            "sdpa",
+            AttnType.SDPA,
             aftu_version=(1, 2, 3),
         )
         == f"{tmp_path}/{hex_digest}_1.2.3.cpu_validation_info.0.out"
@@ -187,7 +194,7 @@ def test_find_validation_info_path(
             64,
             128,
             0,
-            "sdpa",
+            AttnType.SDPA,
             (10, 10, 10),
         )
     )
@@ -202,7 +209,7 @@ def test_find_validation_info_path(
             64,
             128,
             0,
-            "sdpa",
+            AttnType.SDPA,
             save_version,
         )
     )
