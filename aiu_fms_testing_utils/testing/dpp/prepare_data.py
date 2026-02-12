@@ -251,10 +251,8 @@ def _get_valid_prompts_by_shape(
                     sample_key=sample_key,
                 )
                 break
-            except ValueError:
-                dprint(
-                    f"No valid sample exists in dataset for this input shape {valid_prompt_shape}"
-                )
+            except ValueError as e:
+                dprint(f"Failed to prepare inputs for shape {valid_prompt_shape}: {e}")
 
     if len(used_keys) == 0:
         r0dprint(
