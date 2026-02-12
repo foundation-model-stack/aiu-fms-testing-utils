@@ -211,9 +211,7 @@ def run_dpp(
         )
 
     if not os.path.exists(validation_info_outputs_dir):
-        raise FileNotFoundError(
-            f"Validation info outputs directory not found at {validation_info_outputs_dir}"
-        )
+        os.makedirs(validation_info_outputs_dir, exist_ok=True)
 
     if is_distributed:
         r0dprint(f"Running DPP in distributed mode with {world_size} ranks")
