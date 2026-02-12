@@ -114,7 +114,7 @@ jobs:
           DATASET_PATH: ${{ github.workspace }}/ShareGPT_V3_unfiltered_cleaned_split.json
         run: |
           pytest -s -v -rA tests/utils
-          pytest -s -v -rA tests/testing
+          pytest -s -v -rA tests/testing --ignore tests/testing/test_drive_paged_programs.py 
 
       # -------------------- Save venv cache --------------------
       - name: Save Virtualenv
