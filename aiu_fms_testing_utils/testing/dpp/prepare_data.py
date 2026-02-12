@@ -398,7 +398,6 @@ def prepare_test_prompts(
         tokenizer=tokenizer,
         sampler=sampler,
         allow_truncation=allow_truncation,
-        custom_shape=custom_shape,
         pad_multiple=PAD_MULTIPLE,
     )
 
