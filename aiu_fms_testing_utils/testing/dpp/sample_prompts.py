@@ -5,6 +5,7 @@ from aiu_fms_testing_utils.utils import (
     sample_sharegpt_requests,
 )
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, r0dprint
+from typing import Callable, Optional
 
 
 from transformers import AutoTokenizer
@@ -36,7 +37,11 @@ def _custom_line_sampler(result: list[tuple[str, int]], **kwargs):
     return result
 
 
-def get_sampler(dataset_type: str, dataset_path: str, tokenizer: AutoTokenizer):
+def get_sampler(
+    dataset_type: str, dataset_path: str, tokenizer: AutoTokenizer
+) -> tuple[
+    Callable[..., tuple[list[tuple[str, int]], str]], bool, Optional[tuple[int, int]]
+]:
     """Selects and configures the sampler based on type.
 
     Returns a sampler function and configuration for the specified dataset type.

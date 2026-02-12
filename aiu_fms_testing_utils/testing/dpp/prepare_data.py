@@ -19,7 +19,7 @@ from transformers import AutoTokenizer
 
 
 import time
-from typing import Any, List, Optional, Tuple, Callable, Generator
+from typing import List, Optional, Tuple, Callable, Generator
 
 from aiu_fms_testing_utils.utils.paged import ProgramCriteria, get_programs_prompts
 from aiu_fms_testing_utils.testing.dpp.constants import PAD_MULTIPLE
@@ -36,7 +36,7 @@ def _prepare_inputs(
     batch_size: int,
     seq_length: int,
     tokenizer: AutoTokenizer,
-    sampler,
+    sampler: Callable[..., tuple[list[tuple[str, int]], str]],
     dataset_path: str,
     allow_truncation: bool,
     enforce_sizes: List[int] = [],
@@ -80,7 +80,11 @@ def _prepare_inputs(
         return_key=True,
     )
     end = time.time()
-    r0dprint(f"extracted prompts in {(end - start):.4f} seconds")
+
+    r0dprint(
+        f"Extracted {len(prompts_and_sizes)} prompts in {(end - start):.4f} seconds"
+    )
+
     prompt_list = []
     for prompt, size in prompts_and_sizes:
         encoded = tokenizer.encode(prompt, return_tensors="pt").squeeze(0)
@@ -111,7 +115,7 @@ def _get_valid_prompts_by_custom_shape(
     program_map: dict,
     custom_shape: Tuple[int, int],
     tokenizer: AutoTokenizer,
-    sampler: Callable,
+    sampler: Callable[..., tuple[list[tuple[str, int]], str]],
     dataset_path: str,
     allow_truncation: bool,
 ) -> Generator[ValidPrompt, None, None]:
@@ -165,7 +169,7 @@ def _get_valid_prompts_by_shape(
     program_map: dict,
     program_info: ProgramInfo,
     tokenizer: AutoTokenizer,
-    sampler: Callable,
+    sampler: Callable[..., tuple[list[tuple[str, int]], str]],
     dataset_path: str,
     allow_truncation: bool,
     pad_multiple: int,
@@ -265,7 +269,7 @@ def _get_valid_prompts(
     programs_to_test: List[ProgramInfo],
     program_criteria_list: List[ProgramCriteria],
     tokenizer: AutoTokenizer,
-    sampler: Callable,
+    sampler: Callable[..., tuple[list[tuple[str, int]], str]],
     allow_truncation: bool,
     pad_multiple: int,
 ) -> Generator[ValidPrompt, None, None]:
@@ -325,7 +329,7 @@ def prepare_test_prompts(
     max_tkv: int,
     tkv_limit: Optional[int],
     tokenizer: AutoTokenizer,
-    sampler: Any,
+    sampler: Callable[..., tuple[list[tuple[str, int]], str]],
     allow_truncation: bool,
     custom_shape: Optional[Tuple[int, int]],
     dataset_path: str,
