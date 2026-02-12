@@ -32,11 +32,6 @@ def parse_cli_args() -> argparse.Namespace:
         help="set this if you want to change the number of tokens generated per sequence (1 prefill + max_new_tokens-1 decodes). Note: If this value is larger than 64, this may result in switching decode programs mid generation",
     )
     parser.add_argument(
-        "--distributed",
-        action="store_true",
-        help="This is a distributed job (multiple instances run with RANK+WORLD_SIZE)",
-    )
-    parser.add_argument(
         "--model_variant",
         type=str,
         default="ibm-ai-platform/micro-g3.3-8b-instruct-1b",
@@ -171,7 +166,6 @@ def main() -> None:
         programs=args.programs,
         dataset_path=args.dataset_path,
         max_new_tokens=args.max_new_tokens,
-        distributed=args.distributed,
         model_variant=args.model_variant,
         timing=Timing(args.timing),
         program_criteria_json_path=args.program_criteria_json_path,

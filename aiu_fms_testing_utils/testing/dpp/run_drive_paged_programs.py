@@ -21,6 +21,8 @@ from aiu_fms_testing_utils.utils.aiu_setup import (
     dprint,
     r0dprint,
     local_rank,
+    world_size,
+    is_distributed,
 )
 from aiu_fms_testing_utils.utils.dpp_config import DPPRunnerConfig
 from aiu_fms_testing_utils.testing.dpp.constants import PAD_MULTIPLE
@@ -172,7 +174,6 @@ def run_dpp(
     program_criteria_json_path: str,
     dataset_path: str,
     max_new_tokens: int,
-    distributed: bool,
     model_variant: str,
     programs: List[str] = None,
     timing: Timing = Timing.NONE,
@@ -216,8 +217,8 @@ def run_dpp(
             f"Validation info outputs directory not found at {validation_info_outputs_dir}"
         )
 
-    if distributed:
-        r0dprint(f"Running DPP in distributed mode with {dist.get_world_size()} ranks")
+    if is_distributed:
+        r0dprint(f"Running DPP in distributed mode with {world_size} ranks")
     else:
         r0dprint("Running DPP in single-process mode")
 
@@ -241,13 +242,13 @@ def run_dpp(
 
     # Model Loading
     model_kwargs = get_model_kwargs(model_variant)
-    distributed_kwargs = _get_distributed_kwargs(dist_timeout) if distributed else {}
+    distributed_kwargs = _get_distributed_kwargs(dist_timeout) if is_distributed else {}
 
     # Setup model config
     model_config = DPPRunnerConfig()
     model_config.setup_config(
         model_variant=model_variant,
-        use_distributed=distributed,
+        use_distributed=is_distributed,
         prefill_chunk_size=prefill_chunk_size,
     )
 
@@ -284,7 +285,7 @@ def run_dpp(
         **extra_kwargs,
     )
 
-    if distributed:
+    if is_distributed:
         # wait for rank0 to be finished as it is the only one generating the criteria json
         # this is needed since otherwise we may run into a race condition
         torch.distributed.barrier()

@@ -1,31 +1,11 @@
-import os
 from aiu_fms_testing_utils.testing.dpp.run_drive_paged_programs import run_dpp
 from aiu_fms_testing_utils.testing.dpp.program_models import AttnType
 from aiu_fms_testing_utils.testing.dpp.program_models import TestType
 from aiu_fms_testing_utils.utils.model_setup import Timing
+from aiu_fms_testing_utils.utils.aiu_setup import r0dprint
 
 
-def pytest_addoption(parser):
-    parser.addoption(
-        "--program_criteria_json_path",
-        action="store",
-        required=True,
-        help="path to json file containing the program criteria list",
-    )
-
-
-def pytest_generate_tests(metafunc):
-    # This is called for every test. Only get/set command line arguments
-    # if the argument is specified in the list of test "fixturenames".
-    option_value = metafunc.config.option.program_criteria_json_path
-    if (
-        "program_criteria_json_path" in metafunc.fixturenames
-        and option_value is not None
-    ):
-        metafunc.parametrize("program_criteria_json_path", [option_value])
-
-
-def test_drive_paged_programs(program_criteria_json_path):
+def test_drive_paged_programs(program_criteria_json_path: str):
     """Test driving paged programs with specified configurations."""
 
     programs = "2:0,<8192"
@@ -35,11 +15,12 @@ def test_drive_paged_programs(program_criteria_json_path):
     cross_entropy_threshold = 2.6
     failure_rate_threshold = 0.1
 
+    r0dprint(f"Loading criteria from path: {program_criteria_json_path}")
+
     run_dpp(
         programs=programs,
         dataset_path=dataset_path,
         max_new_tokens=max_new_tokens,
-        distributed="PYTEST_XDIST_WORKER" in os.environ,
         model_variant=model_variant,
         timing=Timing.NONE,
         program_criteria_json_path=program_criteria_json_path,

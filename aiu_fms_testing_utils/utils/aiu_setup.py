@@ -13,6 +13,7 @@ local_rank = int(os.getenv("LOCAL_RANK", 0))
 rank = int(os.getenv("RANK", 0))
 world_rank = rank
 world_size = int(os.getenv("WORLD_SIZE", 1))
+is_distributed = "LOCAL_RANK" in os.environ and "RANK" in os.environ
 
 
 def dprint_str(text: str) -> str:
