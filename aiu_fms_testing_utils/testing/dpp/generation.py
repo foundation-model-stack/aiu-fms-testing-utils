@@ -1,8 +1,19 @@
+from typing import Any, Iterable, Optional
+
+import torch
+from transformers import AutoTokenizer
+
 from aiu_fms_testing_utils.testing.dpp.metrics_validation import (
     evaluate_cross_entropy_metrics,
+    load_validation_info,
     report_token_comparison,
 )
-from aiu_fms_testing_utils.testing.dpp.program_models import EnvConfig, ValidPrompt
+from aiu_fms_testing_utils.testing.dpp.program_models import (
+    AttnType,
+    EnvConfig,
+    TestType,
+    ValidPrompt,
+)
 from aiu_fms_testing_utils.testing.validation import (
     GoldenTokenHook,
     LogitsExtractorHook,
@@ -10,18 +21,9 @@ from aiu_fms_testing_utils.testing.validation import (
     extract_validation_information,
     get_validation_info_path,
 )
-from aiu_fms_testing_utils.utils.aiu_setup import dprint, r0dprint, local_rank
+from aiu_fms_testing_utils.utils.aiu_setup import dprint, local_rank, r0dprint
 from aiu_fms_testing_utils.utils.dpp_config import DPPRunnerConfig
-from aiu_fms_testing_utils.testing.dpp.metrics_validation import load_validation_info
 from aiu_fms_testing_utils.utils.model_setup import Timing
-from aiu_fms_testing_utils.testing.dpp.program_models import TestType, AttnType
-
-
-import torch
-from transformers import AutoTokenizer
-
-
-from typing import Any, Iterable, Optional
 
 
 def _generate_aiu_validation(

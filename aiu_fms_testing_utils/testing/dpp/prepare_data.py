@@ -2,8 +2,15 @@ import itertools
 import json
 import os
 import random
+import time
+from typing import Callable, Generator, List, Optional, Tuple
 
+import torch
+from fms.utils.generation import pad_input_ids
 from huggingface_hub import hf_hub_download
+from transformers import AutoTokenizer
+
+from aiu_fms_testing_utils.testing.dpp.constants import PAD_MULTIPLE
 from aiu_fms_testing_utils.testing.dpp.prepare_programs import get_programs_to_test
 from aiu_fms_testing_utils.testing.dpp.program_models import (
     PreparedInputs,
@@ -11,19 +18,7 @@ from aiu_fms_testing_utils.testing.dpp.program_models import (
     ValidPrompt,
 )
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, r0dprint
-from fms.utils.generation import pad_input_ids
-
-
-import torch
-from transformers import AutoTokenizer
-
-
-import time
-from typing import List, Optional, Tuple, Callable, Generator
-
 from aiu_fms_testing_utils.utils.paged import ProgramCriteria, get_programs_prompts
-from aiu_fms_testing_utils.testing.dpp.constants import PAD_MULTIPLE
-
 
 SHARE_GPT_DATASET = (
     "anon8231489123/ShareGPT_Vicuna_unfiltered",

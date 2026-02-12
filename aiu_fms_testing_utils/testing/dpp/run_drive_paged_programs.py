@@ -1,6 +1,14 @@
 import datetime
 import os
+from typing import Any, Dict, Iterable, List
+
+import torch
+from fms.utils.generation import pad_input_ids
+from torch import distributed as dist
 from torch.fx.experimental import _config as fx_config
+from transformers import AutoTokenizer
+
+from aiu_fms_testing_utils.testing.dpp.constants import PAD_MULTIPLE
 from aiu_fms_testing_utils.testing.dpp.generation import (
     generate_aiu_cpu_test,
     generate_aiu_test,
@@ -13,35 +21,25 @@ from aiu_fms_testing_utils.testing.dpp.prepare_model import (
     get_model_kwargs,
     load_model,
 )
-from aiu_fms_testing_utils.testing.dpp.program_models import EnvConfig, ValidPrompt
+from aiu_fms_testing_utils.testing.dpp.program_models import (
+    AttnType,
+    DeviceType,
+    EnvConfig,
+    TestType,
+    ValidPrompt,
+)
 from aiu_fms_testing_utils.testing.dpp.sample_prompts import get_sampler
 from aiu_fms_testing_utils.utils import warmup_model
 from aiu_fms_testing_utils.utils.aiu_setup import (
     aiu_dist_setup,
     dprint,
-    r0dprint,
-    local_rank,
-    world_size,
     is_distributed,
+    local_rank,
+    r0dprint,
+    world_size,
 )
 from aiu_fms_testing_utils.utils.dpp_config import DPPRunnerConfig
-from aiu_fms_testing_utils.testing.dpp.constants import PAD_MULTIPLE
 from aiu_fms_testing_utils.utils.model_setup import Timing
-from aiu_fms_testing_utils.testing.dpp.program_models import (
-    DeviceType,
-    TestType,
-    AttnType,
-)
-
-from fms.utils.generation import pad_input_ids
-
-import torch
-from torch import distributed as dist
-from transformers import AutoTokenizer
-
-
-from typing import Any, Dict, Iterable, List
-
 
 DEFAULT_CE_THRESHOLD = 2.5
 DEFAULT_FAILURE_RATE_THRESHOLD = 0.1

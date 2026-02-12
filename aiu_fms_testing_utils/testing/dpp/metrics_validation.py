@@ -1,5 +1,10 @@
 from itertools import dropwhile
-from aiu_fms_testing_utils.testing.dpp.program_models import MetricResult
+from typing import Tuple
+
+import torch
+from transformers import AutoTokenizer
+
+from aiu_fms_testing_utils.testing.dpp.program_models import AttnType, MetricResult
 from aiu_fms_testing_utils.testing.validation import (
     ValidationInfo,
     capture_level_1_metrics,
@@ -8,15 +13,7 @@ from aiu_fms_testing_utils.testing.validation import (
     load_validation_information,
     top_k_loss_calculator,
 )
-from aiu_fms_testing_utils.utils.aiu_setup import r0dprint, dprint, local_rank
-from aiu_fms_testing_utils.testing.dpp.program_models import AttnType
-
-
-import torch
-from transformers import AutoTokenizer
-
-
-from typing import Tuple
+from aiu_fms_testing_utils.utils.aiu_setup import dprint, local_rank, r0dprint
 
 
 def _metric_calculator(reference_tensor: torch.Tensor, test_tensor: torch.Tensor):

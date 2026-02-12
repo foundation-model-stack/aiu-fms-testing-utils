@@ -1,3 +1,8 @@
+from pathlib import Path
+from typing import Callable, Optional
+
+from transformers import AutoTokenizer
+
 from aiu_fms_testing_utils.testing.utils import format_kwargs_to_string
 from aiu_fms_testing_utils.utils import (
     get_pad_size,
@@ -5,13 +10,6 @@ from aiu_fms_testing_utils.utils import (
     sample_sharegpt_requests,
 )
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, r0dprint
-from typing import Callable, Optional
-
-
-from transformers import AutoTokenizer
-
-
-from pathlib import Path
 
 
 def _custom_line_sampler(result: list[tuple[str, int]], **kwargs):

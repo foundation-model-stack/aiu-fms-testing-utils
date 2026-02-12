@@ -1,6 +1,7 @@
-from typing import Any, Dict, NamedTuple, Tuple
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any, Dict, NamedTuple, Tuple
+
 import torch
 
 

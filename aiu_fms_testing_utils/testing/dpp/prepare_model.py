@@ -1,14 +1,14 @@
 import os
 from typing import Any, Dict
-import torch
 
+import torch
 from fms.models import get_model
 
+from aiu_fms_testing_utils.testing.dpp.program_models import DeviceType
 from aiu_fms_testing_utils.utils import stagger_region
 from aiu_fms_testing_utils.utils.aiu_setup import dprint
 from aiu_fms_testing_utils.utils.dpp_config import DPPRunnerConfig
 from aiu_fms_testing_utils.utils.env_utils import scoped_environ
-from aiu_fms_testing_utils.testing.dpp.program_models import DeviceType
 
 
 def _prepare_fp8_weights(model: torch.nn.Module) -> None:
