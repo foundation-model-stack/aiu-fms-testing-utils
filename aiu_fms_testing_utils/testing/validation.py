@@ -289,8 +289,6 @@ def extract_validation_information(
 
         attention_specific_kwargs["contiguous_cache"] = True
         attention_specific_kwargs["max_seq_len"] = input_ids.shape[1] + max_new_tokens
-        # Timing enum has yet to be implemented into FMS generation, so we convert it to string here
-        timing = timing.value if timing != Timing.NONE else ""
 
     # Add last_n_tokens optimization
     extra_generation_kwargs = {**extra_kwargs}
@@ -307,7 +305,7 @@ def extract_validation_information(
         do_sample=False,
         post_iteration_hook=post_iteration_hook,
         eos_token_id=eos_token_id,
-        timing=timing,
+        timing=timing.value if timing != Timing.NONE else "",
         extra_kwargs=extra_generation_kwargs,
         **attention_specific_kwargs,
     )
@@ -452,7 +450,7 @@ def get_validation_info_path(
         batch_size=batch_size,
         seq_length=seq_length,
         dtype=dtype,
-        attn_type=attn_type.value,
+        attn_type=attn_type.value.replace("_", "-"),
         sample_key=sample_key,
     )
     validation_file_name = (
