@@ -58,7 +58,7 @@ def test_validation_info_round_trip(validation_type, post_iteration_hook):
         input_ids,
         max_new_tokens,
         post_iteration_hook,
-        attn_algorithm="math",
+        attn_algorithm=AttnType.MATH,
         **padding_kwargs,
     )
 
@@ -223,7 +223,7 @@ def test_find_validation_info_path(
         64,
         128,
         0,
-        "sdpa",
+        AttnType.SDPA,
         current_version,
         version_allow_decrement=version_allow_decrement,
     )

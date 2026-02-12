@@ -601,7 +601,7 @@ def _get_device_validation_information(
     # overrides for validation info that are device specific
     device_dependent_kwargs = {}
     if device == "cpu":
-        device_dependent_kwargs["attn_algorithm"] = "math"
+        device_dependent_kwargs["attn_algorithm"] = AttnType.MATH
 
     if device == "aiu":
         device_dependent_kwargs["last_n_tokens"] = 64 if "paged" in ATTN_NAME else 1
