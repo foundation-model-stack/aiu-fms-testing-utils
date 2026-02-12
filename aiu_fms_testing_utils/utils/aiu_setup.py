@@ -20,13 +20,13 @@ def dprint_str(text: str) -> str:
     return f"[{rank:2d}/{world_size:2d}]: {text}"
 
 
-def dprint(text: str):
-    print(dprint_str(text))
+def dprint(*text: str):
+    print(dprint_str(" ".join(text)))
 
 
-def r0dprint(text: str):
+def r0dprint(*text: str):
     if rank == 0:
-        dprint(text)
+        dprint(*text)
 
 
 # ==============================================================
