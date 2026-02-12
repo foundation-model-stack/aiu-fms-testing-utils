@@ -1,5 +1,6 @@
 import re
 from aiu_fms_testing_utils.testing.dpp.program_models import ProgramInfo
+from aiu_fms_testing_utils.utils.paged import ProgramCriteria
 
 
 def _parse_program_limit(limit_str: str) -> tuple[int, str | None]:
@@ -36,7 +37,9 @@ def _parse_program_limit(limit_str: str) -> tuple[int, str | None]:
     return limit_val, limit_type
 
 
-def get_programs_to_test(programs, program_criteria_list) -> list[ProgramInfo]:
+def get_programs_to_test(
+    programs: list[str], program_criteria_list: list[ProgramCriteria]
+) -> list[ProgramInfo]:
     """Parses program specifications into ProgramInfo objects for testing.
 
     Converts command-line program specifications into structured ProgramInfo objects.

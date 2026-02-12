@@ -666,6 +666,9 @@ class ProgramCriteria:
     def __str__(self):
         return f"ProgramCriteria(program_id={self.program_id})"
 
+    def __repr__(self):
+        return f"ProgramCriteria(program_id={self.program_id}, max_batch={self.max_batch}, max_tkv={self.max_tkv}, batch_granularity={self.batch_granularity}, tkv_granularity={self.tkv_granularity})"
+
     def __eq__(self, other):
         if not isinstance(other, ProgramCriteria):
             return NotImplemented

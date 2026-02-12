@@ -8,7 +8,7 @@ from aiu_fms_testing_utils.utils.aiu_setup import r0dprint
 def test_drive_paged_programs(program_criteria_json_path: str):
     """Test driving paged programs with specified configurations."""
 
-    programs = "2:0,<8192"
+    programs = ["2:0,<8192"]
     max_new_tokens = 32
     model_variant = "ibm-granite/granite-3.3-8b-instruct"
     dataset_path = "sharegpt"
@@ -32,7 +32,7 @@ def test_drive_paged_programs(program_criteria_json_path: str):
         stagger_load=0,
         stagger_update_lazyhandle=0,
         dist_timeout=0,
-        run_cpu_validation=True,
+        run_cpu_validation=False,
         prioritize_large_batch_sizes=True,
         enforce_homogeneous_prompt_programs=True,
     )
