@@ -252,6 +252,23 @@ def run_dpp(
         prefill_chunk_size=prefill_chunk_size,
     )
 
+    # Prompt Preparation
+    valid_prompts = prepare_test_prompts(
+        program_criteria_json_path,
+        programs,
+        max_new_tokens,
+        prioritize_large_batch_sizes,
+        enforce_homogeneous_prompt_programs,
+        env_config.max_batch_size,
+        env_config.max_tkv,
+        model_config.tkv_limit,
+        tokenizer,
+        sampler,
+        allow_truncation,
+        custom_shape,
+        local_dataset_path,
+    )
+
     model = load_model(
         device_type=DeviceType.SPYRE,
         is_fp8=is_fp8,
@@ -289,23 +306,6 @@ def run_dpp(
         # wait for rank0 to be finished as it is the only one generating the criteria json
         # this is needed since otherwise we may run into a race condition
         torch.distributed.barrier()
-
-    # Prompt Preparation
-    valid_prompts = prepare_test_prompts(
-        program_criteria_json_path,
-        programs,
-        max_new_tokens,
-        prioritize_large_batch_sizes,
-        enforce_homogeneous_prompt_programs,
-        env_config.max_batch_size,
-        env_config.max_tkv,
-        model_config.tkv_limit,
-        tokenizer,
-        sampler,
-        allow_truncation,
-        custom_shape,
-        local_dataset_path,
-    )
 
     # Test Execution
     if run_cpu_validation:
