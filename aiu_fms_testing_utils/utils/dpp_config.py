@@ -79,23 +79,18 @@ class DPPRunnerConfig:
                 use_distributed, world_size, prefill_chunk_size
             )
 
-        ## global defaults (fallback)
-        ## TODO: IN future we may remove defaults for unknown configurations \
-        ## and require users to set the environment variables
-        ## num_blocks is set in generate if not set here
         if self.tkv_limit is None:
-            self.tkv_limit = self._get_int_env(
-                key="VLLM_DT_MAX_BATCH_TKV_LIMIT",
-                default=524288,
-                context="Unknown model configuration",
+            raise RuntimeError(
+                f"Could not determine tkv_limit for model variant '{model_variant}'. "
+                "Please set the environment variable VLLM_DT_MAX_BATCH_TKV_LIMIT or "
+                "run this program in distributed mode."
             )
 
     def env_updates(self) -> dict[str, str]:
         """Returns a key/value of environment variables needed for model compile"""
         if self.tkv_limit is None:
             raise RuntimeError(
-                "ModelConfig.env_updates() called before setup_config(). "
-                "Call setup_config(...) first."
+                "ModelConfig.env_updates() called before setup_config(). Call setup_config(...) first."
             )
 
         return {"VLLM_DT_MAX_BATCH_TKV_LIMIT": str(self.tkv_limit)}
