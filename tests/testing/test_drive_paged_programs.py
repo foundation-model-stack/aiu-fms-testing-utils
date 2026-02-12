@@ -3,10 +3,34 @@ from aiu_fms_testing_utils.testing.dpp.program_models import AttnType
 from aiu_fms_testing_utils.testing.dpp.program_models import TestType
 from aiu_fms_testing_utils.utils.model_setup import Timing
 from aiu_fms_testing_utils.utils.aiu_setup import r0dprint
+import os
+
+
+def setup_environment():
+    """Sets up the testing environment for driving paged programs."""
+
+    r0dprint("Setting up environment for driving paged programs...")
+    os.environ["VLLM_DT_MAX_BATCH_TKV_LIMIT"] = os.environ.get(
+        "VLLM_DT_MAX_BATCH_TKV_LIMIT", "131072"
+    )
+    os.environ["VLLM_DT_MAX_BATCH_SIZE"] = os.environ.get(
+        "VLLM_DT_MAX_BATCH_SIZE", "32"
+    )
+    os.environ["VLLM_DT_MAX_CONTEXT_LEN"] = os.environ.get(
+        "VLLM_DT_MAX_CONTEXT_LEN", "32768"
+    )
+    os.environ["VLLM_DT_CHUNK_LEN"] = os.environ.get("VLLM_DT_CHUNK_LEN", "1024")
+
+    r0dprint("Batch TKV Limit:", os.environ["VLLM_DT_MAX_BATCH_TKV_LIMIT"])
+    r0dprint("Max Batch Size:", os.environ["VLLM_DT_MAX_BATCH_SIZE"])
+    r0dprint("Max Context Length:", os.environ["VLLM_DT_MAX_CONTEXT_LEN"])
+    r0dprint("Chunk Length:", os.environ["VLLM_DT_CHUNK_LEN"])
 
 
 def test_drive_paged_programs(program_criteria_json_path: str):
     """Test driving paged programs with specified configurations."""
+
+    setup_environment()
 
     programs = ["2:0,<8192"]
     max_new_tokens = 32
