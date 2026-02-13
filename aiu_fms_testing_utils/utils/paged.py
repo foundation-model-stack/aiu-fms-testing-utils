@@ -10,6 +10,7 @@ from aiu_fms_testing_utils.utils import get_pad_size
 
 logger = logging.getLogger(__name__)
 
+
 def adjust_inputs_to_batch(input_ids: torch.Tensor, **extra_kwargs):
     """
     Adjusts the inputs to a batch. Batch size 1 cannot be handled since we want a symbolic shape for the batch
@@ -28,9 +29,11 @@ def adjust_inputs_to_batch(input_ids: torch.Tensor, **extra_kwargs):
         kwargs["position_ids"] = position_ids[0].repeat(2, 1)
     return input_ids, kwargs
 
+
 def _requires_embedding_inputs(model_config):
     """Determine if we should use embeddings as inputs (currently only multimodal)."""
     return hasattr(model_config, "text_config")
+
 
 def _get_text_config(model_config):
     """Extract the text config from the model; if it's multimodal, all settings
@@ -38,8 +41,9 @@ def _get_text_config(model_config):
     if text_config := getattr(model_config, "text_config", None):
         logger.info("This model is multimodal - using the text subconfig!")
         return text_config
-    return model_config    
-    
+    return model_config
+
+
 def _infer_model_dtype(model):
     """Try to infer the dtype from the model."""
 
@@ -48,7 +52,7 @@ def _infer_model_dtype(model):
     if len(types_set) == 1:
         model_dtype = types_set.pop()
         return model_dtype
-    
+
     # FIXME - this is super hacky, but leaving it to
     # match existing behavior to avoid changing it in
     # multimodal support PR.
@@ -61,6 +65,7 @@ def _infer_model_dtype(model):
         logger.warning("Unable to infer model weight type")
         model_dtype = torch.float32
     return model_dtype
+
 
 def _infer_kv_heads(text_config):
     """Given the model config, or text config (in multimodal case), determine the number
@@ -329,8 +334,11 @@ def generate(
         if prepare_model_inputs_hook is not None:
             input_ids, kwargs = prepare_model_inputs_hook(i, input_ids, kwargs)
             if is_multimodal and input_ids.ndim != 3:
-                logger.warning("The model is multimodal, but iteration %s's prepare hook did not yield 3D embeddings (typically shape [bsz, seq_len, emb_dim], got %s)", i, list(input_ids.shape))
-
+                logger.warning(
+                    "The model is multimodal, but iteration %s's prepare hook did not yield 3D embeddings (typically shape [bsz, seq_len, emb_dim], got %s)",
+                    i,
+                    list(input_ids.shape),
+                )
 
         # prefill
         if i == 0:
@@ -502,7 +510,6 @@ def generate(
                         # if we have it.
                         if input_ids_seq_chunk.ndim == 3:
                             torch._dynamo.mark_static(input_ids_seq_chunk, 2)
-
 
                         # seq dynamic
                         torch._dynamo.mark_dynamic(input_ids_seq_chunk, 1)
