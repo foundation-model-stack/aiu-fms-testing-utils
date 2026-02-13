@@ -1,3 +1,4 @@
+import logging
 import math
 import os
 import random
@@ -7,6 +8,7 @@ import torch
 import fms.utils.spyre.paged  # noqa
 from aiu_fms_testing_utils.utils import get_pad_size
 
+logger = logging.getLogger(__name__)
 
 def adjust_inputs_to_batch(input_ids: torch.Tensor, **extra_kwargs):
     """
@@ -26,6 +28,51 @@ def adjust_inputs_to_batch(input_ids: torch.Tensor, **extra_kwargs):
         kwargs["position_ids"] = position_ids[0].repeat(2, 1)
     return input_ids, kwargs
 
+def _requires_embedding_inputs(model_config):
+    """Determine if we should use embeddings as inputs (currently only multimodal)."""
+    return hasattr(model_config, "text_config")
+
+def _get_text_config(model_config):
+    """Extract the text config from the model; if it's multimodal, all settings
+    are based on its .text_config, otherwise use it as is."""
+    if text_config := getattr(model_config, "text_config", None):
+        logger.info("This model is multimodal - using the text subconfig!")
+        return text_config
+    return model_config    
+    
+def _infer_model_dtype(model):
+    """Try to infer the dtype from the model."""
+
+    # If all named params in the model have the same dtype, use that as the dtype
+    types_set = set([param.dtype for _, param in model.named_parameters()])
+    if len(types_set) == 1:
+        model_dtype = types_set.pop()
+        return model_dtype
+    
+    # FIXME - this is super hacky, but leaving it to
+    # match existing behavior to avoid changing it in
+    # multimodal support PR.
+    if hasattr(model, "head"):
+        model_dtype = model.head.weight.dtype
+    elif hasattr(model, "shared"):
+        # TODO: Rework the llama model (should be able to use head instead of shared)
+        model_dtype = model.shared.head.weight.dtype
+    else:
+        logger.warning("Unable to infer model weight type")
+        model_dtype = torch.float32
+    return model_dtype
+
+def _infer_kv_heads(text_config):
+    """Given the model config, or text config (in multimodal case), determine the number
+    of attention heads."""
+    nheads = text_config.nheads
+    if hasattr(text_config, "kvheads"):
+        return text_config.kvheads
+    elif hasattr(text_config, "multiquery_attn"):
+        return 1 if text_config.multiquery_attn else text_config.nheads
+    # kv heads is just the number of attn heads
+    return nheads
+
 
 # FIXME: We should use default generate, but that will require a larger re-work of generate
 def generate(
@@ -40,6 +87,12 @@ def generate(
     prefill_chunk_size: int = 0,
     eos_token_id: Optional[int] = None,
     timing: str = "",
+    prepare_model_inputs_hook: Optional[
+        Callable[
+            [int, torch.Tensor, MutableMapping[str, Any]],
+            Tuple[torch.Tensor, MutableMapping[str, Any]],
+        ]
+    ] = None,
     post_iteration_hook: Optional[
         Callable[
             [int, torch.Tensor, torch.Tensor, MutableMapping[str, Any]],
@@ -73,6 +126,10 @@ def generate(
             with the following information:
             - "per-token": Array with `max_new_tokens` time measurements (in s)
             - "e2e": Array with a single e2e generation loop time measurement (in s)
+        prepare_model_inputs_hook: a function that will get called before each iteration.
+            It must have the following signature: f(int token_position, Tensor logits, Tensor next_val, Dict kwargs) ->
+            Tuple[Tensor next_val, Dict kwargs]. For multimodal models, this should typically
+            be model.prepare_inputs_for_generation to get the initial multimodal embeddings.
         post_iteration_hook: a function that will get called after each iteration.
             It must have the following signature: f(int token_position, Tensor logits, Tensor next_val, Dict kwargs) ->
             Tuple[Tensor next_val, Dict kwargs]. If it is defined, will replace next_val
@@ -114,6 +171,18 @@ def generate(
         input_ids.shape[0], dtype=torch.bool, device=input_ids.device
     )
 
+    ### Multimodal related
+    is_multimodal = _requires_embedding_inputs(model.config)
+    text_config = _get_text_config(model.config)
+    if is_multimodal and prepare_model_inputs_hook is None:
+        # Best effort warning about what to pass for the post iteration hook;
+        # FMS interfaces are not very clearly defined at the moment. We raise
+        # instead of setting a default here to align with FMS behaviors.
+        msg = "The model appears to be multimodal, but no prepare_model_inputs_hook was passed!"
+        if hasattr(model, "prepare_inputs_for_generation"):
+            msg += " Hint: It looks like this model implements prepare_inputs_for_generation; did you mean to pass it?"
+        raise ValueError(msg)
+
     result = input_ids
     next_input = input_ids
     # this includes empty pages and max_new_tokens
@@ -134,21 +203,8 @@ def generate(
     if NUM_BLOCKS is None:
         NUM_BLOCKS = (_MAX_BATCH * _MAX_CONTEXT_LENGTH) // BLOCK_SIZE
 
-    if hasattr(model, "head"):
-        model_dtype = model.head.weight.dtype
-    elif hasattr(model, "shared"):
-        # TODO: Rework the llama model (should be able to use head instead of shared)
-        model_dtype = model.shared.head.weight.dtype
-    else:
-        model_dtype = torch.float32
-
-    nheads = model.config.nheads
-    if hasattr(model.config, "kvheads"):
-        kvheads = model.config.kvheads
-    elif hasattr(model.config, "multiquery_attn"):
-        kvheads = 1 if model.config.multiquery_attn else model.config.nheads
-    else:
-        kvheads = nheads
+    model_dtype = _infer_model_dtype(model)
+    logger.debug("Inferred model weight dtype %s", model_dtype)
 
     if hasattr(model, "distributed_strategy"):
         tensor_parallel_size = (
@@ -159,9 +215,10 @@ def generate(
     else:
         raise ValueError("model must have a distributed_strategy")
 
+    kvheads = _infer_kv_heads(text_config)
     kvheads = kvheads // tensor_parallel_size if kvheads > 1 else kvheads
     head_size = getattr(
-        model.config, "head_dim", model.config.emb_dim // model.config.nheads
+        text_config, "head_dim", text_config.emb_dim // text_config.nheads
     )
     if "fp8" in kwargs["attn_name"]:
         from fms_mo.aiu_addons.fp8.fp8_utils import ScaledTensor
@@ -193,7 +250,7 @@ def generate(
                     already_scaled,
                 ),
             )
-            for _ in range(model.config.nlayers)
+            for _ in range(text_config.nlayers)
         ]
     else:
         kwargs["past_key_value_states"] = [
@@ -205,7 +262,7 @@ def generate(
                     NUM_BLOCKS, BLOCK_SIZE, kvheads, head_size, dtype=model_dtype
                 ),
             )
-            for _ in range(model.config.nlayers)
+            for _ in range(text_config.nlayers)
         ]
     kwargs["block_table"] = None
     block_numbers = [i for i in range(NUM_BLOCKS)]
@@ -265,6 +322,15 @@ def generate(
 
     for i in range(max_new_tokens):
         input_ids = next_input[:, -max_possible_context_length:]
+
+        # Call the prepare model hook if we have one, which is generally for
+        # multimodal. NOTE: in most cases, input_ids are actually embeddings,
+        # i.e., we're going from [bsz, seq_len] -> [bsz, seq_len, emb_dim].
+        if prepare_model_inputs_hook is not None:
+            input_ids, kwargs = prepare_model_inputs_hook(i, input_ids, kwargs)
+            if is_multimodal and input_ids.ndim != 3:
+                logger.warning("The model is multimodal, but iteration %s's prepare hook did not yield 3D embeddings (typically shape [bsz, seq_len, emb_dim], got %s)", i, list(input_ids.shape))
+
 
         # prefill
         if i == 0:
@@ -431,6 +497,12 @@ def generate(
                         torch._dynamo.mark_static(slot_mapping_seq_chunk, 0)
                         torch._dynamo.mark_static(position_ids_seq_chunk, 0)
                         torch._dynamo.mark_static(block_table_seq_chunk, 0)
+                        # If input IDs have 3 dimensions, it's because we had a prepare inputs hook
+                        # expand them to embeddings, e.g., for multimodal; emb dim should be static
+                        # if we have it.
+                        if input_ids_seq_chunk.ndim == 3:
+                            torch._dynamo.mark_static(input_ids_seq_chunk, 2)
+
 
                         # seq dynamic
                         torch._dynamo.mark_dynamic(input_ids_seq_chunk, 1)
@@ -453,6 +525,11 @@ def generate(
                     torch._dynamo.mark_static(slot_mapping_seq, 0)
                     torch._dynamo.mark_static(position_ids_seq, 0)
                     torch._dynamo.mark_static(mask_seq, 0)
+                    # If input IDs have 3 dimensions, it's because we had a prepare inputs hook
+                    # expand them to embeddings, e.g., for multimodal; emb dim should be static
+                    # if we have it.
+                    if input_ids_seq.ndim == 3:
+                        torch._dynamo.mark_static(input_ids_seq, 2)
 
                     # seq dynamic
                     torch._dynamo.mark_dynamic(input_ids_seq, 1)
@@ -553,6 +630,10 @@ def generate(
             torch._dynamo.mark_dynamic(kwargs["block_table"], 1)
             torch._dynamo.mark_static(kwargs["slot_mapping"], 1)  # always 1
             torch._dynamo.mark_static(kwargs["position_ids"], 1)  # always 1
+            # Similar to prefill - we have embeddings, due to the prefill hook,
+            # and emb dim is always static
+            if input_ids.ndim == 3:
+                torch._dynamo.mark_static(input_ids, 2)
 
             logits, past_key_value_states = model(input_ids, **kwargs)
 
