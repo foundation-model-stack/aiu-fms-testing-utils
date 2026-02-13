@@ -871,6 +871,7 @@ def get_valid_prompts(
                                 allow_truncation=allow_truncation,
                                 enforce_sizes=enforce_sizes,
                             )
+                            used_keys.add(program_seq_key[0])
                             yield ValidPrompt(
                                 program_id=program_seq_key[0],
                                 shape=valid_prompt_shape,
