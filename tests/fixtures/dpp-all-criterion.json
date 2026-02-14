@@ -1,0 +1,220 @@
+{
+  "programs": [
+    {
+      "max_batch": 4,
+      "max_tkv": 32768,
+      "batch_granularity": 4,
+      "tkv_granularity": 32768
+    },
+    {
+      "max_batch": 8,
+      "max_tkv": 16384,
+      "batch_granularity": 8,
+      "tkv_granularity": 16384
+    },
+    {
+      "max_batch": 16,
+      "max_tkv": 8192,
+      "batch_granularity": 16,
+      "tkv_granularity": 8192
+    },
+    {
+      "max_batch": 32,
+      "max_tkv": 4096,
+      "batch_granularity": 32,
+      "tkv_granularity": 4096
+    },
+    {
+      "max_batch": 2,
+      "max_tkv": 32768,
+      "batch_granularity": 2,
+      "tkv_granularity": 32768
+    },
+    {
+      "max_batch": 4,
+      "max_tkv": 16384,
+      "batch_granularity": 4,
+      "tkv_granularity": 16384
+    },
+    {
+      "max_batch": 8,
+      "max_tkv": 8192,
+      "batch_granularity": 8,
+      "tkv_granularity": 8192
+    },
+    {
+      "max_batch": 16,
+      "max_tkv": 4096,
+      "batch_granularity": 16,
+      "tkv_granularity": 4096
+    },
+    {
+      "max_batch": 32,
+      "max_tkv": 2048,
+      "batch_granularity": 32,
+      "tkv_granularity": 2048
+    },
+    {
+      "max_batch": 1,
+      "max_tkv": 32768,
+      "batch_granularity": 1,
+      "tkv_granularity": 32768
+    },
+    {
+      "max_batch": 2,
+      "max_tkv": 16384,
+      "batch_granularity": 2,
+      "tkv_granularity": 16384
+    },
+    {
+      "max_batch": 4,
+      "max_tkv": 8192,
+      "batch_granularity": 4,
+      "tkv_granularity": 8192
+    },
+    {
+      "max_batch": 8,
+      "max_tkv": 4096,
+      "batch_granularity": 8,
+      "tkv_granularity": 4096
+    },
+    {
+      "max_batch": 16,
+      "max_tkv": 2048,
+      "batch_granularity": 16,
+      "tkv_granularity": 2048
+    },
+    {
+      "max_batch": 1,
+      "max_tkv": 16384,
+      "batch_granularity": 1,
+      "tkv_granularity": 16384
+    },
+    {
+      "max_batch": 2,
+      "max_tkv": 8192,
+      "batch_granularity": 2,
+      "tkv_granularity": 8192
+    },
+    {
+      "max_batch": 4,
+      "max_tkv": 4096,
+      "batch_granularity": 4,
+      "tkv_granularity": 4096
+    },
+    {
+      "max_batch": 8,
+      "max_tkv": 2048,
+      "batch_granularity": 8,
+      "tkv_granularity": 2048
+    },
+    {
+      "max_batch": 1,
+      "max_tkv": 8192,
+      "batch_granularity": 1,
+      "tkv_granularity": 8192
+    },
+    {
+      "max_batch": 2,
+      "max_tkv": 4096,
+      "batch_granularity": 2,
+      "tkv_granularity": 4096
+    },
+    {
+      "max_batch": 4,
+      "max_tkv": 2048,
+      "batch_granularity": 4,
+      "tkv_granularity": 2048
+    },
+    {
+      "max_batch": 1,
+      "max_tkv": 4096,
+      "batch_granularity": 1,
+      "tkv_granularity": 4096
+    },
+    {
+      "max_batch": 2,
+      "max_tkv": 2048,
+      "batch_granularity": 2,
+      "tkv_granularity": 2048
+    },
+    {
+      "max_batch": 6,
+      "max_tkv": 32768,
+      "batch_granularity": 6,
+      "tkv_granularity": 32768
+    },
+    {
+      "max_batch": 12,
+      "max_tkv": 16384,
+      "batch_granularity": 12,
+      "tkv_granularity": 16384
+    },
+    {
+      "max_batch": 24,
+      "max_tkv": 8192,
+      "batch_granularity": 24,
+      "tkv_granularity": 8192
+    },
+    {
+      "max_batch": 32,
+      "max_tkv": 6144,
+      "batch_granularity": 32,
+      "tkv_granularity": 6144
+    },
+    {
+      "max_batch": 16,
+      "max_tkv": 12288,
+      "batch_granularity": 16,
+      "tkv_granularity": 12288
+    },
+    {
+      "max_batch": 8,
+      "max_tkv": 24576,
+      "batch_granularity": 8,
+      "tkv_granularity": 24576
+    },
+    {
+      "max_batch": 6,
+      "max_tkv": 16384,
+      "batch_granularity": 6,
+      "tkv_granularity": 16384
+    },
+    {
+      "max_batch": 12,
+      "max_tkv": 8192,
+      "batch_granularity": 12,
+      "tkv_granularity": 8192
+    },
+    {
+      "max_batch": 24,
+      "max_tkv": 4096,
+      "batch_granularity": 24,
+      "tkv_granularity": 4096
+    },
+    {
+      "max_batch": 32,
+      "max_tkv": 3072,
+      "batch_granularity": 32,
+      "tkv_granularity": 3072
+    },
+    {
+      "max_batch": 16,
+      "max_tkv": 6144,
+      "batch_granularity": 16,
+      "tkv_granularity": 6144
+    },
+    {
+      "max_batch": 8,
+      "max_tkv": 12288,
+      "batch_granularity": 8,
+      "tkv_granularity": 12288
+    },
+    {
+      "max_batch": 4,
+      "max_tkv": 24576,
+      "batch_granularity": 4,
+      "tkv_granularity": 24576
+    }
+  ]
+}

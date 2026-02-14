@@ -281,9 +281,10 @@ def __sample_requests(
         List[Tuple[str, int]]
     """
 
-    assert prompt_length_max >= prompt_length_min, (
-        "Please enter valid prompt length max/min values"
-    )
+    if prompt_length_max < prompt_length_min:
+        raise ValueError(
+            f"Max prompt length ({prompt_length_max}) should be larger than min prompt length ({prompt_length_min})"
+        )
 
     if enforce_sizes is None:
         enforce_sizes = []
@@ -489,7 +490,7 @@ def sample_rag_factoid_requests(
     return_key: bool = False,
 ) -> List[Tuple[str, int]]:
     if not os.path.exists(dataset_path):
-        print("error dataset does not exist")
+        raise FileNotFoundError(f"Dataset path {dataset_path} does not exist")
 
     dataset = []
     # Load the dataset.
@@ -543,26 +544,16 @@ def sample_sharegpt_requests(
     pad_multiple: int = 64,
     return_key: bool = False,
 ) -> List[Tuple[str, int]]:
-    if not os.path.exists(dataset_path):
-        print("downloading share-gpt dataset as it does not exist")
-        is_distributed_initialized = torch.distributed.is_initialized()
-        if not is_distributed_initialized or rank < 1:
-            __download_file(
-                "https://huggingface.co/datasets/anon8231489123/ShareGPT_Vicuna_unfiltered/resolve/main/ShareGPT_V3_unfiltered_cleaned_split.json",
-                dataset_path,
-            )
-        else:
-            print("waiting for rank0 to complete download")
-
-        if is_distributed_initialized:
-            torch.distributed.barrier()
-
     if enforce_sizes is None:
         enforce_sizes = []
+
+    if not os.path.exists(dataset_path):
+        raise FileNotFoundError(f"Dataset path {dataset_path} does not exist")
 
     # Load the dataset.
     with open(dataset_path, "r", encoding="utf-8") as f:
         dataset = json.load(f)
+
     # Filter out the conversations with less than 2 turns.
     dataset = [data for data in dataset if len(data["conversations"]) >= 2]
     dataset: List[str] = [data["conversations"][0]["value"] for data in dataset]

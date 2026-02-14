@@ -15,12 +15,17 @@ import os
 from aiu_fms_testing_utils.testing.utils import format_kwargs_to_string
 from aiu_fms_testing_utils.utils import sample_sharegpt_requests
 from transformers import AutoTokenizer
+from aiu_fms_testing_utils.testing.dpp.program_models import AttnType
 
-from aiu_fms_testing_utils._version import version_tuple
 from fms.models import get_model
 from fms.utils.generation import pad_input_ids
 from pathlib import Path
 import torch
+
+try:
+    from aiu_fms_testing_utils._version import version_tuple
+except ImportError:
+    version_tuple = (0, 0, 0)
 
 
 @pytest.mark.parametrize(
@@ -57,7 +62,7 @@ def test_validation_info_round_trip(validation_type, post_iteration_hook):
         input_ids,
         max_new_tokens,
         post_iteration_hook,
-        attn_algorithm="math",
+        attn_algorithm=AttnType.MATH,
         **padding_kwargs,
     )
 
@@ -80,18 +85,7 @@ def test_validation_info_round_trip(validation_type, post_iteration_hook):
 
 
 def test_get_validation_info_path(tmp_path):
-    check_pathname = "attn-type-sdpa_batch-size-4_dtype-fp16_max-new-tokens-128_model-id-ibm-granite--granite-3.3-8b-instruct_seq-length-64"
-    hash_object = hashlib.sha256(check_pathname.encode("utf-8"))
-    hex_digest = hash_object.hexdigest()
-
-    assert (
-        get_validation_info_path(
-            tmp_path, "ibm-granite/granite-3.3-8b-instruct", 4, 64, 128, 0, "sdpa"
-        )
-        == f"{tmp_path}/{hex_digest}_{'.'.join([str(_) for _ in version_tuple[:3]])}.cpu_validation_info.0.out"
-    )
-
-    check_pathname = "attn-type-sdpa_batch-size-4_dtype-fp16_max-new-tokens-128_model-id-ibm-granite--granite-3.3-8b-instruct_seq-length-64"
+    check_pathname = "attn-type-sdpa-causal_batch-size-4_dtype-fp16_max-new-tokens-128_model-id-ibm-granite--granite-3.3-8b-instruct_seq-length-64"
     hash_object = hashlib.sha256(check_pathname.encode("utf-8"))
     hex_digest = hash_object.hexdigest()
 
@@ -103,7 +97,24 @@ def test_get_validation_info_path(tmp_path):
             64,
             128,
             0,
-            "sdpa",
+            AttnType.SDPA,
+        )
+        == f"{tmp_path}/{hex_digest}_{'.'.join([str(_) for _ in version_tuple[:3]])}.cpu_validation_info.0.out"
+    )
+
+    check_pathname = "attn-type-sdpa-causal_batch-size-4_dtype-fp16_max-new-tokens-128_model-id-ibm-granite--granite-3.3-8b-instruct_seq-length-64"
+    hash_object = hashlib.sha256(check_pathname.encode("utf-8"))
+    hex_digest = hash_object.hexdigest()
+
+    assert (
+        get_validation_info_path(
+            tmp_path,
+            "ibm-granite/granite-3.3-8b-instruct",
+            4,
+            64,
+            128,
+            0,
+            AttnType.SDPA,
             aftu_version=(1, 2, 3),
         )
         == f"{tmp_path}/{hex_digest}_1.2.3.cpu_validation_info.0.out"
@@ -187,7 +198,7 @@ def test_find_validation_info_path(
             64,
             128,
             0,
-            "sdpa",
+            AttnType.SDPA,
             (10, 10, 10),
         )
     )
@@ -202,7 +213,7 @@ def test_find_validation_info_path(
             64,
             128,
             0,
-            "sdpa",
+            AttnType.SDPA,
             save_version,
         )
     )
@@ -216,7 +227,7 @@ def test_find_validation_info_path(
         64,
         128,
         0,
-        "sdpa",
+        AttnType.SDPA,
         current_version,
         version_allow_decrement=version_allow_decrement,
     )

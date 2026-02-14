@@ -1,4 +1,5 @@
 import json
+from aiu_fms_testing_utils.testing.dpp.program_models import AttnType
 from aiu_fms_testing_utils.testing.validation import (
     LogitsExtractorHook,
     extract_validation_information,
@@ -96,7 +97,7 @@ def process_row(row):
             torch.tensor(input_ids).unsqueeze(0),
             max_new_tokens,
             LogitsExtractorHook(),
-            attn_algorithm="math",
+            attn_algorithm=AttnType.MATH,
         )
     return {"id": id, "input_ids": input_ids, "validation": cpu_validation_info}
 

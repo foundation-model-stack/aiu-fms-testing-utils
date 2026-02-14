@@ -30,6 +30,7 @@ from transformers import AutoTokenizer
 
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, aiu_dist_setup
 import os
+from aiu_fms_testing_utils.testing.dpp.program_models import AttnType
 
 try:
     from fms_mo.aiu_addons.gptq import gptq_aiu_adapter, gptq_aiu_linear  # noqa: F401
@@ -600,7 +601,7 @@ def _get_device_validation_information(
     # overrides for validation info that are device specific
     device_dependent_kwargs = {}
     if device == "cpu":
-        device_dependent_kwargs["attn_algorithm"] = "math"
+        device_dependent_kwargs["attn_algorithm"] = AttnType.MATH
 
     if device == "aiu":
         device_dependent_kwargs["last_n_tokens"] = 64 if "paged" in ATTN_NAME else 1
@@ -630,7 +631,7 @@ def _get_device_validation_information(
                 seq_length,
                 max_new_tokens,
                 token_iter,
-                ATTN_NAME,
+                AttnType(ATTN_NAME),
                 device_type=device,
                 **kwargs,
             )

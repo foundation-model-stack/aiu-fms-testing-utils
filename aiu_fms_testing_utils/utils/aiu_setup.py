@@ -13,14 +13,20 @@ local_rank = int(os.getenv("LOCAL_RANK", 0))
 rank = int(os.getenv("RANK", 0))
 world_rank = rank
 world_size = int(os.getenv("WORLD_SIZE", 1))
+is_distributed = "LOCAL_RANK" in os.environ and "RANK" in os.environ
 
 
-def dprint_str(text):
+def dprint_str(text: str) -> str:
     return f"[{rank:2d}/{world_size:2d}]: {text}"
 
 
-def dprint(text):
-    print(dprint_str(text))
+def dprint(*text: str):
+    print(dprint_str(" ".join(text)))
+
+
+def r0dprint(*text: str):
+    if rank == 0:
+        dprint(*text)
 
 
 # ==============================================================
