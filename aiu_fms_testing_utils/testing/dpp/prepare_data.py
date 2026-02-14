@@ -238,6 +238,7 @@ def _get_valid_prompts_by_shape(
                     allow_truncation=allow_truncation,
                     enforce_sizes=enforce_sizes,
                 )
+                used_keys.add(program_criteria_seq[0])
                 yield ValidPrompt(
                     program_id=program_criteria_seq[0],
                     shape=valid_prompt_shape,
