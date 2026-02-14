@@ -43,7 +43,9 @@ def test_drive_paged_programs(dpp_criterion_json_path: str):
 
     programs = ["2:0,<8192"]
     max_new_tokens = 32
-    model_variant = "ibm-granite/granite-3.3-8b-instruct"
+    model_variant = os.environ.get(
+        "DPP_MODEL_PATH", "ibm-granite/granite-3.3-8b-instruct"
+    )
     dataset_path = "sharegpt"
     cross_entropy_threshold = 2.6
     failure_rate_threshold = 0.1
