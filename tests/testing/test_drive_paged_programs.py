@@ -65,7 +65,7 @@ def test_drive_paged_programs(dpp_criterion_json_path: str):
         stagger_load=0,
         stagger_update_lazyhandle=0,
         dist_timeout=0,
-        run_cpu_validation=False,
+        run_cpu_validation=True,
         prioritize_large_batch_sizes=True,
         enforce_homogeneous_prompt_programs=True,
     )
