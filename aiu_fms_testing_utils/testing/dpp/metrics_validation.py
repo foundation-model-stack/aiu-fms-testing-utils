@@ -4,13 +4,11 @@ from typing import Tuple
 import torch
 from transformers import AutoTokenizer
 
-from aiu_fms_testing_utils.testing.dpp.program_models import AttnType, MetricResult
+from aiu_fms_testing_utils.testing.dpp.program_models import MetricResult
 from aiu_fms_testing_utils.testing.validation import (
     ValidationInfo,
     capture_level_1_metrics,
     filter_failed_level_1_cases,
-    find_validation_info_path,
-    load_validation_information,
     top_k_loss_calculator,
 )
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, local_rank, r0dprint
@@ -140,56 +138,3 @@ def report_token_comparison(
         dprint(f"AIU tokens:\n{aiu_tokens_generated}")
         dprint(f"CPU output:\n{tokenizer.decode(cpu_tokens_generated)}")
         dprint(f"AIU output:\n{tokenizer.decode(aiu_tokens_generated)}")
-
-
-def load_validation_info(
-    model_variant,
-    batch_size,
-    seq_length,
-    max_new_tokens,
-    tokenizer,
-    seed,
-    cpu_dtype: str,
-    attn_type: AttnType,
-    validation_info_outputs_dir: str,
-    sample_key: str | None = None,
-) -> ValidationInfo | None:
-    """Loads pre-computed CPU validation information from disk if available.
-
-    Searches for a previously saved validation info file matching the specified
-    parameters. If found, loads and returns the validation information to avoid
-    redundant CPU computation.
-
-    Args:
-        model_variant: Model identifier or path (HuggingFace format).
-        batch_size: Batch size used for validation.
-        seq_length: Sequence length used for validation.
-        max_new_tokens: Number of tokens to generate during validation.
-        tokenizer: HuggingFace tokenizer for the model.
-        seed: Random seed used for validation.
-        cpu_dtype: Data type string for CPU validation ("fp8" or "fp32").
-        attn_type: Attention algorithm type used.
-        validation_info_outputs_dir: Directory containing saved validation outputs.
-        sample_key: Optional identifier for the specific prompt sample used.
-
-    Returns:
-        ValidationInfo object if a matching file is found, None otherwise."""
-
-    full_path = find_validation_info_path(
-        validation_info_dir=validation_info_outputs_dir,
-        model_variant=model_variant,
-        batch_size=batch_size,
-        seq_length=seq_length,
-        max_new_tokens=max_new_tokens,
-        seed=seed,
-        attn_type=attn_type,
-        version_allow_decrement=True,
-        dtype=cpu_dtype,
-        sample_key=sample_key,
-    )
-
-    if full_path is not None:
-        dprint(f"cpu validation info found for seed={seed} -- loading it")
-        return load_validation_information(full_path, "logits", batch_size, tokenizer)
-
-    return None

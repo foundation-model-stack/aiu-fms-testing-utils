@@ -5,7 +5,6 @@ from transformers import AutoTokenizer
 
 from aiu_fms_testing_utils.testing.dpp.metrics_validation import (
     evaluate_cross_entropy_metrics,
-    load_validation_info,
     report_token_comparison,
 )
 from aiu_fms_testing_utils.testing.dpp.program_models import (
@@ -19,7 +18,9 @@ from aiu_fms_testing_utils.testing.validation import (
     LogitsExtractorHook,
     ValidationInfo,
     extract_validation_information,
+    find_validation_info_path,
     get_validation_info_path,
+    load_validation_information,
 )
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, local_rank, r0dprint
 from aiu_fms_testing_utils.utils.dpp_config import DPPRunnerConfig
@@ -102,25 +103,31 @@ def _generate_cpu_validation(
         ValidationInfo: ValidationInfo object containing CPU reference outputs (tokens and logits)."""
 
     # attempt to load the cpu validation info if it is already computed
-    cpu_validation_info = load_validation_info(
+    cpu_validation_path = find_validation_info_path(
+        validation_info_dir=validation_info_outputs_dir,
         model_variant=model_variant,
         batch_size=valid_prompt.shape[0],
         seq_length=valid_prompt.shape[1],
         max_new_tokens=max_new_tokens,
-        tokenizer=tokenizer,
         seed=0,
-        cpu_dtype=env_config.cpu_dtype,
         attn_type=env_config.attn_type,
-        validation_info_outputs_dir=validation_info_outputs_dir,
+        version_allow_decrement=True,
+        dtype=env_config.cpu_dtype,
         sample_key=valid_prompt.sample_key,
     )
 
-    if cpu_validation_info is not None:
+    if cpu_validation_path is not None:
         # Skip CPU generation if validation info is already available
         dprint(
             f"Loaded CPU validation info for program {model_variant} with prompt shape {valid_prompt} and sample key {valid_prompt.sample_key}"
         )
-        return cpu_validation_info
+        return load_validation_information(
+            cpu_validation_path, "logits", valid_prompt.shape[0], tokenizer
+        )
+
+    dprint(
+        f"No pre-computed CPU validation info found for program {model_variant} with prompt shape {valid_prompt.shape} and sample key {valid_prompt.sample_key}"
+    )
 
     cpu_validation_info = extract_validation_information(
         model=validation_model,
