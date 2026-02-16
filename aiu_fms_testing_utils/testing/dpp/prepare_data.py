@@ -10,7 +10,6 @@ from fms.utils.generation import pad_input_ids
 from huggingface_hub import hf_hub_download
 from transformers import AutoTokenizer
 
-from aiu_fms_testing_utils.testing.dpp.constants import PAD_MULTIPLE
 from aiu_fms_testing_utils.testing.dpp.prepare_programs import get_programs_to_test
 from aiu_fms_testing_utils.testing.dpp.program_models import (
     PreparedInputs,
@@ -19,6 +18,8 @@ from aiu_fms_testing_utils.testing.dpp.program_models import (
 )
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, r0dprint
 from aiu_fms_testing_utils.utils.paged import ProgramCriteria, get_programs_prompts
+
+PAD_MULTIPLE = 64
 
 SHARE_GPT_DATASET = (
     "anon8231489123/ShareGPT_Vicuna_unfiltered",

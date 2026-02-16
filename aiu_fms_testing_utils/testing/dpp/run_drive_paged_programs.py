@@ -8,7 +8,6 @@ from torch import distributed as dist
 from torch.fx.experimental import _config as fx_config
 from transformers import AutoTokenizer
 
-from aiu_fms_testing_utils.testing.dpp.constants import PAD_MULTIPLE
 from aiu_fms_testing_utils.testing.dpp.generation import (
     generate_aiu_cpu_test,
     generate_aiu_test,
@@ -16,6 +15,7 @@ from aiu_fms_testing_utils.testing.dpp.generation import (
 from aiu_fms_testing_utils.testing.dpp.prepare_data import (
     prepare_test_prompts,
     resolve_dataset_path,
+    PAD_MULTIPLE,
 )
 from aiu_fms_testing_utils.testing.dpp.prepare_model import (
     get_model_kwargs,
