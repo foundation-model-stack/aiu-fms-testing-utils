@@ -1,4 +1,3 @@
-from itertools import dropwhile
 from typing import Tuple
 
 import torch
@@ -11,7 +10,7 @@ from aiu_fms_testing_utils.testing.validation import (
     filter_failed_level_1_cases,
     top_k_loss_calculator,
 )
-from aiu_fms_testing_utils.utils.aiu_setup import dprint, local_rank, r0dprint
+from aiu_fms_testing_utils.utils.aiu_setup import local_rank, r0dprint
 
 
 def _metric_calculator(reference_tensor: torch.Tensor, test_tensor: torch.Tensor):
@@ -94,13 +93,13 @@ def evaluate_cross_entropy_metrics(
     return failure_rate
 
 
-def report_token_comparison(
+def evaluate_token_accuracy(
     max_new_tokens: int,
     aiu_validation_info: ValidationInfo,
     cpu_validation_info: ValidationInfo,
     program_id: str,
     tokenizer: AutoTokenizer,
-) -> None:
+) -> float:
     """Reports side-by-side comparison of AIU and CPU generated token sequences.
 
     Prints detailed comparison of generated tokens between AIU and CPU models,
@@ -113,28 +112,48 @@ def report_token_comparison(
         aiu_validation_info: ValidationInfo from AIU inference.
         cpu_validation_info: ValidationInfo from CPU reference.
         program_id: ID of the program being tested.
-        tokenizer: HuggingFace tokenizer for decoding tokens."""
+        tokenizer: HuggingFace tokenizer for decoding tokens.
 
-    if local_rank != 0:
-        return
+    Returns:
+        float: Failure rate (percentage of mismatched tokens)."""
 
+    total_mismatches = 0
+    total_tokens = 0
     for sentence_idx, (reference_sentence, test_sentence) in enumerate(
         zip(
             cpu_validation_info.get_info("tokens"),
             aiu_validation_info.get_info("tokens"),
         )
     ):
-        tokens_prompt = [t.item() for t in reference_sentence[:-max_new_tokens]]
-        cpu_tokens_generated = [t.item() for t in reference_sentence[-max_new_tokens:]]
-        aiu_tokens_generated = [t.item() for t in test_sentence[-max_new_tokens:]]
-        tokens_prompt_without_pad = list(
-            dropwhile(lambda x: x == tokenizer.pad_token_id, tokens_prompt)
-        )
-        prompt_length = len([token_id for token_id in tokens_prompt_without_pad])
-        dprint(f"Prompt Length: {prompt_length}")
-        dprint(f"For Program {program_id} in sentence {sentence_idx + 1}:")
-        dprint(f"Prompt:\n{tokenizer.decode(tokens_prompt_without_pad)}")
-        dprint(f"CPU tokens:\n{cpu_tokens_generated}")
-        dprint(f"AIU tokens:\n{aiu_tokens_generated}")
-        dprint(f"CPU output:\n{tokenizer.decode(cpu_tokens_generated)}")
-        dprint(f"AIU output:\n{tokenizer.decode(aiu_tokens_generated)}")
+        tokens_prompt = reference_sentence[:-max_new_tokens]
+        cpu_tokens_generated = reference_sentence[-max_new_tokens:]
+        aiu_tokens_generated = test_sentence[-max_new_tokens:]
+
+        # Remove leading padding tokens using torch operations
+        pad_mask = tokens_prompt != tokenizer.pad_token_id
+        first_non_pad = pad_mask.nonzero(as_tuple=True)[0]
+        if len(first_non_pad) > 0:
+            tokens_prompt_without_pad = tokens_prompt[first_non_pad[0] :]
+        else:
+            tokens_prompt_without_pad = tokens_prompt
+        prompt_length = tokens_prompt_without_pad.size(0)
+
+        # Calculate token mismatch failure rate
+        num_mismatches = (cpu_tokens_generated != aiu_tokens_generated).sum().item()
+        prompt_tokens = cpu_tokens_generated.size(0)
+        total_mismatches += num_mismatches
+        total_tokens += prompt_tokens
+
+        r0dprint(f"Prompt Length: {prompt_length}")
+        r0dprint(f"For Program {program_id} in sentence {sentence_idx + 1}:")
+        r0dprint(f"Prompt:\n{tokenizer.decode(tokens_prompt_without_pad)}")
+        r0dprint(f"CPU tokens:\n{cpu_tokens_generated}")
+        r0dprint(f"AIU tokens:\n{aiu_tokens_generated}")
+        r0dprint(f"CPU output:\n{tokenizer.decode(cpu_tokens_generated)}")
+        r0dprint(f"AIU output:\n{tokenizer.decode(aiu_tokens_generated)}")
+
+    failure_rate = total_mismatches / total_tokens if total_tokens > 0 else 0.0
+    r0dprint(
+        f"Token Failure Rate: {failure_rate:.2%} ({num_mismatches}/{prompt_tokens} mismatches)"
+    )
+    return failure_rate

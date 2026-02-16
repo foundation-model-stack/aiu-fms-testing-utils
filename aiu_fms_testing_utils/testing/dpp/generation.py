@@ -5,7 +5,7 @@ from transformers import AutoTokenizer
 
 from aiu_fms_testing_utils.testing.dpp.metrics_validation import (
     evaluate_cross_entropy_metrics,
-    report_token_comparison,
+    evaluate_token_accuracy,
 )
 from aiu_fms_testing_utils.testing.dpp.program_models import (
     AttnType,
@@ -252,16 +252,17 @@ def generate_aiu_cpu_test(
                 )
 
         elif test_type == TestType.TOKENS:
-            report_token_comparison(
+            failure_rate = evaluate_token_accuracy(
                 max_new_tokens,
                 aiu_validation_info,
                 cpu_validation_info,
                 valid_prompt.program_id,
                 tokenizer,
             )
-
-        else:
-            raise ValueError("test type must be one of metrics or tokens")
+            if failure_rate > failure_rate_threshold:
+                failed_cases.append(
+                    (valid_prompt.program_id, valid_prompt.shape, failure_rate)
+                )
 
     return failed_cases
 
