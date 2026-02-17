@@ -443,6 +443,14 @@ def get_validation_info_path(
 
     sample_key = kwargs.get("sample_key", None)
 
+    attn_type_map = {
+        AttnType.SDPA: "sdpa",
+        AttnType.PAGED: "paged",
+        AttnType.MATH: "math",
+        AttnType.MATH_FP8: "math-fp8",
+        AttnType.PAGED_FP8: "paged-fp8",
+    }
+
     val_prefix = get_default_validation_prefix(
         aftu_version=".".join([str(_) for _ in aftu_version[:3]]),
         model_id=model_variant,
@@ -450,7 +458,7 @@ def get_validation_info_path(
         batch_size=batch_size,
         seq_length=seq_length,
         dtype=dtype,
-        attn_type=attn_type.value.replace("_", "-"),
+        attn_type=attn_type_map[attn_type],
         sample_key=sample_key,
     )
     validation_file_name = (

@@ -85,7 +85,7 @@ def test_validation_info_round_trip(validation_type, post_iteration_hook):
 
 
 def test_get_validation_info_path(tmp_path):
-    check_pathname = "attn-type-sdpa-causal_batch-size-4_dtype-fp16_max-new-tokens-128_model-id-ibm-granite--granite-3.3-8b-instruct_seq-length-64"
+    check_pathname = "attn-type-sdpa_batch-size-4_dtype-fp16_max-new-tokens-128_model-id-ibm-granite--granite-3.3-8b-instruct_seq-length-64"
     hash_object = hashlib.sha256(check_pathname.encode("utf-8"))
     hex_digest = hash_object.hexdigest()
 
@@ -102,7 +102,7 @@ def test_get_validation_info_path(tmp_path):
         == f"{tmp_path}/{hex_digest}_{'.'.join([str(_) for _ in version_tuple[:3]])}.cpu_validation_info.0.out"
     )
 
-    check_pathname = "attn-type-sdpa-causal_batch-size-4_dtype-fp16_max-new-tokens-128_model-id-ibm-granite--granite-3.3-8b-instruct_seq-length-64"
+    check_pathname = "attn-type-sdpa_batch-size-4_dtype-fp16_max-new-tokens-128_model-id-ibm-granite--granite-3.3-8b-instruct_seq-length-64"
     hash_object = hashlib.sha256(check_pathname.encode("utf-8"))
     hex_digest = hash_object.hexdigest()
 
