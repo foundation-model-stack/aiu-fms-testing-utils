@@ -184,7 +184,7 @@ def run_dpp(
     stagger_update_lazyhandle: int = 0,
     dist_timeout: int = 0,
     run_cpu_validation: bool = True,
-    validation_info_outputs_dir: str = "/home/senuser/models/validation_info",
+    validation_info_outputs_dir: str = None,
     save_validation_info_outputs: bool = False,
     prioritize_large_batch_sizes: bool = False,
     enforce_homogeneous_prompt_programs: bool = False,
@@ -204,6 +204,11 @@ def run_dpp(
 
     if programs is None:
         programs = []
+
+    if not validation_info_outputs_dir and run_cpu_validation:
+        raise ValueError(
+            "validation_info_outputs_dir must be specified if run_cpu_validation is True"
+        )
 
     if not os.path.exists(program_criteria_json_path):
         raise FileNotFoundError(

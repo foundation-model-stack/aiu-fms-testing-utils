@@ -47,6 +47,9 @@ def test_drive_paged_programs(dpp_criterion_json_path: str):
     model_variant = os.environ.get(
         "DPP_MODEL_PATH", "ibm-granite/granite-3.3-8b-instruct"
     )
+    validation_info_outputs_dir = os.getenv(
+        "VALIDATION_INFO_OUTPUTS_DIR", "/home/senuser/models/validation_info"
+    )
     dataset_path = "sharegpt"
     cross_entropy_threshold = 2.6
     failure_rate_threshold = 0.1
@@ -71,4 +74,5 @@ def test_drive_paged_programs(dpp_criterion_json_path: str):
         run_cpu_validation=True,
         prioritize_large_batch_sizes=True,
         enforce_homogeneous_prompt_programs=True,
+        validation_info_outputs_dir=validation_info_outputs_dir,
     )
