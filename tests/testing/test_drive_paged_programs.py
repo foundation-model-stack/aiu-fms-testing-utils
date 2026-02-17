@@ -36,6 +36,7 @@ def setup_environment():
     r0dprint("Chunk Length:", os.environ["VLLM_DT_CHUNK_LEN"])
 
 
+@pytest.mark.dpp
 def test_drive_paged_programs(dpp_criterion_json_path: str):
     """Test driving paged programs with specified configurations."""
 
