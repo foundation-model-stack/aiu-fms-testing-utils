@@ -59,7 +59,7 @@ def test_drive_paged_programs(dpp_criterion_json_path: str):
         model_variant=model_variant,
         timing=Timing.NONE,
         program_criteria_json_path=dpp_criterion_json_path,
-        test_type=TestType.TOKENS,
+        test_type=TestType.METRICS,
         cross_entropy_threshold=cross_entropy_threshold,
         failure_rate_threshold=failure_rate_threshold,
         attention_type=AttnType.PAGED,
