@@ -44,9 +44,7 @@ def test_drive_paged_programs(dpp_criterion_json_path: str):
 
     programs = ["2:0,<8192"]
     max_new_tokens = 32
-    model_variant = os.environ.get(
-        "DPP_MODEL_PATH", "ibm-granite/granite-3.3-8b-instruct"
-    )
+    model_variant = "ibm-granite/granite-3.3-8b-instruct"
     validation_info_outputs_dir = os.getenv(
         "VALIDATION_INFO_OUTPUTS_DIR", "/home/senuser/models/validation_info"
     )
