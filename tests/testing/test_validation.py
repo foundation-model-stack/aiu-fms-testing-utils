@@ -16,16 +16,12 @@ from aiu_fms_testing_utils.testing.utils import format_kwargs_to_string
 from aiu_fms_testing_utils.utils import sample_sharegpt_requests
 from transformers import AutoTokenizer
 from aiu_fms_testing_utils.testing.dpp.program_models import AttnType
+from aiu_fms_testing_utils._version import version_tuple
 
 from fms.models import get_model
 from fms.utils.generation import pad_input_ids
 from pathlib import Path
 import torch
-
-try:
-    from aiu_fms_testing_utils._version import version_tuple
-except ImportError:
-    version_tuple = (0, 0, 0)
 
 
 @pytest.mark.parametrize(
@@ -236,6 +232,9 @@ def test_find_validation_info_path(
         assert found_path is None
     else:
         match = re.search(r"(\d+)\.(\d+)\.(\d+)", found_path)
+        assert match is not None, (
+            f"Expected to find a version in the found path: {found_path}"
+        )
         found_version = (int(match.group(1)), int(match.group(2)), int(match.group(3)))
         assert found_version == expected_version
 
