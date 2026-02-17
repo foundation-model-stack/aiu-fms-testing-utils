@@ -218,6 +218,15 @@ def run_dpp(
     if not os.path.exists(validation_info_outputs_dir):
         os.makedirs(validation_info_outputs_dir, exist_ok=True)
 
+    if run_cpu_validation:
+        r0dprint(
+            f"Running DPP on model {model_variant} and validating against CPU reference outputs in {validation_info_outputs_dir}"
+        )
+    else:
+        r0dprint(
+            f"Running DPP on {model_variant} without CPU validation (outputs will not be compared against reference)"
+        )
+
     if is_distributed:
         r0dprint(f"Running DPP in distributed mode with {world_size} ranks")
     else:
