@@ -679,11 +679,9 @@ def load_model(
     model.eval()
 
     if device_type == "spyre":
-        dprint("Compilation started")
         with scoped_environ(model_config.env_updates()):
-            # Temporarily set environment variables needed for compile 
+            # Temporarily set environment variables needed for compile
             model.compile(backend="sendnn", options={"sendnn.dynamic": True})
-            dprint("Compilation completed")
 
         _maybe_prepare_fp8_weights(model, is_fp8)
 
