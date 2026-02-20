@@ -76,6 +76,8 @@ def warmup_model(
 
     dprint("AIU warmup")
     pt_compile_model_time = time.time()
+    timestamp = datetime.now().strftime("%Y-%m-%d:%H:%M:%S")
+    dprint(f"[{timestamp}] Compilation started")
 
     # adjust inputs depending on attn_type and dynamic shapes
     _warmup_input_ids = input_ids
@@ -93,8 +95,6 @@ def warmup_model(
 
     extra_kwargs = {**_extra_kwargs, "last_n_tokens": 64 if "paged" in attn_name else 1}
 
-    timestamp = datetime.now().strftime("%Y-%m-%d:%H:%M:%S")
-    dprint(f"[{timestamp}] Compilation started")
     with stagger_region(stagger_update_lazyhandle):
         with torch_sendnn.warmup_mode():
             generate(
