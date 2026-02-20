@@ -48,6 +48,10 @@ def stagger_region(limit: int):
             torch.distributed.barrier()
         dprint("Stagger: All Complete")
 
+def timestamp_print(given_string):
+    timestamp = datetime.now().strftime("%Y-%m-%d:%H:%M:%S")
+    print(f"[{timestamp}] {given_string}")
+
 
 def warmup_model(
     model: nn.Module,
@@ -74,10 +78,9 @@ def warmup_model(
         attention_specific_kwargs["contiguous_cache"] = True
         attention_specific_kwargs["max_seq_len"] = input_ids.shape[1] + max_new_tokens
 
-    dprint("AIU warmup -- changed")
+    dprint("AIU warmup")
     pt_compile_model_time = time.time()
-    timestamp = datetime.now().strftime("%Y-%m-%d:%H:%M:%S")
-    print(f"[{timestamp}] Compilation started", flush=True)
+    timestamp_print("Compilation started")
 
     # adjust inputs depending on attn_type and dynamic shapes
     _warmup_input_ids = input_ids
@@ -106,10 +109,9 @@ def warmup_model(
                 extra_kwargs=extra_kwargs,
                 **attention_specific_kwargs,
             )
-    timestamp = datetime.now().strftime("%Y-%m-%d:%H:%M:%S")
-    print(f"[{timestamp}] Compilation ended", flush=True)
     pt_compile_model_time = time.time() - pt_compile_model_time
-    dprint(f"PT compile complete, took {pt_compile_model_time:.3f}s -- changed")
+    timestamp_print("Compilation complete")
+    dprint(f"PT compile complete, took {pt_compile_model_time:.3f}s")
 
 
 def __download_file(url, filename):
