@@ -11,6 +11,7 @@ from aiu_fms_testing_utils.utils import get_pad_size
 
 logger = logging.getLogger(__name__)
 
+
 def _get_text_config(model_config):
     """Extract the text config from the model; if it's multimodal, all settings
     are based on its .text_config, otherwise use it as is."""
@@ -18,6 +19,7 @@ def _get_text_config(model_config):
         logger.info("This model is multimodal - using the text subconfig!")
         return text_config
     return model_config
+
 
 def _infer_kv_heads(text_config):
     """Given the model config, or text config (in multimodal case), determine the number
@@ -29,6 +31,7 @@ def _infer_kv_heads(text_config):
         return 1 if text_config.multiquery_attn else text_config.nheads
     # kv heads is just the number of attn heads
     return nheads
+
 
 def adjust_inputs_to_batch(input_ids: torch.Tensor, **extra_kwargs):
     """
