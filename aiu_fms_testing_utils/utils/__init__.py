@@ -74,7 +74,7 @@ def warmup_model(
         attention_specific_kwargs["contiguous_cache"] = True
         attention_specific_kwargs["max_seq_len"] = input_ids.shape[1] + max_new_tokens
 
-    dprint("AIU warmup")
+    dprint("AIU warmup -- changed")
     pt_compile_model_time = time.time()
     timestamp = datetime.now().strftime("%Y-%m-%d:%H:%M:%S")
     print(f"[{timestamp}] Compilation started", flush=True)
@@ -109,7 +109,7 @@ def warmup_model(
     timestamp = datetime.now().strftime("%Y-%m-%d:%H:%M:%S")
     print(f"[{timestamp}] Compilation ended", flush=True)
     pt_compile_model_time = time.time() - pt_compile_model_time
-    dprint(f"PT compile complete, took {pt_compile_model_time:.3f}s")
+    dprint(f"PT compile complete, took {pt_compile_model_time:.3f}s -- changed")
 
 
 def __download_file(url, filename):
