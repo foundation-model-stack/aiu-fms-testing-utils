@@ -37,7 +37,7 @@ parser = argparse.ArgumentParser(
 parser.add_argument(
     "--device_type",
     type=str,
-    choices=["cuda", "cpu", "aiu", "aiu-senulator"],
+    choices=["cuda", "cpu", "aiu", "aiu-senulator", "spyre"],
     default="cuda",
     help="The device to run the model on",
 )

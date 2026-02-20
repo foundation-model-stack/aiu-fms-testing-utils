@@ -1,3 +1,4 @@
+import logging
 import math
 import os
 import random
@@ -7,6 +8,27 @@ import torch
 import fms.utils.spyre.paged  # noqa
 from aiu_fms_testing_utils.utils import get_pad_size
 
+
+logger = logging.getLogger(__name__)
+
+def _get_text_config(model_config):
+    """Extract the text config from the model; if it's multimodal, all settings
+    are based on its .text_config, otherwise use it as is."""
+    if text_config := getattr(model_config, "text_config", None):
+        logger.info("This model is multimodal - using the text subconfig!")
+        return text_config
+    return model_config
+
+def _infer_kv_heads(text_config):
+    """Given the model config, or text config (in multimodal case), determine the number
+    of attention heads."""
+    nheads = text_config.nheads
+    if hasattr(text_config, "kvheads"):
+        return text_config.kvheads
+    elif hasattr(text_config, "multiquery_attn"):
+        return 1 if text_config.multiquery_attn else text_config.nheads
+    # kv heads is just the number of attn heads
+    return nheads
 
 def adjust_inputs_to_batch(input_ids: torch.Tensor, **extra_kwargs):
     """
@@ -142,13 +164,7 @@ def generate(
     else:
         model_dtype = torch.float32
 
-    nheads = model.config.nheads
-    if hasattr(model.config, "kvheads"):
-        kvheads = model.config.kvheads
-    elif hasattr(model.config, "multiquery_attn"):
-        kvheads = 1 if model.config.multiquery_attn else model.config.nheads
-    else:
-        kvheads = nheads
+    text_config = _get_text_config(model.config)
 
     if hasattr(model, "distributed_strategy"):
         tensor_parallel_size = (
@@ -159,10 +175,12 @@ def generate(
     else:
         raise ValueError("model must have a distributed_strategy")
 
+    kvheads = _infer_kv_heads(text_config)
     kvheads = kvheads // tensor_parallel_size if kvheads > 1 else kvheads
     head_size = getattr(
-        model.config, "head_dim", model.config.emb_dim // model.config.nheads
+        text_config, "head_dim", text_config.emb_dim // text_config.nheads
     )
+
     if "fp8" in kwargs["attn_name"]:
         from fms_mo.aiu_addons.fp8.fp8_utils import ScaledTensor
 
@@ -193,7 +211,7 @@ def generate(
                     already_scaled,
                 ),
             )
-            for _ in range(model.config.nlayers)
+            for _ in range(text_config.nlayers)
         ]
     else:
         kwargs["past_key_value_states"] = [
@@ -205,7 +223,7 @@ def generate(
                     NUM_BLOCKS, BLOCK_SIZE, kvheads, head_size, dtype=model_dtype
                 ),
             )
-            for _ in range(model.config.nlayers)
+            for _ in range(text_config.nlayers)
         ]
     kwargs["block_table"] = None
     block_numbers = [i for i in range(NUM_BLOCKS)]
