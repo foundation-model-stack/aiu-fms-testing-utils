@@ -49,7 +49,7 @@ def stagger_region(limit: int):
 
 def timestamp_print(given_string):
     timestamp = datetime.now().strftime("%Y-%m-%d:%H:%M:%S")
-    print(f"[{timestamp}] {given_string}")
+    dprint(f"[{timestamp}] {given_string}")
 
 def warmup_model(
     model: nn.Module,
