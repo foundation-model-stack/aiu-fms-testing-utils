@@ -48,10 +48,6 @@ def stagger_region(limit: int):
             torch.distributed.barrier()
         dprint("Stagger: All Complete")
 
-def timestamp_print(given_string):
-    timestamp = datetime.now().strftime("%Y-%m-%d:%H:%M:%S")
-    print(f"[{timestamp}] {given_string}", flush=True)
-    sys.stdout.flush()  # forcing output
 
 def warmup_model(
     model: nn.Module,
@@ -97,7 +93,8 @@ def warmup_model(
 
     extra_kwargs = {**_extra_kwargs, "last_n_tokens": 64 if "paged" in attn_name else 1}
 
-    timestamp_print("Compilation started")
+    timestamp = datetime.now().strftime("%Y-%m-%d:%H:%M:%S")
+    dprint(f"[{timestamp}] Compilation started")
     with stagger_region(stagger_update_lazyhandle):
         with torch_sendnn.warmup_mode():
             generate(
@@ -109,7 +106,8 @@ def warmup_model(
                 extra_kwargs=extra_kwargs,
                 **attention_specific_kwargs,
             )
-    timestamp_print("Compilation complete")
+    timestamp = datetime.now().strftime("%Y-%m-%d:%H:%M:%S")
+    dprint(f"[{timestamp}] Compilation ended")
     pt_compile_model_time = time.time() - pt_compile_model_time
     dprint(f"PT compile complete, took {pt_compile_model_time:.3f}s")
 
