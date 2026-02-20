@@ -20,7 +20,7 @@ def dprint_str(text):
 
 
 def dprint(text):
-    print(dprint_str(text), flush=True)
+    print(dprint_str(text))
 
 
 # ==============================================================

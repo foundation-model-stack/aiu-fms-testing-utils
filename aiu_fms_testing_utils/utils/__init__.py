@@ -77,7 +77,7 @@ def warmup_model(
     dprint("AIU warmup")
     pt_compile_model_time = time.time()
     timestamp = datetime.now().strftime("%Y-%m-%d:%H:%M:%S")
-    dprint(f"[{timestamp}] Compilation started")
+    print(f"[{timestamp}] Compilation started", flush=True)
 
     # adjust inputs depending on attn_type and dynamic shapes
     _warmup_input_ids = input_ids
@@ -107,7 +107,7 @@ def warmup_model(
                 **attention_specific_kwargs,
             )
     timestamp = datetime.now().strftime("%Y-%m-%d:%H:%M:%S")
-    dprint(f"[{timestamp}] Compilation ended")
+    print(f"[{timestamp}] Compilation ended", flush=True)
     pt_compile_model_time = time.time() - pt_compile_model_time
     dprint(f"PT compile complete, took {pt_compile_model_time:.3f}s")
 
