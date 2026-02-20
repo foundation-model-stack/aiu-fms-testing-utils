@@ -7,6 +7,7 @@ import requests
 import time
 import bisect
 from datetime import datetime
+import sys
 
 # Third Party
 
@@ -50,6 +51,7 @@ def stagger_region(limit: int):
 def timestamp_print(given_string):
     timestamp = datetime.now().strftime("%Y-%m-%d:%H:%M:%S")
     dprint(f"[{timestamp}] {given_string}")
+    sys.stdout.flush()  # forcing output
 
 def warmup_model(
     model: nn.Module,
