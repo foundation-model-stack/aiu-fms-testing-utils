@@ -16,7 +16,7 @@ from aiu_fms_testing_utils.testing.dpp.program_models import (
     ProgramInfo,
     ValidPrompt,
 )
-from aiu_fms_testing_utils.utils.aiu_setup import dprint, r0dprint
+from aiu_fms_testing_utils.utils.aiu_setup import dprint, r0dprint, local_rank
 from aiu_fms_testing_utils.utils.paged import ProgramCriteria, get_programs_prompts
 
 PAD_MULTIPLE = 64
@@ -414,32 +414,47 @@ def resolve_dataset_path(dataset_path: str) -> tuple[str, str]:
             - dataset_type: A string indicating the type of dataset ("sharegpt", "rag_factoid", or "custom").
             - local_dataset_path: The local file path to the dataset."""
 
-    if dataset_path == "sharegpt":
-        r0dprint("Using ShareGPT dataset from HuggingFace")
-        dataset_type = "sharegpt"
-        # Fetch from HuggingFace
-        local_dataset_path = hf_hub_download(
-            repo_id=SHARE_GPT_DATASET[0],
-            filename=SHARE_GPT_DATASET[1],
-            repo_type="dataset",
-        )
-    elif dataset_path == "rag_factoid":
-        r0dprint("Using RAG Factoid dataset from HuggingFace")
-        dataset_type = "rag_factoid"
-        # Fetch from HuggingFace
-        local_dataset_path = hf_hub_download(
-            repo_id=RAG_FACTOID_DATASET[0],
-            filename=RAG_FACTOID_DATASET[1],
-            repo_type="dataset",
-        )
-    elif dataset_path is None:
-        r0dprint(f"Using a custom dataset at {dataset_path}")
-        dataset_type = "custom"
-        local_dataset_path = dataset_path
-    else:
-        raise ValueError(f"Unsupported dataset_path: {dataset_path}")
+    def _inner_resolve():
+        if dataset_path == "sharegpt":
+            r0dprint("Using ShareGPT dataset from HuggingFace")
+            dataset_type = "sharegpt"
+            # Fetch from HuggingFace
+            local_dataset_path = hf_hub_download(
+                repo_id=SHARE_GPT_DATASET[0],
+                filename=SHARE_GPT_DATASET[1],
+                repo_type="dataset",
+            )
+        elif dataset_path == "rag_factoid":
+            r0dprint("Using RAG Factoid dataset from HuggingFace")
+            dataset_type = "rag_factoid"
+            # Fetch from HuggingFace
+            local_dataset_path = hf_hub_download(
+                repo_id=RAG_FACTOID_DATASET[0],
+                filename=RAG_FACTOID_DATASET[1],
+                repo_type="dataset",
+            )
+        elif dataset_path is None:
+            r0dprint(f"Using a custom dataset at {dataset_path}")
+            dataset_type = "custom"
+            local_dataset_path = dataset_path
+        else:
+            raise ValueError(f"Unsupported dataset_path: {dataset_path}")
 
-    if not os.path.exists(local_dataset_path):
-        raise FileNotFoundError(f"Dataset file not found at {local_dataset_path}")
+        if not os.path.exists(local_dataset_path):
+            raise FileNotFoundError(f"Dataset file not found at {local_dataset_path}")
+
+        return dataset_type, local_dataset_path
+
+    # Initially download only for rank 0 to avoid redundant downloads in distributed settings
+    if local_rank == 0:
+        dataset_type, local_dataset_path = _inner_resolve()
+
+    # Synchronize all ranks to ensure the dataset is downloaded before any rank attempts to access it
+    if torch.distributed.is_initialized():
+        torch.distributed.barrier()
+
+    # Resolve the paths for non-zero ranks after download is complete
+    if local_rank != 0:
+        dataset_type, local_dataset_path = _inner_resolve()
 
     return dataset_type, local_dataset_path
