@@ -1,3 +1,4 @@
+from gc import disable
 import os
 
 from prometheus_api_client import PrometheusConnect
@@ -21,7 +22,7 @@ def instantiate_prometheus():
         # Define necessary headers
         request_headers = {"Authorization": f"Bearer {api_token}"} if api_token else None
 
-        client = PrometheusConnect(url=connection_url, headers=request_headers)
+        client = PrometheusConnect(url=connection_url, headers=request_headers, disable_ssl=True)
 
     except Exception as e:
         print(f"WARNING: Cannot instantiate Prometheus. Make sure PROMETHEUS_URL and PROMETHEUS_API_KEY are set in your environment if you want resource metrics. Error: {e}")
