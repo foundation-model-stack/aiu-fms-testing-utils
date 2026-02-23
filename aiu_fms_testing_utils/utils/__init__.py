@@ -63,7 +63,7 @@ def print_comp_resource_metrics(cpu_val, mem_val, stage):
         else:
             timestamp_print(f"Compilation {stage} - CPU: {cpu_val}, Memory: {mem_val}")
 
-    else:
+    elif cpu_val is not None and mem_val is not None:
         dprint(f"Peak Resource Utilization - CPU: {cpu_val}, Memory: {mem_val}")
 
 def warmup_model(
