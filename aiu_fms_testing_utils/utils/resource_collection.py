@@ -88,8 +88,8 @@ def get_static_read(client, recorded_time):
         # Make the request for CPU and Mem
         cpu_query = '100 * (1 - avg(rate(node_cpu_seconds_total{mode="idle"}[2m])))'
         mem_query = '100 * (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes))'
-        cpu_response = client.custom_query(query=cpu_query, params={"time", recorded_time.timestamp()})
-        mem_response = client.custom_query(query=mem_query, params={"time", recorded_time.timestamp()})
+        cpu_response = client.custom_query(query=cpu_query, params={"time": recorded_time.timestamp()})
+        mem_response = client.custom_query(query=mem_query, params={"time": recorded_time.timestamp()})
 
         ## Get the CPU & Mem metrics out of the response
         cpu_value = get_value(cpu_response)
