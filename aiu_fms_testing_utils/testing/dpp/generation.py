@@ -119,7 +119,7 @@ def _generate_cpu_validation(
     if cpu_validation_path is not None:
         # Skip CPU generation if validation info is already available
         dprint(
-            f"Loaded CPU validation info for program {model_variant} with prompt shape {valid_prompt} and sample key {valid_prompt.sample_key}"
+            f"Loaded CPU validation info for program {model_variant} with prompt shape {valid_prompt.shape} and sample key {valid_prompt.sample_key}"
         )
         return load_validation_information(
             cpu_validation_path, "logits", valid_prompt.shape[0], tokenizer
