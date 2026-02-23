@@ -9,18 +9,24 @@ def instantiate_prometheus():
     resource usage metrics.
 
     Returns:
-    - PrometheusConnect(url=connection_url, headers=request_headers): the instantiated
-    Prometheus client.
+    - client: the instantiated Prometheus client.
     """
 
-    # Get required env variables
-    connection_url = os.environ["PROMETHEUS_URL"]
-    api_token = os.environ.get("PROMETHEUS_API_KEY")
+    client = None
+    try:
+        # Get required env variables
+        connection_url = os.environ["PROMETHEUS_URL"]
+        api_token = os.environ.get("PROMETHEUS_API_KEY")
 
-    # Define necessary headers
-    request_headers = {"Authorization": f"Bearer {api_token}"} if api_token else None
+        # Define necessary headers
+        request_headers = {"Authorization": f"Bearer {api_token}"} if api_token else None
 
-    return PrometheusConnect(url=connection_url, headers=request_headers)
+        client = PrometheusConnect(url=connection_url, headers=request_headers)
+
+    except Exception as e:
+        print(f"WARNING: Cannot instantiate Prometheus. Make sure PROMETHEUS_URL and PROMETHEUS_API_KEY are set in your environment if you want resource metrics. Error: {e}")
+
+    return client
 
 
 def get_value(given_res, query_type="static"):
@@ -75,15 +81,19 @@ def get_static_read(client, recorded_time):
     recorded time in gigabytes.
     """
 
-    # Make the request for CPU and Mem
-    cpu_query = '100 * (1 - avg(rate(node_cpu_seconds_total{mode="idle"}[2m])))'
-    mem_query = '100 * (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes))'
-    cpu_response = client.custom_query(query=cpu_query, params={"time", recorded_time.timestamp()})
-    mem_response = client.custom_query(query=mem_query, params={"time", recorded_time.timestamp()})
+    cpu_value = None
+    mem_value = None
+    if client is not None:
 
-    ## Get the CPU & Mem metrics out of the response
-    cpu_value = get_value(cpu_response)
-    mem_value = get_value(mem_response)
+        # Make the request for CPU and Mem
+        cpu_query = '100 * (1 - avg(rate(node_cpu_seconds_total{mode="idle"}[2m])))'
+        mem_query = '100 * (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes))'
+        cpu_response = client.custom_query(query=cpu_query, params={"time", recorded_time.timestamp()})
+        mem_response = client.custom_query(query=mem_query, params={"time", recorded_time.timestamp()})
+
+        ## Get the CPU & Mem metrics out of the response
+        cpu_value = get_value(cpu_response)
+        mem_value = get_value(mem_response)
 
     return cpu_value, mem_value
 
@@ -105,18 +115,22 @@ def get_peak_read(client, start, end):
 
     """
 
-    # Make the request for CPU and Mem
-    cpu_query = '100 * (1 - avg(rate(node_cpu_seconds_total{mode="idle"}[2m])))'
-    mem_query = '100 * (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes))'
-    cpu_response = client.custom_query_range(
-        query=cpu_query, start_time=start, end_time=end, step="3s"
-    )
-    mem_response = client.custom_query_range(
-        query=mem_query, start_time=start, end_time=end, step="3s"
-    )
+    peak_cpu_value = None
+    peak_mem_value = None
+    if client is not None:
 
-    ## Get the CPU & Mem metrics out of the response
-    peak_cpu_value = get_value(cpu_response, "range")
-    peak_mem_value = get_value(mem_response, "range")
+        # Make the request for CPU and Mem
+        cpu_query = '100 * (1 - avg(rate(node_cpu_seconds_total{mode="idle"}[2m])))'
+        mem_query = '100 * (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes))'
+        cpu_response = client.custom_query_range(
+            query=cpu_query, start_time=start, end_time=end, step="3s"
+        )
+        mem_response = client.custom_query_range(
+            query=mem_query, start_time=start, end_time=end, step="3s"
+        )
+
+        ## Get the CPU & Mem metrics out of the response
+        peak_cpu_value = get_value(cpu_response, "range")
+        peak_mem_value = get_value(mem_response, "range")
 
     return peak_cpu_value, peak_mem_value
