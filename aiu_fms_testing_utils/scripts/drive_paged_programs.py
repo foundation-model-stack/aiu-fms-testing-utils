@@ -11,7 +11,6 @@ from itertools import dropwhile
 import re
 from typing import Any, Dict, Iterable, List, Literal, NamedTuple, Optional, Tuple
 
-from scripts.inference import is_multimodal
 import torch
 from fms.models import get_model
 from fms.utils.generation import pad_input_ids
