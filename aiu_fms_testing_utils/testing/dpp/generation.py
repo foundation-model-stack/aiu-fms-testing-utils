@@ -138,21 +138,19 @@ def _generate_cpu_validation(
         **valid_prompt.extra_kwargs,
     )
 
-    if not save_validation_info_outputs:
-        return cpu_validation_info
-
-    validation_info_path = get_validation_info_path(
-        validation_info_dir=validation_info_outputs_dir,
-        model_variant=model_variant,
-        batch_size=valid_prompt.shape[0],
-        seq_length=valid_prompt.shape[1],
-        max_new_tokens=max_new_tokens,
-        seed=0,
-        attn_type=env_config.attn_type,
-        dtype=env_config.cpu_dtype,
-        sample_key=valid_prompt.sample_key,
-    )
-    cpu_validation_info.save(validation_info_path)
+    if save_validation_info_outputs:
+        validation_info_path = get_validation_info_path(
+            validation_info_dir=validation_info_outputs_dir,
+            model_variant=model_variant,
+            batch_size=valid_prompt.shape[0],
+            seq_length=valid_prompt.shape[1],
+            max_new_tokens=max_new_tokens,
+            seed=0,
+            attn_type=env_config.attn_type,
+            dtype=env_config.cpu_dtype,
+            sample_key=valid_prompt.sample_key,
+        )
+        cpu_validation_info.save(validation_info_path)
 
     return cpu_validation_info
 
