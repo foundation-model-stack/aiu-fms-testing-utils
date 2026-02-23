@@ -55,6 +55,7 @@ def warmup_model(
     use_cache: bool = True,
     stagger_update_lazyhandle: int = 0,
     prefill_chunk_size: int = 0,
+    is_multimodal=False,
     **extra_kwargs,
 ):
     import torch_sendnn
@@ -90,6 +91,11 @@ def warmup_model(
             )
 
     extra_kwargs = {**_extra_kwargs, "last_n_tokens": 64 if "paged" in attn_name else 1}
+
+    if is_multimodal and hasattr(model, "prepare_inputs_for_generation"):
+        attention_specific_kwargs["prepare_model_inputs_hook"] = (
+            model.prepare_inputs_for_generation
+        )
 
     with stagger_region(stagger_update_lazyhandle):
         with torch_sendnn.warmup_mode():

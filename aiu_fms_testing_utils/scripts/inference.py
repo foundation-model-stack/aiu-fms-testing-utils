@@ -12,6 +12,7 @@ import time
 # Third Party
 from aiu_fms_testing_utils.utils import aiu_setup, warmup_model, stagger_region
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, rank, local_rank, world_size
+from aiu_fms_testing_utils.utils.model_setup import requires_embedding_inputs
 import numpy as np
 import torch
 from torch import distributed as dist
@@ -765,7 +766,7 @@ def print_result(result, result_idx: int):
     print()
 
 
-def infer(use_cache, do_sample, warmup):
+def infer(use_cache, do_sample, warmup, is_multimodal=False):
     # With greedy generation (do_sample=False) we _should_ always get the same results.
     # There is currently a bug in start_pos for batched rotary embeddings that can lead
     # varying results for the same prompt.
@@ -790,6 +791,11 @@ def infer(use_cache, do_sample, warmup):
         attention_specific_kwargs["max_seq_len"] = ids.shape[1] + args.max_new_tokens
     elif "paged" in attn_name:
         attention_specific_kwargs["prefill_chunk_size"] = args.prefill_chunk_size
+
+    if is_multimodal and hasattr(model, "prepare_inputs_for_generation"):
+        attention_specific_kwargs["prepare_model_inputs_hook"] = (
+            model.prepare_inputs_for_generation
+        )
 
     result = generate(
         model,
@@ -840,6 +846,9 @@ use_cache = [
     args.no_use_cache
 ]  # True/False are identical with greedy iff `torch.use_deterministic_algorithms(True)`
 
+
+is_multimodal = requires_embedding_inputs(model.config)
+
 if args.compile:
     dprint("compilation warmup")
     pt_compile_model_time = time.time()
@@ -853,6 +862,7 @@ if args.compile:
                 use_cache=cache,
                 stagger_update_lazyhandle=args.stagger_update_lazyhandle,
                 prefill_chunk_size=args.prefill_chunk_size,
+                is_multimodal=is_multimodal,
                 **extra_generation_kwargs,
             )
         if (
@@ -860,14 +870,14 @@ if args.compile:
         ):  # run device initialization warmup for AIU, skip for senulator
             aiu_warmup_time = time.time()
             for sample, cache in itertools.product(do_sample, use_cache):
-                infer(cache, sample, True)
+                infer(cache, sample, True, is_multimodal=is_multimodal)
             aiu_warmup_time = time.time() - aiu_warmup_time
             dprint(
                 f"AIU device initialization warmup complete, took {aiu_warmup_time:.3f}s"
             )
     else:
         for sample, cache in itertools.product(do_sample, use_cache):
-            infer(cache, sample, True)
+            infer(cache, sample, True, is_multimodal=is_multimodal)
     pt_compile_model_time = time.time() - pt_compile_model_time
     dprint(f"PT compile complete, took {pt_compile_model_time:.3f}s")
 
@@ -875,4 +885,4 @@ dprint("generating output")
 
 for sample, cache in itertools.product(do_sample, use_cache):
     for _ in range(args.iters):
-        infer(cache, sample, False)
+        infer(cache, sample, False, is_multimodal=is_multimodal)

@@ -7,6 +7,7 @@ from typing import Any, Callable, List, MutableMapping, Optional, Tuple, Union
 import torch
 import fms.utils.spyre.paged  # noqa
 from aiu_fms_testing_utils.utils import get_pad_size
+from aiu_fms_testing_utils.utils.model_setup import requires_embedding_inputs
 
 logger = logging.getLogger(__name__)
 
@@ -28,11 +29,6 @@ def adjust_inputs_to_batch(input_ids: torch.Tensor, **extra_kwargs):
     if position_ids is not None:
         kwargs["position_ids"] = position_ids[0].repeat(2, 1)
     return input_ids, kwargs
-
-
-def _requires_embedding_inputs(model_config):
-    """Determine if we should use embeddings as inputs (currently only multimodal)."""
-    return hasattr(model_config, "text_config")
 
 
 def _get_text_config(model_config):
@@ -177,7 +173,7 @@ def generate(
     )
 
     ### Multimodal related
-    is_multimodal = _requires_embedding_inputs(model.config)
+    is_multimodal = requires_embedding_inputs(model.config)
     text_config = _get_text_config(model.config)
     if is_multimodal and prepare_model_inputs_hook is None:
         # Best effort warning about what to pass for the post iteration hook;

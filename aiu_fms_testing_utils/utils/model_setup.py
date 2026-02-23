@@ -169,3 +169,8 @@ def print_model_params(model: nn.Module, args: argparse.Namespace) -> None:
         )
     dprint(model)
     dprint("=" * 60 + "\n")
+
+
+def requires_embedding_inputs(model_config):
+    """Determine if we should use embeddings as inputs (currently only multimodal)."""
+    return hasattr(model_config, "text_config")
