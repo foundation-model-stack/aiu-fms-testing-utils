@@ -103,7 +103,7 @@ def evaluate_token_accuracy(
     """Reports side-by-side comparison of AIU and CPU generated token sequences.
 
     Prints detailed comparison of generated tokens between AIU and CPU models,
-    including the original prompt, token IDs, and decoded text. Only executes
+    including the original prompt, token IDs, and decoded text. Only logs results
     on rank 0 in distributed settings. Used for qualitative analysis of model
     outputs rather than quantitative metrics.
 
@@ -129,6 +129,15 @@ def evaluate_token_accuracy(
         cpu_tokens_generated = reference_sentence[-max_new_tokens:]
         aiu_tokens_generated = test_sentence[-max_new_tokens:]
 
+        # Calculate token mismatch failure rate
+        num_mismatches = (cpu_tokens_generated != aiu_tokens_generated).sum().item()
+        prompt_tokens = cpu_tokens_generated.size(0)
+        total_mismatches += num_mismatches
+        total_tokens += prompt_tokens
+
+        if local_rank != 0:
+            continue  # Only print for rank 0 to avoid clutter in distributed settings
+
         # Remove leading padding tokens using torch operations
         pad_mask = tokens_prompt != tokenizer.pad_token_id
         first_non_pad = pad_mask.nonzero(as_tuple=True)[0]
@@ -137,12 +146,6 @@ def evaluate_token_accuracy(
         else:
             tokens_prompt_without_pad = tokens_prompt
         prompt_length = tokens_prompt_without_pad.size(0)
-
-        # Calculate token mismatch failure rate
-        num_mismatches = (cpu_tokens_generated != aiu_tokens_generated).sum().item()
-        prompt_tokens = cpu_tokens_generated.size(0)
-        total_mismatches += num_mismatches
-        total_tokens += prompt_tokens
 
         r0dprint(f"Prompt Length: {prompt_length}")
         r0dprint(f"For Program {program_id} in sentence {sentence_idx + 1}:")
