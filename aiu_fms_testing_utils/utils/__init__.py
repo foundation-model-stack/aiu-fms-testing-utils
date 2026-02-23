@@ -14,8 +14,9 @@ import sys
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, rank, world_size
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 from aiu_fms_testing_utils.testing.utils import format_kwargs_to_string
-from aiu_fms_testing_utils.utils.resource_collection import instantiate_prometheus, get_static_read
-
+from aiu_fms_testing_utils.utils.resource_collection import (
+    instantiate_prometheus, get_static_read, get_peak_read
+)
 from fms.utils.generation import pad_input_ids
 import torch
 import torch.nn as nn
@@ -56,10 +57,14 @@ def timestamp_print(given_string):
 
 def print_comp_resource_metrics(cpu_val, mem_val, stage):
 
-    if cpu_val is None or mem_val is None:
-        timestamp_print(f"Compilation {stage}")
+    if stage != "peak":
+        if cpu_val is None or mem_val is None:
+            timestamp_print(f"Compilation {stage}")
+        else:
+            timestamp_print(f"Compilation {stage} - CPU: {cpu_val}, Memory: {mem_val}")
+
     else:
-        timestamp_print(f"Compilation {stage} - CPU: {cpu_val}, Memory: {mem_val}")
+        dprint(f"Peak Resource Utilization - CPU: {cpu_val}, Memory: {mem_val}")
 
 def warmup_model(
     model: nn.Module,
@@ -131,6 +136,11 @@ def warmup_model(
     metric_end = datetime.now(timezone.utc)
     end_cpu, end_mem = get_static_read(p, metric_end)
     print_comp_resource_metrics(end_cpu, end_mem, "completed")
+
+    # Get the peak usage during compilation
+    peak_cpu, peak_mem = get_peak_read(p, metric_start, metric_end)
+    print_comp_resource_metrics(peak_cpu, peak_mem, "peak")
+
     dprint(f"PT compile complete, took {pt_compile_model_time:.3f}s")
 
 
