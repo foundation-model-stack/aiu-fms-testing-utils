@@ -25,7 +25,7 @@ def instantiate_prometheus():
         client = PrometheusConnect(url=connection_url, headers=request_headers, disable_ssl=True)
 
     except Exception as e:
-        print(f"WARNING: Cannot instantiate Prometheus. Make sure PROMETHEUS_URL and PROMETHEUS_API_KEY are set in your environment if you want resource metrics. Error: {e}")
+        print(f"WARNING: Cannot instantiate Prometheus. Make sure PROMETHEUS_URL and PROMETHEUS_API_KEY are set in your environment if you are trying to collect resource metrics. Error: {e}")
 
     return client
 
@@ -85,11 +85,10 @@ def get_static_read(client, recorded_time):
     cpu_value = None
     mem_value = None
     if client is not None:
-        print("we have client")
 
         # Make the request for CPU and Mem
         cpu_query = '100 * (1 - avg(rate(node_cpu_seconds_total{mode="idle"}[2m])))'
-        mem_query = '100 * (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes))'
+        mem_query = '(node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / 1024 / 1024 / 1024'
         cpu_response = client.custom_query(query=cpu_query, params={"time": recorded_time.timestamp()})
         mem_response = client.custom_query(query=mem_query, params={"time": recorded_time.timestamp()})
         print(f"cpu response: {cpu_response}")
@@ -124,7 +123,7 @@ def get_peak_read(client, start, end):
 
         # Make the request for CPU and Mem
         cpu_query = '100 * (1 - avg(rate(node_cpu_seconds_total{mode="idle"}[2m])))'
-        mem_query = '100 * (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes))'
+        mem_query = '(node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / 1024 / 1024 / 1024'
         cpu_response = client.custom_query_range(
             query=cpu_query, start_time=start, end_time=end, step="3s"
         )
