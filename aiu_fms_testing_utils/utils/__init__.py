@@ -15,7 +15,7 @@ from aiu_fms_testing_utils.utils.aiu_setup import dprint, rank, world_size
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 from aiu_fms_testing_utils.testing.utils import format_kwargs_to_string
 from aiu_fms_testing_utils.utils.resource_collection import (
-    instantiate_prometheus, get_static_read, get_peak_read
+    get_static_read, get_peak_read
 )
 from fms.utils.generation import pad_input_ids
 import torch
@@ -51,20 +51,37 @@ def stagger_region(limit: int):
         dprint("Stagger: All Complete")
 
 def timestamp_print(given_string):
+    """
+    Helper method that will add a timestamp before the given string that needs to be
+    printed.
+
+    Args:
+    - given_string: the string that is to be printed with the timestamp.
+    """
 
     timestamp = datetime.now().strftime("%Y-%m-%d:%H:%M:%S")
     print(f"[{timestamp}] {given_string}")
 
-def print_comp_resource_metrics(cpu_val, mem_val, stage):
+def print_comp_resource_metrics(cpu_val, mem_val, stage, step):
+    """
+    Helper method that will do a timestamp print for a specific step to report resource
+    usage.
+
+    Args:
+    - cpu_val: the value for CPU usage as a percentage that we want to print.
+    - mem_val: the value for memory usage in gigabytes we want to print.
+    - stage: The stage of the step we are in, either "peak" or "started".
+    - step: The step that we performing in the script, either "compilation" or "inference".
+    """
 
     if stage != "peak":
         if cpu_val is None or mem_val is None:
-            timestamp_print(f"Compilation {stage}")
+            timestamp_print(f"{step.title()} {stage}")
         else:
-            timestamp_print(f"Compilation {stage} - CPU: {cpu_val:.2f}%, Memory: {mem_val:.2f}GB")
+            timestamp_print(f"{step.title()} {stage} - CPU: {cpu_val:.2f}%, Memory: {mem_val:.2f} GB")
 
     elif cpu_val is not None and mem_val is not None:
-        dprint(f"Peak Resource Utilization - CPU: {cpu_val:.2f}%, Memory: {mem_val:.2f}GB")
+        dprint(f"Peak Resource Utilization - CPU: {cpu_val:.2f}%, Memory: {mem_val:.2f} GB")
 
 def warmup_model(
     model: nn.Module,
@@ -74,6 +91,7 @@ def warmup_model(
     use_cache: bool = True,
     stagger_update_lazyhandle: int = 0,
     prefill_chunk_size: int = 0,
+    profile: PrometheusConnect | None = None,
     **extra_kwargs,
 ):
     import torch_sendnn
@@ -91,17 +109,14 @@ def warmup_model(
         attention_specific_kwargs["contiguous_cache"] = True
         attention_specific_kwargs["max_seq_len"] = input_ids.shape[1] + max_new_tokens
 
-    # Instantiate the Prometheus client for resource metric collection
-    p = instantiate_prometheus()
-
     # Start the warmup
     dprint("AIU warmup")
     pt_compile_model_time = time.time()
 
     ## Report on initial resource usage
     metric_start = datetime.now(timezone.utc)
-    initial_cpu, initial_mem = get_static_read(p, metric_start)
-    print_comp_resource_metrics(initial_cpu, initial_mem, "started")
+    initial_cpu, initial_mem = get_static_read(profile, metric_start)
+    print_comp_resource_metrics(initial_cpu, initial_mem, "started", "compilation")
 
     # adjust inputs depending on attn_type and dynamic shapes
     _warmup_input_ids = input_ids
@@ -134,12 +149,12 @@ def warmup_model(
 
     # Get completed metric read
     metric_end = datetime.now(timezone.utc)
-    end_cpu, end_mem = get_static_read(p, metric_end)
-    print_comp_resource_metrics(end_cpu, end_mem, "completed")
+    end_cpu, end_mem = get_static_read(profile, metric_end)
+    print_comp_resource_metrics(end_cpu, end_mem, "completed", "compilation")
 
     # Get the peak usage during compilation
-    peak_cpu, peak_mem = get_peak_read(p, metric_start, metric_end)
-    print_comp_resource_metrics(peak_cpu, peak_mem, "peak")
+    peak_cpu, peak_mem = get_peak_read(profile, metric_start, metric_end)
+    print_comp_resource_metrics(peak_cpu, peak_mem, "peak", "compilation")
 
     dprint(f"PT compile complete, took {pt_compile_model_time:.3f}s")
 

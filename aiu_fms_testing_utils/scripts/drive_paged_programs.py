@@ -1,6 +1,6 @@
 import argparse
 from dataclasses import dataclass
-import datetime
+from datetime import datetime, timezone
 import itertools
 import json
 import os
@@ -37,6 +37,7 @@ from aiu_fms_testing_utils.utils import (
     sample_sharegpt_requests,
     stagger_region,
     warmup_model,
+    print_comp_resource_metrics
 )
 from aiu_fms_testing_utils.utils.aiu_setup import aiu_dist_setup, dprint, local_rank
 from aiu_fms_testing_utils.utils.paged import (
@@ -44,6 +45,9 @@ from aiu_fms_testing_utils.utils.paged import (
     get_programs_prompts,
 )
 from aiu_fms_testing_utils.testing.utils import format_kwargs_to_string
+from aiu_fms_testing_utils.utils.resource_collection import (
+    instantiate_prometheus, get_static_read, get_peak_read
+)
 
 # Constants
 PAD_MULTIPLE = 64
@@ -1251,6 +1255,7 @@ def generate_validation_info_and_test(
     timing: str,
     prefill_chunk_size: int,
     model_variant: str,
+    profile: PrometheusConnect | None
 ) -> list[Any]:
     """Generates tokens using AIU and CPU models and validates the results.
 
@@ -1271,7 +1276,12 @@ def generate_validation_info_and_test(
                 f"program id: {valid_prompt.program_id}, valid prompt: {valid_prompt.shape}, input shape: {valid_prompt.input_ids.shape}"
             )
 
+        # Start inference
+        metric_start = datetime.now(timezone.utc)
+        initial_cpu, initial_mem = get_static_read(profile, metric_start)
+        print_comp_resource_metrics(initial_cpu, initial_mem, "started", "inference")
         if not skip_validation:
+
             # Generate or load CPU validation info
             cpu_validation_info = generate_cpu_validation(
                 model_variant=model_variant,
@@ -1288,6 +1298,16 @@ def generate_validation_info_and_test(
                 tokenizer=tokenizer,
             )
 
+            ## Get completed metric read
+            cpu_inference_metric_end = datetime.now(timezone.utc)
+            end_cpu_inference_cpu, end_mem_inference_cpu = get_static_read(profile, cpu_inference_metric_end)
+            print_comp_resource_metrics(end_cpu_inference_cpu, end_mem_inference_cpu, "completed", "CPU inference")
+
+            ## Get the peak usage during compilation
+            peak_cpu_inference_cpu, peak_mem_inference_cpu = get_peak_read(profile, metric_start, cpu_inference_metric_end)
+            print_comp_resource_metrics(peak_cpu_inference_cpu, peak_mem_inference_cpu, "peak", "CPU inference")
+
+            # Generate AIU validation info
             aiu_validation_info = generate_aiu_validation(
                 test_type=test_type,
                 max_new_tokens=max_new_tokens,
@@ -1298,6 +1318,15 @@ def generate_validation_info_and_test(
                 cpu_validation_info=cpu_validation_info,
                 extra_kwargs=valid_prompt.extra_kwargs,
             )
+
+            ## Get completed metric read
+            aiu_inference_metric_end = datetime.now(timezone.utc)
+            end_cpu_inference_aiu, end_mem_inference_aiu = get_static_read(profile, aiu_inference_metric_end)
+            print_comp_resource_metrics(end_cpu_inference_aiu, end_mem_inference_aiu, "completed", "AIU inference")
+
+            ## Get the peak usage during compilation
+            peak_cpu_inference_aiu, peak_mem_inference_aiu = get_peak_read(profile, metric_start, aiu_inference_metric_end)
+            print_comp_resource_metrics(peak_cpu_inference_aiu, peak_mem_inference_aiu, "peak", "AIU inference")
 
             if test_type == "metrics":
                 failure_rate = evaluate_cross_entropy_metrics(
@@ -1325,6 +1354,8 @@ def generate_validation_info_and_test(
             else:
                 raise ValueError("test type must be one of metrics or tokens")
         else:
+
+            # Generate AIU validation info
             aiu_validation_info = generate_aiu_validation(
                 test_type=test_type,
                 max_new_tokens=max_new_tokens,
@@ -1335,6 +1366,15 @@ def generate_validation_info_and_test(
                 cpu_validation_info=None,
                 extra_kwargs=valid_prompt.extra_kwargs,
             )
+
+            ## Get completed metric read
+            aiu_inference_metric_end = datetime.now(timezone.utc)
+            end_cpu_inference_aiu, end_mem_inference_aiu = get_static_read(profile, aiu_inference_metric_end)
+            print_comp_resource_metrics(end_cpu_inference_aiu, end_mem_inference_aiu, "completed", "AIU inference")
+
+            ## Get the peak usage during compilation
+            peak_cpu_inference_aiu, peak_mem_inference_aiu = get_peak_read(profile, metric_start, aiu_inference_metric_end)
+            print_comp_resource_metrics(peak_cpu_inference_aiu, peak_mem_inference_aiu, "peak", "AIU inference")
 
             if local_rank == 0:
                 for sentence_idx, test_sentence in enumerate(
@@ -1392,6 +1432,9 @@ def main() -> None:
         tokenizer=tokenizer,
     )
 
+    # Instantiate the Prometheus client for resource metric collection
+    p = instantiate_prometheus()
+
     # Model Loading
     model_kwargs: Dict[str, Any] = _get_model_kwargs(model_variant=args.model_variant)
     distributed_kwargs: Dict[str, Any] = _get_distributed_kwargs(
@@ -1448,6 +1491,7 @@ def main() -> None:
         compile_dynamic_sendnn=True,
         stagger_update_lazyhandle=args.stagger_update_lazyhandle,
         prefill_chunk_size=args.prefill_chunk_size,
+        profile=p,
         **extra_kwargs,
     )
     if args.distributed:
@@ -1490,6 +1534,7 @@ def main() -> None:
         timing=args.timing,
         prefill_chunk_size=args.prefill_chunk_size,
         model_variant=args.model_variant,
+        profile=p
     )
 
     if not args.skip_validation and local_rank == 0:
