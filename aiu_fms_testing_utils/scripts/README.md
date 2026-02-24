@@ -1,6 +1,6 @@
 # Scripts for using Foundation Model Stack (FMS) on AIU hardware
 
-The scripts provided here allow you to run FMS on AIU device for a variety of models. 
+The scripts provided here allow you to run FMS on AIU device for a variety of models.
 
 Let's look at some of the example usage below.
 
@@ -75,4 +75,3 @@ python3 scripts/validation.py --architecture=hf_configured --model_path=/home/de
 ```
 
 To run a logits-based validation, pass `--validation_level=1` to the validation script. This will check for the logits output to match at every step of the model through cross-entropy loss. You can control the acceptable threshold with `--logits_loss_threshold`.
-
