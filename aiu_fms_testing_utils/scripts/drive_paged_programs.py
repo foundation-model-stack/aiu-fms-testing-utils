@@ -48,7 +48,6 @@ from aiu_fms_testing_utils.testing.utils import format_kwargs_to_string
 from aiu_fms_testing_utils.utils.resource_collection import (
     instantiate_prometheus, get_static_read, get_peak_read
 )
-from prometheus_api_client import PrometheusConnect
 
 # Constants
 PAD_MULTIPLE = 64
@@ -1256,7 +1255,7 @@ def generate_validation_info_and_test(
     timing: str,
     prefill_chunk_size: int,
     model_variant: str,
-    profile: PrometheusConnect | None
+    profile
 ) -> list[Any]:
     """Generates tokens using AIU and CPU models and validates the results.
 

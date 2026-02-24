@@ -92,7 +92,7 @@ def warmup_model(
     use_cache: bool = True,
     stagger_update_lazyhandle: int = 0,
     prefill_chunk_size: int = 0,
-    profile: PrometheusConnect | None = None,
+    profile = None,
     **extra_kwargs,
 ):
     import torch_sendnn
