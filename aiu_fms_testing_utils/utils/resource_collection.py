@@ -1,4 +1,4 @@
-from gc import disable
+# Imports
 import os
 
 from prometheus_api_client import PrometheusConnect
