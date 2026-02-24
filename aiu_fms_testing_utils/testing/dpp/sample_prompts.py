@@ -3,6 +3,7 @@ from typing import Callable, Optional
 
 from transformers import AutoTokenizer
 
+from aiu_fms_testing_utils.testing.dpp.program_models import DatasetType
 from aiu_fms_testing_utils.testing.utils import format_kwargs_to_string
 from aiu_fms_testing_utils.utils import (
     get_pad_size,
@@ -36,7 +37,7 @@ def _custom_line_sampler(result: list[tuple[str, int]], **kwargs):
 
 
 def get_sampler(
-    dataset_type: str, dataset_path: str, tokenizer: AutoTokenizer
+    dataset_type: DatasetType, dataset_path: str, tokenizer: AutoTokenizer
 ) -> tuple[
     Callable[..., tuple[list[tuple[str, int]], str]], bool, Optional[tuple[int, int]]
 ]:
@@ -45,7 +46,7 @@ def get_sampler(
     Returns a sampler function and configuration for the specified dataset type.
 
     Args:
-        dataset_type: Type of dataset ("custom", "rag_factoid", or "sharegpt").
+        dataset_type: Type of dataset.
         dataset_path: Path to the dataset file or directory.
         tokenizer: HuggingFace tokenizer for encoding prompts.
 
@@ -60,7 +61,7 @@ def get_sampler(
         ValueError: If dataset_type is not one of the supported types."""
 
     custom_shape = None
-    if dataset_type == "custom":
+    if dataset_type == DatasetType.CUSTOM:
         r0dprint(
             "Using custom prompts from user, programs parameter will be ignored as it will be determined by user prompt"
         )
@@ -87,10 +88,10 @@ def get_sampler(
 
         sampler = _custom_line_sampler
         allow_truncation = False
-    elif dataset_type == "rag_factoid":
+    elif dataset_type == DatasetType.RAG_FACTOID:
         sampler = sample_rag_factoid_requests
         allow_truncation = False
-    elif dataset_type == "sharegpt":
+    elif dataset_type == DatasetType.SHAREGPT:
         sampler = sample_sharegpt_requests
         allow_truncation = True
     else:

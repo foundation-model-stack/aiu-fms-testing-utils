@@ -23,6 +23,12 @@ class AttnType(Enum):
     PAGED_FP8 = "spyre_paged_attn_fp8"
 
 
+class DatasetType(Enum):
+    CUSTOM = "custom"
+    RAG_FACTOID = "rag_factoid"
+    SHAREGPT = "sharegpt"
+
+
 @dataclass
 class ProgramInfo:
     """Encapsulates program execution criteria.

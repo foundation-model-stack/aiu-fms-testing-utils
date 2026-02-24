@@ -12,6 +12,7 @@ from transformers import AutoTokenizer
 
 from aiu_fms_testing_utils.testing.dpp.prepare_programs import get_programs_to_test
 from aiu_fms_testing_utils.testing.dpp.program_models import (
+    DatasetType,
     PreparedInputs,
     ProgramInfo,
     ValidPrompt,
@@ -401,53 +402,56 @@ def prepare_test_prompts(
     )
 
 
-def resolve_dataset_path(dataset_path: str) -> tuple[str, str]:
-    """Resolves the dataset type and local path based on the provided dataset_path.
+def resolve_dataset_path(
+    dataset_type: DatasetType, dataset_path: Optional[str] = None
+) -> str:
+    """Resolves the dataset path based on the specified dataset type and optional user-provided path.
 
     Args:
-        dataset_path: A string indicating the dataset to use. Supported values are:
-                      - "sharegpt": Uses the ShareGPT dataset from HuggingFace.
-                      - "rag_factoid": Uses the RAG Factoid dataset from HuggingFace.
-                      - Any other string is considered a custom dataset path.
+        dataset_type: The type of dataset to resolve.
+        dataset_path: Optional path to a custom dataset. If not provided, the default path for the given dataset_type is used.
+            A dataset path must be provided if dataset_type is CUSTOM. For other dataset types, if dataset_path is not provided,
+            the function will attempt to download the dataset from HuggingFace or fetch a cached download.
     Returns:
-        A tuple containing:
-            - dataset_type: A string indicating the type of dataset ("sharegpt", "rag_factoid", or "custom").
-            - local_dataset_path: The local file path to the dataset."""
+        The local file path to the dataset."""
 
-    def _inner_resolve():
-        if dataset_path == "sharegpt":
+    # If the user manually provided a dataset path to use, use the provided path.
+    if dataset_path is not None:
+        if not os.path.exists(dataset_path):
+            raise FileNotFoundError(f"Dataset file not found at {dataset_path}")
+
+        r0dprint(
+            f"Using provided dataset path {dataset_path} for dataset type {dataset_type}"
+        )
+        return dataset_path
+
+    # Dataset is not provided
+    if dataset_type == DatasetType.CUSTOM:
+        raise ValueError("dataset_path must be provided when dataset_type is CUSTOM")
+
+    def _resolve_remote_dataset():
+        if dataset_type == DatasetType.SHAREGPT:
             r0dprint("Using ShareGPT dataset from HuggingFace")
-            dataset_type = "sharegpt"
-            # Fetch from HuggingFace
+            # Fetch from HuggingFace or use cached download
             local_dataset_path = hf_hub_download(
                 repo_id=SHARE_GPT_DATASET[0],
                 filename=SHARE_GPT_DATASET[1],
                 repo_type="dataset",
             )
-        elif dataset_path == "rag_factoid":
+        elif dataset_type == DatasetType.RAG_FACTOID:
             r0dprint("Using RAG Factoid dataset from HuggingFace")
-            dataset_type = "rag_factoid"
-            # Fetch from HuggingFace
+            # Fetch from HuggingFace or use cached download
             local_dataset_path = hf_hub_download(
                 repo_id=RAG_FACTOID_DATASET[0],
                 filename=RAG_FACTOID_DATASET[1],
                 repo_type="dataset",
             )
-        elif dataset_path is None:
-            r0dprint(f"Using a custom dataset at {dataset_path}")
-            dataset_type = "custom"
-            local_dataset_path = dataset_path
-        else:
-            raise ValueError(f"Unsupported dataset_path: {dataset_path}")
 
-        if not os.path.exists(local_dataset_path):
-            raise FileNotFoundError(f"Dataset file not found at {local_dataset_path}")
-
-        return dataset_type, local_dataset_path
+        return local_dataset_path
 
     # Initially download only for rank 0 to avoid redundant downloads in distributed settings
     if local_rank == 0:
-        dataset_type, local_dataset_path = _inner_resolve()
+        local_dataset_path = _resolve_remote_dataset()
 
     # Synchronize all ranks to ensure the dataset is downloaded before any rank attempts to access it
     if torch.distributed.is_initialized():
@@ -455,6 +459,6 @@ def resolve_dataset_path(dataset_path: str) -> tuple[str, str]:
 
     # Resolve the paths for non-zero ranks after download is complete
     if local_rank != 0:
-        dataset_type, local_dataset_path = _inner_resolve()
+        local_dataset_path = _resolve_remote_dataset()
 
-    return dataset_type, local_dataset_path
+    return local_dataset_path

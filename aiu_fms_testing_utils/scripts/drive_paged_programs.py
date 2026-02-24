@@ -1,7 +1,11 @@
 import argparse
 
 from aiu_fms_testing_utils.testing.dpp.run_drive_paged_programs import run_dpp
-from aiu_fms_testing_utils.testing.dpp.program_models import AttnType, TestType
+from aiu_fms_testing_utils.testing.dpp.program_models import (
+    AttnType,
+    DatasetType,
+    TestType,
+)
 from aiu_fms_testing_utils.utils.model_setup import Timing
 
 
@@ -30,12 +34,14 @@ def parse_cli_args() -> argparse.Namespace:
         type=int,
         default=8,
         help="set this if you want to change the number of tokens generated per sequence (1 prefill + max_new_tokens-1 decodes). Note: If this value is larger than 64, this may result in switching decode programs mid generation",
+        required=True,
     )
     parser.add_argument(
         "--model_variant",
         type=str,
         default="ibm-ai-platform/micro-g3.3-8b-instruct-1b",
         help="The model id or path to use for this test. Note: must be a huggingface format",
+        required=True,
     )
     parser.add_argument(
         "--timing",
@@ -48,6 +54,7 @@ def parse_cli_args() -> argparse.Namespace:
         "--program_criteria_json_path",
         type=str,
         help="path to json file containing the program criteria list",
+        required=True,
     )
     parser.add_argument(
         "--dataset_path",
@@ -60,6 +67,7 @@ def parse_cli_args() -> argparse.Namespace:
         choices=["rag_factoid", "sharegpt", "custom"],
         default="sharegpt",
         help="selects the correct dataset type for sampling. Must be one of rag_factoid or sharegpt or custom",
+        required=True,
     )
     parser.add_argument(
         "--test_type",
@@ -163,12 +171,13 @@ def main() -> None:
         )
 
     run_dpp(
-        programs=args.programs,
-        dataset_path=args.dataset_path,
+        program_criteria_json_path=args.program_criteria_json_path,
+        dataset_type=DatasetType(args.dataset_type),
         max_new_tokens=args.max_new_tokens,
         model_variant=args.model_variant,
+        dataset_path=args.dataset_path,
+        programs=args.programs,
         timing=Timing(args.timing),
-        program_criteria_json_path=args.program_criteria_json_path,
         test_type=TestType(args.test_type),
         cross_entropy_threshold=args.cross_entropy_threshold,
         failure_rate_threshold=args.failure_rate_threshold,

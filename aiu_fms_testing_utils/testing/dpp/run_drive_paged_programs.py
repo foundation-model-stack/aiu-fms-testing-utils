@@ -1,6 +1,6 @@
 import datetime
 import os
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, Iterable, List, Optional
 
 import torch
 from fms.utils.generation import pad_input_ids
@@ -23,6 +23,7 @@ from aiu_fms_testing_utils.testing.dpp.prepare_model import (
 )
 from aiu_fms_testing_utils.testing.dpp.program_models import (
     AttnType,
+    DatasetType,
     DeviceType,
     EnvConfig,
     TestType,
@@ -170,9 +171,10 @@ def _run_aiu_cpu_tests(
 
 def run_dpp(
     program_criteria_json_path: str,
-    dataset_path: str,
+    dataset_type: DatasetType,
     max_new_tokens: int,
     model_variant: str,
+    dataset_path: Optional[str] = None,
     programs: List[str] = None,
     timing: Timing = Timing.NONE,
     test_type: TestType = TestType.METRICS,
@@ -232,7 +234,7 @@ def run_dpp(
     else:
         r0dprint("Running DPP in single-process mode")
 
-    dataset_type, local_dataset_path = resolve_dataset_path(dataset_path)
+    dataset_path = resolve_dataset_path(dataset_path)
 
     is_fp8 = attention_type == AttnType.PAGED_FP8
     if not run_cpu_validation and test_type == TestType.METRICS:
@@ -246,7 +248,7 @@ def run_dpp(
     tokenizer = AutoTokenizer.from_pretrained(model_variant)
     sampler, allow_truncation, custom_shape = get_sampler(
         dataset_type=dataset_type,
-        dataset_path=local_dataset_path,
+        dataset_path=dataset_path,
         tokenizer=tokenizer,
     )
 
@@ -276,7 +278,7 @@ def run_dpp(
         sampler,
         allow_truncation,
         custom_shape,
-        local_dataset_path,
+        dataset_path,
     )
 
     model = load_model(
