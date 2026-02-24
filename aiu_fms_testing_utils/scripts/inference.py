@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import random
 import time
+import warnings
 
 # Third Party
 from aiu_fms_testing_utils.utils import aiu_setup, warmup_model, stagger_region
@@ -22,7 +23,7 @@ from fms.models.llama import LLaMAConfig, _llama_factory_factory
 from fms.utils import generation
 from fms.utils.generation import pad_input_ids
 
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, AutoConfig
 
 
 # This example script validates the LLaMA implementation by running inference on a couple of prompts.
@@ -587,7 +588,28 @@ if args.quantization in ["gptq", "int8"]:
     dprint(model)
     dprint("=" * 60 + "\n")
 
-tokenizer = AutoTokenizer.from_pretrained(args.tokenizer)
+try:
+    tokenizer = AutoTokenizer.from_pretrained(args.tokenizer)
+except KeyError as err:
+    if args.tokenizer:
+        tokenizer_path = args.tokenizer
+    else:
+        tokenizer_path = args.variant
+    transformers_config = AutoConfig.from_pretrained(tokenizer_path)
+    if transformers_config.model_type == "mistral3":
+        # NOTE: mistral-small-3.2 doesn't come with its own tokenizer
+        # so here we rely on 3.1's tokenizer
+        # NOTE: the reason we are not using mistral tokenizer from mistral_common is to:
+        # 1. Rest of the script assumes tokenizer to be HF and have properties like `bos_token`
+        # 2. Avoid bunch of extra dependencies
+        warnings.warn("""
+            Unable to fetch mistral model, using Mistral-Small-3.1 manually. If different one required,
+            please configure it manually via args.tokenizer
+        """)
+        tokenizer = AutoTokenizer.from_pretrained(
+            "mistralai/Mistral-Small-3.1-24B-Instruct-2503"
+        )
+
 model.eval()
 torch.set_grad_enabled(False)
 loading_model_time = time.time() - loading_model_time
