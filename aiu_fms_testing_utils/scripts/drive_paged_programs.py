@@ -1302,11 +1302,11 @@ def generate_validation_info_and_test(
             ## Get completed metric read
             cpu_inference_metric_end = datetime.now(timezone.utc)
             end_cpu_inference_cpu, end_mem_inference_cpu = get_static_read(profile, cpu_inference_metric_end)
-            print_comp_resource_metrics(end_cpu_inference_cpu, end_mem_inference_cpu, "completed", "CPU Inference")
+            print_comp_resource_metrics(end_cpu_inference_cpu, end_mem_inference_cpu, "completed", "CPU inference")
 
             ## Get the peak usage during compilation
             peak_cpu_inference_cpu, peak_mem_inference_cpu = get_peak_read(profile, metric_start, cpu_inference_metric_end)
-            print_comp_resource_metrics(peak_cpu_inference_cpu, peak_mem_inference_cpu, "peak", "CPU Inference")
+            print_comp_resource_metrics(peak_cpu_inference_cpu, peak_mem_inference_cpu, "peak", "CPU inference")
 
             # Generate AIU validation info
             aiu_validation_info = generate_aiu_validation(
@@ -1323,11 +1323,11 @@ def generate_validation_info_and_test(
             ## Get completed metric read
             aiu_inference_metric_end = datetime.now(timezone.utc)
             end_cpu_inference_aiu, end_mem_inference_aiu = get_static_read(profile, aiu_inference_metric_end)
-            print_comp_resource_metrics(end_cpu_inference_aiu, end_mem_inference_aiu, "completed", "AIU Inference")
+            print_comp_resource_metrics(end_cpu_inference_aiu, end_mem_inference_aiu, "completed", "AIU inference")
 
             ## Get the peak usage during compilation
             peak_cpu_inference_aiu, peak_mem_inference_aiu = get_peak_read(profile, metric_start, aiu_inference_metric_end)
-            print_comp_resource_metrics(peak_cpu_inference_aiu, peak_mem_inference_aiu, "peak", "AIU Inference")
+            print_comp_resource_metrics(peak_cpu_inference_aiu, peak_mem_inference_aiu, "peak", "AIU inference")
 
             if test_type == "metrics":
                 failure_rate = evaluate_cross_entropy_metrics(
@@ -1371,11 +1371,11 @@ def generate_validation_info_and_test(
             ## Get completed metric read
             aiu_inference_metric_end = datetime.now(timezone.utc)
             end_cpu_inference_aiu, end_mem_inference_aiu = get_static_read(profile, aiu_inference_metric_end)
-            print_comp_resource_metrics(end_cpu_inference_aiu, end_mem_inference_aiu, "completed", "AIU Inference")
+            print_comp_resource_metrics(end_cpu_inference_aiu, end_mem_inference_aiu, "completed", "AIU inference")
 
             ## Get the peak usage during compilation
             peak_cpu_inference_aiu, peak_mem_inference_aiu = get_peak_read(profile, metric_start, aiu_inference_metric_end)
-            print_comp_resource_metrics(peak_cpu_inference_aiu, peak_mem_inference_aiu, "peak", "AIU Inference")
+            print_comp_resource_metrics(peak_cpu_inference_aiu, peak_mem_inference_aiu, "peak", "AIU inference")
 
             if local_rank == 0:
                 for sentence_idx, test_sentence in enumerate(
