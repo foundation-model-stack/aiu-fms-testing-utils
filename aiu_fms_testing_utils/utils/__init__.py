@@ -77,9 +77,9 @@ def print_comp_resource_metrics(cpu_val, mem_val, stage, step):
 
     if stage != "peak":
         if cpu_val is None or mem_val is None:
-            timestamp_print(f"{step.title()} {stage}")
+            timestamp_print(f"{step} {stage}")
         else:
-            timestamp_print(f"{step.title()} {stage} - CPU: {cpu_val:.2f}%, Memory: {mem_val:.2f} GB")
+            timestamp_print(f"{step} {stage} - CPU: {cpu_val:.2f}%, Memory: {mem_val:.2f} GB")
 
     elif cpu_val is not None and mem_val is not None:
         dprint(f"Peak Resource Utilization - CPU: {cpu_val:.2f}%, Memory: {mem_val:.2f} GB")
@@ -117,7 +117,7 @@ def warmup_model(
     ## Report on initial resource usage
     metric_start = datetime.now(timezone.utc)
     initial_cpu, initial_mem = get_static_read(profile, metric_start)
-    print_comp_resource_metrics(initial_cpu, initial_mem, "started", "compilation")
+    print_comp_resource_metrics(initial_cpu, initial_mem, "started", "Compilation")
 
     # adjust inputs depending on attn_type and dynamic shapes
     _warmup_input_ids = input_ids
@@ -151,11 +151,11 @@ def warmup_model(
     # Get completed metric read
     metric_end = datetime.now(timezone.utc)
     end_cpu, end_mem = get_static_read(profile, metric_end)
-    print_comp_resource_metrics(end_cpu, end_mem, "completed", "compilation")
+    print_comp_resource_metrics(end_cpu, end_mem, "completed", "Compilation")
 
     # Get the peak usage during compilation
     peak_cpu, peak_mem = get_peak_read(profile, metric_start, metric_end)
-    print_comp_resource_metrics(peak_cpu, peak_mem, "peak", "compilation")
+    print_comp_resource_metrics(peak_cpu, peak_mem, "peak", "Compilation")
 
     dprint(f"PT compile complete, took {pt_compile_model_time:.3f}s")
 
