@@ -3,10 +3,11 @@ from pathlib import Path
 
 import pytest
 
-from aiu_fms_testing_utils.testing.dpp.program_models import AttnType, TestType
+from aiu_fms_testing_utils.testing.dpp.program_models import (
+    DatasetType,
+)
 from aiu_fms_testing_utils.testing.dpp.run_drive_paged_programs import run_dpp
 from aiu_fms_testing_utils.utils.aiu_setup import r0dprint
-from aiu_fms_testing_utils.utils.model_setup import Timing
 
 
 @pytest.fixture(scope="module")
@@ -48,27 +49,21 @@ def test_drive_paged_programs(dpp_criterion_json_path: str):
     validation_info_outputs_dir = os.getenv(
         "VALIDATION_INFO_OUTPUTS_DIR", "/home/senuser/models/validation_info"
     )
-    dataset_path = "sharegpt"
+    dataset_type = DatasetType.SHAREGPT
     cross_entropy_threshold = 2.6
     failure_rate_threshold = 0.1
 
     r0dprint(f"Loading criteria from path: {dpp_criterion_json_path}")
 
     run_dpp(
-        programs=programs,
-        dataset_path=dataset_path,
+        program_criteria_json_path=dpp_criterion_json_path,
+        dataset_type=dataset_type,
         max_new_tokens=max_new_tokens,
         model_variant=model_variant,
-        timing=Timing.NONE,
-        program_criteria_json_path=dpp_criterion_json_path,
-        test_type=TestType.METRICS,
+        programs=programs,
         cross_entropy_threshold=cross_entropy_threshold,
         failure_rate_threshold=failure_rate_threshold,
-        attention_type=AttnType.PAGED,
         prefill_chunk_size=1024,
-        stagger_load=0,
-        stagger_update_lazyhandle=0,
-        dist_timeout=0,
         run_cpu_validation=True,
         prioritize_large_batch_sizes=True,
         enforce_homogeneous_prompt_programs=True,
