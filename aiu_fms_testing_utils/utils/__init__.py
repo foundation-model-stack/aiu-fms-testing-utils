@@ -23,7 +23,6 @@ import torch.nn as nn
 import math
 import contextlib
 import warnings
-from prometheus_api_client import PrometheusConnect
 
 
 @contextlib.contextmanager

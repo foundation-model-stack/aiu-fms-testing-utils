@@ -1,7 +1,10 @@
 # Imports
 import os
 
-from prometheus_api_client import PrometheusConnect
+try:
+    from prometheus_api_client import PrometheusConnect
+except Exception as e:
+    print("WARNING: Cannot import `prometheus_api_client`. Make sure the package is installed if you are trying to report resource utilization.")
 
 
 def instantiate_prometheus():
