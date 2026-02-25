@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from aiu_fms_testing_utils.utils.aiu_setup import dprint
 try:
     from prometheus_api_client import PrometheusConnect
-except Exception as e:
+except Exception:
     print("WARNING: Cannot import `prometheus_api_client`. Make sure the package is installed if you are trying to report resource utilization.")
 
 

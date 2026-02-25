@@ -6,8 +6,6 @@ import random
 import requests
 import time
 import bisect
-from datetime import datetime, timezone
-import sys
 
 # Third Party
 
