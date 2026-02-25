@@ -2,7 +2,7 @@
 import os
 from datetime import datetime, timezone
 
-from aiu_fms_testing_utils.utils import print_comp_resource_metrics
+from aiu_fms_testing_utils.utils.aiu_setup import dprint
 try:
     from prometheus_api_client import PrometheusConnect
 except Exception as e:
@@ -142,18 +142,65 @@ def get_peak_read(client, start, end):
     return peak_cpu_value, peak_mem_value
 
 
+def timestamp_print(given_string):
+    """
+    Helper method that will add a timestamp before the given string that needs to be
+    printed.
+
+    Args:
+    - given_string: the string that is to be printed with the timestamp.
+    """
+
+    timestamp = datetime.now().strftime("%Y-%m-%d:%H:%M:%S")
+    print(f"[{timestamp}] {given_string}")
+
+
+def print_comp_resource_metrics(cpu_val, mem_val, stage, step):
+    """
+    Helper method that will do a timestamp print for a specific step to report resource
+    usage.
+
+    Args:
+    - cpu_val: the value for CPU usage as a percentage that we want to print.
+    - mem_val: the value for memory usage in gigabytes we want to print.
+    - stage: The stage of the step we are in, either "peak" or "started".
+    - step: The step that we performing in the script, either "compilation" or "inference".
+    """
+
+    if stage != "peak":
+        if cpu_val is None or mem_val is None:
+            timestamp_print(f"{step} {stage}")
+        else:
+            timestamp_print(f"{step} {stage} - CPU: {cpu_val:.2f}%, Memory: {mem_val:.2f} GB")
+
+    elif cpu_val is not None and mem_val is not None:
+        dprint(f"Peak Resource Utilization - CPU: {cpu_val:.2f}%, Memory: {mem_val:.2f} GB")
+
+
 def print_step(p, step, stage, start_time=None):
     """
+    Print function to print out when a specific stage starts and ends,
+    as well as reporting resource usage if enabled.
+
+    Args:
+    - p: the Prometheus profile client to resource utilization collection.
+    - step: string denoting what step we are at ("inference" or "compilation").
+    - stage: string denoting what stage of the step we are at ("started" or "completed").
+    - start_time: datetime object that denotes when the step started (optional).
+
+    Returns:
+    - recorded_time: the time that was recorded when getting a metric read. Returned for
+    scenarios where we need to use the recorded time in a later step (i.e completed stages).
     """
 
     ## Get metric read
-    timestep = datetime.now(timezone.utc)
-    cpu_usage, mem_usage = get_static_read(p, timestep)
+    recorded_time = datetime.now(timezone.utc)
+    cpu_usage, mem_usage = get_static_read(p, recorded_time)
     print_comp_resource_metrics(cpu_usage, mem_usage, step, stage)
 
     ## Get and print the peak usage
     if start_time is not None:
-        peak_cpu_inference_cpu, peak_mem_inference_cpu = get_peak_read(p, start_time, timestep)
+        peak_cpu_inference_cpu, peak_mem_inference_cpu = get_peak_read(p, start_time, recorded_time)
         print_comp_resource_metrics(peak_cpu_inference_cpu, peak_mem_inference_cpu, "peak", stage)
 
-    return timestep
+    return recorded_time

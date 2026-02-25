@@ -44,8 +44,9 @@ from aiu_fms_testing_utils.utils.paged import (
     get_programs_prompts,
 )
 from aiu_fms_testing_utils.testing.utils import format_kwargs_to_string
-from aiu_fms_testing_utils.utils.resource_collection import instantiate_prometheus
-
+from aiu_fms_testing_utils.utils.resource_collection import (
+    instantiate_prometheus, print_step
+)
 # Constants
 PAD_MULTIPLE = 64
 

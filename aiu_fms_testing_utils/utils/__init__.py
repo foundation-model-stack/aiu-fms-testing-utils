@@ -14,9 +14,7 @@ import sys
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, rank, world_size
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 from aiu_fms_testing_utils.testing.utils import format_kwargs_to_string
-from aiu_fms_testing_utils.utils.resource_collection import (
-    get_static_read, get_peak_read
-)
+from aiu_fms_testing_utils.utils.resource_collection import print_step
 from fms.utils.generation import pad_input_ids
 import torch
 import torch.nn as nn
@@ -50,38 +48,6 @@ def stagger_region(limit: int):
             torch.distributed.barrier()
         dprint("Stagger: All Complete")
 
-def timestamp_print(given_string):
-    """
-    Helper method that will add a timestamp before the given string that needs to be
-    printed.
-
-    Args:
-    - given_string: the string that is to be printed with the timestamp.
-    """
-
-    timestamp = datetime.now().strftime("%Y-%m-%d:%H:%M:%S")
-    print(f"[{timestamp}] {given_string}")
-
-def print_comp_resource_metrics(cpu_val, mem_val, stage, step):
-    """
-    Helper method that will do a timestamp print for a specific step to report resource
-    usage.
-
-    Args:
-    - cpu_val: the value for CPU usage as a percentage that we want to print.
-    - mem_val: the value for memory usage in gigabytes we want to print.
-    - stage: The stage of the step we are in, either "peak" or "started".
-    - step: The step that we performing in the script, either "compilation" or "inference".
-    """
-
-    if stage != "peak":
-        if cpu_val is None or mem_val is None:
-            timestamp_print(f"{step} {stage}")
-        else:
-            timestamp_print(f"{step} {stage} - CPU: {cpu_val:.2f}%, Memory: {mem_val:.2f} GB")
-
-    elif cpu_val is not None and mem_val is not None:
-        dprint(f"Peak Resource Utilization - CPU: {cpu_val:.2f}%, Memory: {mem_val:.2f} GB")
 
 def warmup_model(
     model: nn.Module,
@@ -114,9 +80,7 @@ def warmup_model(
     pt_compile_model_time = time.time()
 
     ## Report on initial resource usage
-    metric_start = datetime.now(timezone.utc)
-    initial_cpu, initial_mem = get_static_read(profile, metric_start)
-    print_comp_resource_metrics(initial_cpu, initial_mem, "started", "Compilation")
+    metric_start = print_step(profile, "started", "Compilation")
 
     # adjust inputs depending on attn_type and dynamic shapes
     _warmup_input_ids = input_ids
@@ -148,14 +112,7 @@ def warmup_model(
     pt_compile_model_time = time.time() - pt_compile_model_time
 
     # Get completed metric read
-    metric_end = datetime.now(timezone.utc)
-    end_cpu, end_mem = get_static_read(profile, metric_end)
-    print_comp_resource_metrics(end_cpu, end_mem, "completed", "Compilation")
-
-    # Get the peak usage during compilation
-    peak_cpu, peak_mem = get_peak_read(profile, metric_start, metric_end)
-    print_comp_resource_metrics(peak_cpu, peak_mem, "peak", "Compilation")
-
+    print_step(profile, "completed", "Compilation", metric_start)
     dprint(f"PT compile complete, took {pt_compile_model_time:.3f}s")
 
 
