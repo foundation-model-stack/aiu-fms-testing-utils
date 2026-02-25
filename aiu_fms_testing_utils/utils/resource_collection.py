@@ -1,6 +1,8 @@
 # Imports
 import os
+from datetime import datetime, timezone
 
+from aiu_fms_testing_utils.utils import print_comp_resource_metrics
 try:
     from prometheus_api_client import PrometheusConnect
 except Exception as e:
@@ -138,3 +140,20 @@ def get_peak_read(client, start, end):
         peak_mem_value = get_value(mem_response, "range")
 
     return peak_cpu_value, peak_mem_value
+
+
+def print_step(p, step, stage, start_time=None):
+    """
+    """
+
+    ## Get metric read
+    timestep = datetime.now(timezone.utc)
+    cpu_usage, mem_usage = get_static_read(p, timestep)
+    print_comp_resource_metrics(cpu_usage, mem_usage, step, stage)
+
+    ## Get and print the peak usage
+    if start_time is not None:
+        peak_cpu_inference_cpu, peak_mem_inference_cpu = get_peak_read(p, start_time, timestep)
+        print_comp_resource_metrics(peak_cpu_inference_cpu, peak_mem_inference_cpu, "peak", stage)
+
+    return timestep

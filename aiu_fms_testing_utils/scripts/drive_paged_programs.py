@@ -36,8 +36,7 @@ from aiu_fms_testing_utils.utils import (
     sample_rag_factoid_requests,
     sample_sharegpt_requests,
     stagger_region,
-    warmup_model,
-    print_comp_resource_metrics
+    warmup_model
 )
 from aiu_fms_testing_utils.utils.aiu_setup import aiu_dist_setup, dprint, local_rank
 from aiu_fms_testing_utils.utils.paged import (
@@ -45,9 +44,7 @@ from aiu_fms_testing_utils.utils.paged import (
     get_programs_prompts,
 )
 from aiu_fms_testing_utils.testing.utils import format_kwargs_to_string
-from aiu_fms_testing_utils.utils.resource_collection import (
-    instantiate_prometheus, get_static_read, get_peak_read
-)
+from aiu_fms_testing_utils.utils.resource_collection import instantiate_prometheus
 
 # Constants
 PAD_MULTIPLE = 64
@@ -1277,9 +1274,7 @@ def generate_validation_info_and_test(
             )
 
         # Start inference
-        metric_start = datetime.now(timezone.utc)
-        initial_cpu, initial_mem = get_static_read(profile, metric_start)
-        print_comp_resource_metrics(initial_cpu, initial_mem, "started", "Inference")
+        metric_start = print_step(profile, "started", "Inference")
         if not skip_validation:
 
             # Generate or load CPU validation info
@@ -1297,15 +1292,7 @@ def generate_validation_info_and_test(
                 cpu_dtype=env_config.cpu_dtype,
                 tokenizer=tokenizer,
             )
-
-            ## Get completed metric read
-            cpu_inference_metric_end = datetime.now(timezone.utc)
-            end_cpu_inference_cpu, end_mem_inference_cpu = get_static_read(profile, cpu_inference_metric_end)
-            print_comp_resource_metrics(end_cpu_inference_cpu, end_mem_inference_cpu, "completed", "CPU inference")
-
-            ## Get the peak usage during compilation
-            peak_cpu_inference_cpu, peak_mem_inference_cpu = get_peak_read(profile, metric_start, cpu_inference_metric_end)
-            print_comp_resource_metrics(peak_cpu_inference_cpu, peak_mem_inference_cpu, "peak", "CPU inference")
+            print_step(profile, "completed", "CPU inference", metric_start)
 
             # Generate AIU validation info
             aiu_validation_info = generate_aiu_validation(
@@ -1318,15 +1305,7 @@ def generate_validation_info_and_test(
                 cpu_validation_info=cpu_validation_info,
                 extra_kwargs=valid_prompt.extra_kwargs,
             )
-
-            ## Get completed metric read
-            aiu_inference_metric_end = datetime.now(timezone.utc)
-            end_cpu_inference_aiu, end_mem_inference_aiu = get_static_read(profile, aiu_inference_metric_end)
-            print_comp_resource_metrics(end_cpu_inference_aiu, end_mem_inference_aiu, "completed", "AIU inference")
-
-            ## Get the peak usage during compilation
-            peak_cpu_inference_aiu, peak_mem_inference_aiu = get_peak_read(profile, metric_start, aiu_inference_metric_end)
-            print_comp_resource_metrics(peak_cpu_inference_aiu, peak_mem_inference_aiu, "peak", "AIU inference")
+            print_step(profile, "completed", "AIU inference", metric_start)
 
             if test_type == "metrics":
                 failure_rate = evaluate_cross_entropy_metrics(
@@ -1366,15 +1345,7 @@ def generate_validation_info_and_test(
                 cpu_validation_info=None,
                 extra_kwargs=valid_prompt.extra_kwargs,
             )
-
-            ## Get completed metric read
-            aiu_inference_metric_end = datetime.now(timezone.utc)
-            end_cpu_inference_aiu, end_mem_inference_aiu = get_static_read(profile, aiu_inference_metric_end)
-            print_comp_resource_metrics(end_cpu_inference_aiu, end_mem_inference_aiu, "completed", "AIU inference")
-
-            ## Get the peak usage during compilation
-            peak_cpu_inference_aiu, peak_mem_inference_aiu = get_peak_read(profile, metric_start, aiu_inference_metric_end)
-            print_comp_resource_metrics(peak_cpu_inference_aiu, peak_mem_inference_aiu, "peak", "AIU inference")
+            print_step(profile, "completed", "AIU inference", metric_start)
 
             if local_rank == 0:
                 for sentence_idx, test_sentence in enumerate(
