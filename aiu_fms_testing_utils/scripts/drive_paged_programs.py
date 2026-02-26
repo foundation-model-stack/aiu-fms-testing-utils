@@ -1253,7 +1253,7 @@ def generate_validation_info_and_test(
     timing: str,
     prefill_chunk_size: int,
     model_variant: str,
-    profile
+    profile: Optional[Any] = None
 ) -> list[Any]:
     """Generates tokens using AIU and CPU models and validates the results.
 
