@@ -607,7 +607,8 @@ if args.compile:
     fx_config.backed_size_oblivious = "paged" in attn_name
     if is_aiu_backend:
         model.compile(
-            backend=args.compile_backend_aiu, options={"sendnn.dynamic": args.compile_dynamic_sendnn}
+            backend=args.compile_backend_aiu,
+            options={"sendnn.dynamic": args.compile_dynamic_sendnn},
         )
     else:
         # compiling can make first inference pass slow
