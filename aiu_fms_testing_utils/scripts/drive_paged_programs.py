@@ -1275,10 +1275,10 @@ def generate_validation_info_and_test(
             )
 
         # Start inference
-        metric_start = print_step(profile, "started", "Inference")
         if not skip_validation:
 
             # Generate or load CPU validation info
+            cpu_metric_start = print_step(profile, "started", "CPU Inference")
             cpu_validation_info = generate_cpu_validation(
                 model_variant=model_variant,
                 max_new_tokens=max_new_tokens,
@@ -1293,9 +1293,10 @@ def generate_validation_info_and_test(
                 cpu_dtype=env_config.cpu_dtype,
                 tokenizer=tokenizer,
             )
-            print_step(profile, "completed", "CPU inference", metric_start)
+            print_step(profile, "completed", "CPU inference", cpu_metric_start)
 
             # Generate AIU validation info
+            aiu_metric_start = print_step(profile, "started", "AIU Inference")
             aiu_validation_info = generate_aiu_validation(
                 test_type=test_type,
                 max_new_tokens=max_new_tokens,
@@ -1306,7 +1307,7 @@ def generate_validation_info_and_test(
                 cpu_validation_info=cpu_validation_info,
                 extra_kwargs=valid_prompt.extra_kwargs,
             )
-            print_step(profile, "completed", "AIU inference", metric_start)
+            print_step(profile, "completed", "AIU inference", aiu_metric_start)
 
             if test_type == "metrics":
                 failure_rate = evaluate_cross_entropy_metrics(
@@ -1336,6 +1337,7 @@ def generate_validation_info_and_test(
         else:
 
             # Generate AIU validation info
+            aiu_metric_start = print_step(profile, "started", "AIU Inference")
             aiu_validation_info = generate_aiu_validation(
                 test_type=test_type,
                 max_new_tokens=max_new_tokens,
@@ -1346,7 +1348,7 @@ def generate_validation_info_and_test(
                 cpu_validation_info=None,
                 extra_kwargs=valid_prompt.extra_kwargs,
             )
-            print_step(profile, "completed", "AIU inference", metric_start)
+            print_step(profile, "completed", "AIU inference", aiu_metric_start)
 
             if local_rank == 0:
                 for sentence_idx, test_sentence in enumerate(
