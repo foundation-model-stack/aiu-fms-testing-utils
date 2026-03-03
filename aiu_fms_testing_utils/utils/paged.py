@@ -87,6 +87,7 @@ def generate(
     use_cache: bool = False,
     prefill_chunk_size: int = 0,
     eos_token_id: Optional[int] = None,
+    pad_token_id: Optional[int] = None,
     timing: str = "",
     prepare_model_inputs_hook: Optional[
         Callable[
@@ -202,7 +203,12 @@ def generate(
     # if the user provides a hint to the number of blocks to use, use it directly
     NUM_BLOCKS = kwargs.get("_kvcache_num_blocks_hint")
     if NUM_BLOCKS is None:
-        NUM_BLOCKS = (_MAX_BATCH * _MAX_CONTEXT_LENGTH) // BLOCK_SIZE
+        # Use VLLM_DT_MAX_BATCH_TKV_LIMIT if available to deduce NUM_BLOCKS
+        _MAX_BATCH_TKV_LIMIT = os.environ.get("VLLM_DT_MAX_BATCH_TKV_LIMIT")
+        if _MAX_BATCH_TKV_LIMIT is not None:
+            NUM_BLOCKS = int(_MAX_BATCH_TKV_LIMIT) // BLOCK_SIZE
+        else:
+            NUM_BLOCKS = (_MAX_BATCH * _MAX_CONTEXT_LENGTH) // BLOCK_SIZE
 
     model_dtype = _infer_model_dtype(model)
     logger.debug("Inferred model weight dtype %s", model_dtype)
@@ -324,20 +330,24 @@ def generate(
     for i in range(max_new_tokens):
         input_ids = next_input[:, -max_possible_context_length:]
 
-        # Call the prepare model hook if we have one, which is generally for
-        # multimodal. NOTE: in most cases, input_ids are actually embeddings,
-        # i.e., we're going from [bsz, seq_len] -> [bsz, seq_len, emb_dim].
-        if prepare_model_inputs_hook is not None:
-            input_ids, kwargs = prepare_model_inputs_hook(i, input_ids, kwargs)
-            if is_multimodal and input_ids.ndim != 3:
-                logger.warning(
-                    "The model is multimodal, but iteration %s's prepare hook did not yield 3D embeddings (typically shape [bsz, seq_len, emb_dim], got %s)",
-                    i,
-                    list(input_ids.shape),
-                )
-
         # prefill
         if i == 0:
+            # For chunked prefill with multimodal, we need to handle padding BEFORE
+            # calling prepare_model_inputs_hook, since the hook converts token IDs
+            # to embeddings and we can't add token padding to embeddings
+            if prefill_chunk_size > 0 and prepare_model_inputs_hook is not None:
+                # Skip calling the hook here for chunked prefill - it will be called
+                # inside the chunked loop (lines 462-473) after padding is applied
+                pass
+            elif prepare_model_inputs_hook is not None:
+                # For non-chunked prefill, call the hook now
+                input_ids, kwargs = prepare_model_inputs_hook(i, input_ids, kwargs)
+                if is_multimodal and input_ids.ndim != 3:
+                    logger.warning(
+                        "The model is multimodal, but iteration %s's prepare hook did not yield 3D embeddings (typically shape [bsz, seq_len, emb_dim], got %s)",
+                        i,
+                        list(input_ids.shape),
+                    )
             kwargs["mask"] = kwargs["mask"].unsqueeze(1)
 
             outputs_list = []
@@ -378,32 +388,21 @@ def generate(
                 last_n_tokens = kwargs.get("last_n_tokens", 0)
 
                 if prefill_chunk_size > 0:
-                    required_extra_pads = (
-                        get_pad_size(current_tkv.item(), prefill_chunk_size)
-                        - current_tkv.item()
-                    )
-                    left_padded_prompt_mask_seq_chunk = (
-                        (kwargs["position_ids"][seq_i][-current_tkv.item() :] == 0).sum(
-                            dim=0
-                        )
-                        - 1
-                        + required_extra_pads
-                    )
-                    left_padded_prompt_mask_seq_chunk = (
-                        left_padded_prompt_mask_seq_chunk.unsqueeze(0)
-                    )
-                    block_seq_left_padding = required_extra_pads // BLOCK_SIZE
+                    # current_tkv is already padded to a multiple of BLOCK_SIZE (line 287-289)
+                    # so we don't need to add extra padding
+                    assert current_tkv % BLOCK_SIZE == 0, f"current_tkv {current_tkv} must be a multiple of BLOCK_SIZE {BLOCK_SIZE}"
+
+                    print(f"\n[CHUNK DEBUG] Sequence {seq_i}: current_tkv={current_tkv}, prefill_chunk_size={prefill_chunk_size}")
+                    print(f"[CHUNK DEBUG] Sequence {seq_i}: Total chunks to process: {math.ceil(current_tkv / prefill_chunk_size)}")
 
                     # Chunked prefill
                     for chunk_j in range(math.ceil(current_tkv / prefill_chunk_size)):
                         # chunk_start and chunk_end are the index mappings from the original sequence
-                        if chunk_j == 0:
-                            chunk_start = 0
-                            chunk_end = prefill_chunk_size - required_extra_pads
-                        else:
-                            required_extra_pads = 0
-                            chunk_start = chunk_end
-                            chunk_end += prefill_chunk_size
+                        chunk_start = chunk_j * prefill_chunk_size
+                        chunk_end = min((chunk_j + 1) * prefill_chunk_size, current_tkv.item())
+
+                        print(f"\n[CHUNK DEBUG] === Chunk {chunk_j} ===")
+                        print(f"[CHUNK DEBUG] chunk_start={chunk_start}, chunk_end={chunk_end}, chunk_size={chunk_end - chunk_start}")
 
                         input_ids_seq_chunk = input_ids[seq_i][-current_tkv:][
                             chunk_start:chunk_end
@@ -415,12 +414,19 @@ def generate(
                             -current_tkv:
                         ][chunk_start:chunk_end]
 
-                        # add the extra required padding to chunk
+                        # Calculate required padding to align chunk to BLOCK_SIZE boundary
+                        chunk_size = chunk_end - chunk_start
+                        required_extra_pads = (BLOCK_SIZE - (chunk_size % BLOCK_SIZE)) % BLOCK_SIZE
+
+                        print(f"[CHUNK DEBUG] chunk_size={chunk_size}, required_extra_pads={required_extra_pads}")
+
+                        # Add the extra required padding to chunk
                         if required_extra_pads > 0:
                             input_ids_seq_chunk = torch.cat(
                                 (
-                                    torch.zeros(
-                                        required_extra_pads,
+                                    torch.full(
+                                        (required_extra_pads,),
+                                        pad_token_id,
                                         dtype=torch.int64,
                                         device=input_ids_seq_chunk.device,
                                     ),
@@ -444,45 +450,92 @@ def generate(
 
                         input_ids_seq_chunk = input_ids_seq_chunk.unsqueeze(0).clone()
 
-                        slot_mapping_seq_chunk = (
-                            torch.tensor(
+                        print(f"[CHUNK DEBUG] After padding: input_ids_seq_chunk shape: {input_ids_seq_chunk.shape}")
+                        print(f"[CHUNK DEBUG] First 10 token IDs: {input_ids_seq_chunk[0, :10]}")
+                        print(f"[CHUNK DEBUG] position_ids range: min={position_ids_seq_chunk.min()}, max={position_ids_seq_chunk.max()}")
+                        print(f"[CHUNK DEBUG] position_ids first 10: {position_ids_seq_chunk[:10]}")
+                        print(f"[CHUNK DEBUG] slot_mapping first 10: {slot_mapping_seq_chunk[:10]}")
+                        print(f"[CHUNK DEBUG] Number of padding tokens (position_id==0): {(position_ids_seq_chunk == 0).sum()}")
+
+                        # Calculate left_padded_prompt_mask AFTER adding padding
+                        # Count the number of position_ids that are 0 (padding positions)
+                        left_padded_prompt_mask_seq_chunk = (
+                            (position_ids_seq_chunk == 0).sum() - 1
+                        ).unsqueeze(0)
+
+                        print(f"[DEBUG] Chunk {chunk_j}: left_padded_prompt_mask_seq_chunk: {left_padded_prompt_mask_seq_chunk}")
+
+                        # Call prepare_model_inputs_hook AFTER padding for chunked prefill
+                        # This is needed for multimodal models to convert padded token IDs to embeddings
+                        if prepare_model_inputs_hook is not None:
+                            # Create a temporary kwargs for the chunk
+                            chunk_kwargs = {
+                                "position_ids": position_ids_seq_chunk,
+                                "slot_mapping": slot_mapping_seq_chunk,
+                            }
+                            input_ids_seq_chunk, chunk_kwargs = prepare_model_inputs_hook(
+                                i, input_ids_seq_chunk, chunk_kwargs
+                            )
+
+                            if prepare_model_inputs_hook is not None:
+                                print(f"[DEBUG] Chunk {chunk_j}: After hook, input_ids_seq_chunk shape: {input_ids_seq_chunk.shape}")
+                                print(f"[DEBUG] Chunk {chunk_j}: After hook, input_ids_seq_chunk dtype: {input_ids_seq_chunk.dtype}")
+                                if input_ids_seq_chunk.ndim == 3:
+                                    print(f"[DEBUG] Chunk {chunk_j}: Embeddings shape (should be [1, 64, emb_dim]): {input_ids_seq_chunk.shape}")
+                            # Update position_ids and slot_mapping from the hook if modified
+                            position_ids_seq_chunk = chunk_kwargs.get("position_ids", position_ids_seq_chunk)
+                            slot_mapping_seq_chunk = chunk_kwargs.get("slot_mapping", slot_mapping_seq_chunk)
+
+                        # Convert slot_mapping to tensor if it's still a list
+                        if not isinstance(slot_mapping_seq_chunk, torch.Tensor):
+                            slot_mapping_seq_chunk = torch.tensor(
                                 slot_mapping_seq_chunk,
                                 dtype=torch.int64,
                             )
-                            .unsqueeze(0)
-                            .clone()
+                        if slot_mapping_seq_chunk.ndim == 1:
+                            slot_mapping_seq_chunk = slot_mapping_seq_chunk.unsqueeze(0)
+                        slot_mapping_seq_chunk = slot_mapping_seq_chunk.clone()
+
+                        # Add batch dimension to position_ids if needed
+                        if position_ids_seq_chunk.ndim == 1:
+                            position_ids_seq_chunk = position_ids_seq_chunk.unsqueeze(0)
+                        position_ids_seq_chunk = position_ids_seq_chunk.clone()
+
+                        # Verify chunk sizes match
+                        chunk_size = chunk_end - chunk_start
+                        assert input_ids_seq_chunk.size(1) == chunk_size, (
+                            f"Chunk size mismatch for input_ids. Expected {chunk_size}, got {input_ids_seq_chunk.size(1)}"
                         )
 
-                        position_ids_seq_chunk = position_ids_seq_chunk.unsqueeze(
-                            0
-                        ).clone()
-
-                        assert input_ids_seq_chunk.size(1) == prefill_chunk_size, (
-                            f"prefill chunk size was not equal to the chunk size for input_ids. Found {input_ids_seq_chunk.size(0)}"
+                        assert slot_mapping_seq_chunk.size(1) == chunk_size, (
+                            f"Chunk size mismatch for slot_mapping. Expected {chunk_size}, got {slot_mapping_seq_chunk.size(1)}"
                         )
 
-                        assert slot_mapping_seq_chunk.size(1) == prefill_chunk_size, (
-                            f"prefill chunk size was not equal to the chunk size for slot_mapping. Found {slot_mapping_seq_chunk.size(0)}"
-                        )
-
-                        assert position_ids_seq_chunk.size(1) == prefill_chunk_size, (
-                            f"prefill chunk size was not equal to the chunk size for position_ids. Found {position_ids_seq_chunk.size(0)}"
+                        assert position_ids_seq_chunk.size(1) == chunk_size, (
+                            f"Chunk size mismatch for position_ids. Expected {chunk_size}, got {position_ids_seq_chunk.size(1)}"
                         )
 
                         current_tkv_mask_seq_chunk = torch.tensor(
-                            (chunk_j + 1) * prefill_chunk_size, dtype=torch.int64
+                            chunk_end, dtype=torch.int64
                         ).unsqueeze(0)
 
-                        block_end = chunk_end // BLOCK_SIZE
-                        # length of padding or index until padding has occured in block table
+                        # Calculate block_table for this chunk
+                        block_start = chunk_start // BLOCK_SIZE
+                        block_end = (chunk_end + BLOCK_SIZE - 1) // BLOCK_SIZE
+                        # length of padding or index until padding has occurred in block table
                         block_pad_len = (input_ids.shape[1] - current_tkv) // BLOCK_SIZE
                         block_table_seq_chunk = torch.tensor(
-                            [pad_block_id] * (block_seq_left_padding)
-                            + block_table[seq_i][
-                                block_pad_len : block_pad_len + block_end
+                            block_table[seq_i][
+                                block_pad_len + block_start : block_pad_len + block_end
                             ],
                             dtype=torch.int64,
                         ).unsqueeze(0)
+
+                        print(f"[CHUNK DEBUG] left_padded_prompt_mask: {left_padded_prompt_mask_seq_chunk}")
+                        print(f"[CHUNK DEBUG] current_tkv_mask: {current_tkv_mask_seq_chunk} (should be {chunk_end})")
+                        print(f"[CHUNK DEBUG] block_start={block_start}, block_end={block_end}, block_pad_len={block_pad_len}")
+                        print(f"[CHUNK DEBUG] block_table: {block_table_seq_chunk}")
+                        print(f"[CHUNK DEBUG] block_table length: {block_table_seq_chunk.size(1)}")
 
                         chunked_kwargs = {
                             "slot_mapping": slot_mapping_seq_chunk,
@@ -513,9 +566,39 @@ def generate(
                         torch._dynamo.mark_dynamic(position_ids_seq_chunk, 1)
                         torch._dynamo.mark_dynamic(block_table_seq_chunk, 1)
 
+                        print(f"[DEBUG PREFILL] Chunk {chunk_j}: Calling model")
+                        print(f"[DEBUG PREFILL] Chunk {chunk_j}: input_ids_seq_chunk shape: {input_ids_seq_chunk.shape}, dtype: {input_ids_seq_chunk.dtype}")
+                        if input_ids_seq_chunk.ndim == 2:
+                            print(f"[DEBUG PREFILL] Chunk {chunk_j}: First 10 token IDs: {input_ids_seq_chunk[0, :10]}")
+                        elif input_ids_seq_chunk.ndim == 3:
+                            print(f"[DEBUG PREFILL] Chunk {chunk_j}: Embeddings - shape: {input_ids_seq_chunk.shape}")
+                            print(f"[DEBUG PREFILL] Chunk {chunk_j}: Embeddings - first token first 5 dims: {input_ids_seq_chunk[0, 0, :5]}")
+                        print(f"[DEBUG PREFILL] Chunk {chunk_j}: position_ids shape: {position_ids_seq_chunk.shape}")
+                        print(f"[DEBUG PREFILL] Chunk {chunk_j}: position_ids: {position_ids_seq_chunk[0, :10]}")
+                        print(f"[DEBUG PREFILL] Chunk {chunk_j}: left_padded_prompt_mask: {left_padded_prompt_mask_seq_chunk}")
+                        print(f"[DEBUG PREFILL] Chunk {chunk_j}: current_tkv_mask: {current_tkv_mask_seq_chunk}")
+
                         logits, current_kv_cache = model(
                             input_ids_seq_chunk, **chunked_kwargs
                         )
+
+                        print(f"\n[CHUNK DEBUG] === After Model Forward ===")
+                        print(f"[CHUNK DEBUG] logits shape: {logits.shape}")
+                        print(f"[CHUNK DEBUG] Logits stats: min={logits.min():.4f}, max={logits.max():.4f}, mean={logits.mean():.4f}")
+
+                        # Check last token prediction
+                        last_token_logits = logits[0, -1, :]
+                        probs = torch.softmax(last_token_logits, dim=-1)
+                        top5 = torch.topk(probs, 5)
+                        print(f"[CHUNK DEBUG] Last token top 5 predictions:")
+                        print(f"  Token IDs: {top5.indices}")
+                        print(f"  Probabilities: {top5.values}")
+
+                        # Check if there are any NaN or Inf values
+                        if torch.isnan(logits).any():
+                            print(f"[CHUNK DEBUG] WARNING: NaN values detected in logits!")
+                        if torch.isinf(logits).any():
+                            print(f"[CHUNK DEBUG] WARNING: Inf values detected in logits!")
 
                         # only last token must be handled here to properly stack the tensors
                         logits = logits[:, -1, :]
@@ -574,6 +657,16 @@ def generate(
             output = (torch.stack(outputs_list), current_kv_cache)
         # decode
         else:
+            # Call the prepare model hook for decode phase if we have one
+            if prepare_model_inputs_hook is not None:
+                input_ids, kwargs = prepare_model_inputs_hook(i, input_ids, kwargs)
+                if is_multimodal and input_ids.ndim != 3:
+                    logger.warning(
+                        "The model is multimodal, but iteration %s's prepare hook did not yield 3D embeddings (typically shape [bsz, seq_len, emb_dim], got %s)",
+                        i,
+                        list(input_ids.shape),
+                    )
+
             # prepare any padding keyword arguments
             # iteration 0 is the prefill step (cache has not been filled yet), so no need to extend the mask/position_ids
 
@@ -639,6 +732,13 @@ def generate(
                 torch._dynamo.mark_static(input_ids, 2)
 
             logits, past_key_value_states = model(input_ids, **kwargs)
+
+            print(f"[DEBUG] Decode iteration {i}: logits shape: {logits.shape}")
+            print(f"[DEBUG] Decode iteration {i}: Top 5 token probs:")
+            probs = torch.softmax(logits, dim=-1)
+            top5 = torch.topk(probs[0], 5)
+            print(f"  Token IDs: {top5.indices}")
+            print(f"  Probabilities: {top5.values}")
 
             # typically this is done outside of prefill/decode logic, but since this logic already exists as part of the
             # conditional for prefill (since prefill does this within a loop for each batch size 1 prefill), we also provide

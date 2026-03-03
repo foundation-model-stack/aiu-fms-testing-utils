@@ -262,6 +262,7 @@ def extract_validation_information(
     post_iteration_hook,
     attn_algorithm=None,
     eos_token_id=None,
+    pad_token_id=None,
     last_n_tokens=0,
     timing="",
     prefill_chunk_size=0,
@@ -272,6 +273,7 @@ def extract_validation_information(
         from aiu_fms_testing_utils.utils.paged import generate
 
         attention_specific_kwargs["prefill_chunk_size"] = prefill_chunk_size
+        attention_specific_kwargs["pad_token_id"] = pad_token_id
     else:
         # TODO: Add a unified generation dependent on attn_type
         from fms.utils.generation import generate

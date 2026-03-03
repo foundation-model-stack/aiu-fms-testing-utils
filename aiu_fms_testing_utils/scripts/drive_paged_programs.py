@@ -349,7 +349,11 @@ def _prepare_inputs(
         )
         prompt_list = [prompt_list[0]] * (batch_size - len(prompt_list)) + prompt_list
 
-    input_ids, extra_kwargs = pad_input_ids(prompt_list, min_pad_length=seq_length)
+    input_ids, extra_kwargs = pad_input_ids(
+        prompt_list,
+        min_pad_length=seq_length,
+        pad_token_id=tokenizer.pad_token_id if hasattr(tokenizer, 'pad_token_id') else None
+    )
     extra_kwargs["mask"] = extra_kwargs["mask"].to(torch.float16)
 
     return PreparedInputs(
@@ -949,6 +953,7 @@ def generate_cpu_validation(
             max_new_tokens=max_new_tokens,
             post_iteration_hook=LogitsExtractorHook(),
             attn_algorithm="math",
+            pad_token_id=tokenizer.pad_token_id if hasattr(tokenizer, 'pad_token_id') else None,
             **extra_kwargs,
         )
         if save_validation_info_outputs:
@@ -978,6 +983,7 @@ def generate_aiu_validation(
     input_ids: torch.Tensor,
     cpu_validation_info: Optional[ValidationInfo],
     extra_kwargs: Dict[str, Any],
+    pad_token_id: Optional[int] = None,
 ) -> ValidationInfo:
     """Generates AIU validation information by running inference on the compiled model.
 
@@ -994,6 +1000,7 @@ def generate_aiu_validation(
         input_ids: Tokenized input tensor.
         cpu_validation_info: Optional CPU validation data for golden token injection.
         extra_kwargs: Dictionary with attention mask and other model inputs.
+        pad_token_id: Optional padding token ID for the tokenizer.
 
     Returns:
         ValidationInfo: ValidationInfo object containing AIU outputs (tokens, logits,
@@ -1011,6 +1018,7 @@ def generate_aiu_validation(
         last_n_tokens=64,
         timing=timing,
         prefill_chunk_size=prefill_chunk_size,
+        pad_token_id=pad_token_id,
         **extra_kwargs,
     )
 
@@ -1297,6 +1305,7 @@ def generate_validation_info_and_test(
                 input_ids=valid_prompt.input_ids,
                 cpu_validation_info=cpu_validation_info,
                 extra_kwargs=valid_prompt.extra_kwargs,
+                pad_token_id=tokenizer.pad_token_id if hasattr(tokenizer, 'pad_token_id') else None,
             )
 
             if test_type == "metrics":
@@ -1334,6 +1343,7 @@ def generate_validation_info_and_test(
                 input_ids=valid_prompt.input_ids,
                 cpu_validation_info=None,
                 extra_kwargs=valid_prompt.extra_kwargs,
+                pad_token_id=tokenizer.pad_token_id if hasattr(tokenizer, 'pad_token_id') else None,
             )
 
             if local_rank == 0:

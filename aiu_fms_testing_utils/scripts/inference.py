@@ -735,7 +735,11 @@ if args.fixed_prompt_length != 0 and args.fixed_prompt_length < max_len:
     exit(1)
 prompts = truncate_prompts_to_max_length(prompts, max_len, max_allowed_length)
 if has_padding:
-    ids, extra_generation_kwargs = pad_input_ids(prompts, min_pad_length=padding_length)
+    ids, extra_generation_kwargs = pad_input_ids(
+        prompts,
+        min_pad_length=padding_length,
+        pad_token_id=tokenizer.pad_token_id if hasattr(tokenizer, 'pad_token_id') else None
+    )
 else:
     ids = prompts
     if isinstance(ids, list) and len(ids) == 1:
@@ -827,6 +831,7 @@ def infer(use_cache, do_sample, warmup, is_multimodal=False):
         do_sample=do_sample,
         timing=args.timing,
         eos_token_id=eos_token_id,
+        pad_token_id=tokenizer.pad_token_id if hasattr(tokenizer, 'pad_token_id') else None,
         extra_kwargs=extra_generation_kwargs,
         **attention_specific_kwargs,
     )
