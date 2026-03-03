@@ -1293,7 +1293,7 @@ def generate_validation_info_and_test(
                 cpu_dtype=env_config.cpu_dtype,
                 tokenizer=tokenizer,
             )
-            print_step(profile, "completed", "CPU inference", cpu_metric_start)
+            print_step(profile, "completed", "CPU Inference", cpu_metric_start)
 
             # Generate AIU validation info
             aiu_metric_start = print_step(profile, "started", "AIU Inference")
@@ -1307,7 +1307,7 @@ def generate_validation_info_and_test(
                 cpu_validation_info=cpu_validation_info,
                 extra_kwargs=valid_prompt.extra_kwargs,
             )
-            print_step(profile, "completed", "AIU inference", aiu_metric_start)
+            print_step(profile, "completed", "AIU Inference", aiu_metric_start)
 
             if test_type == "metrics":
                 failure_rate = evaluate_cross_entropy_metrics(
@@ -1348,7 +1348,7 @@ def generate_validation_info_and_test(
                 cpu_validation_info=None,
                 extra_kwargs=valid_prompt.extra_kwargs,
             )
-            print_step(profile, "completed", "AIU inference", aiu_metric_start)
+            print_step(profile, "completed", "AIU Inference", aiu_metric_start)
 
             if local_rank == 0:
                 for sentence_idx, test_sentence in enumerate(
