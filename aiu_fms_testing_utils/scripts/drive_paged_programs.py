@@ -9,6 +9,7 @@ import random
 import time
 from itertools import dropwhile
 import re
+import warnings
 from typing import Any, Dict, Iterable, List, Literal, NamedTuple, Optional, Tuple
 
 import torch
@@ -16,7 +17,7 @@ from fms.models import get_model
 from fms.utils.generation import pad_input_ids
 from torch import distributed as dist
 from torch.fx.experimental import _config as fx_config
-from transformers import AutoTokenizer
+from transformers import AutoConfig, AutoTokenizer
 from aiu_fms_testing_utils.utils.dpp_config import DPPRunnerConfig
 from aiu_fms_testing_utils.utils.env_utils import scoped_environ
 from aiu_fms_testing_utils.testing.validation import (
@@ -908,6 +909,7 @@ def generate_cpu_validation(
     attn_name: str,
     cpu_dtype: str,
     tokenizer: AutoTokenizer,
+    is_multimodal: bool = False,
 ) -> ValidationInfo:
     """Generates or loads CPU validation information for reference comparison.
 
@@ -928,6 +930,7 @@ def generate_cpu_validation(
         attn_name: Name of the attention algorithm used.
         cpu_dtype: Data type string for CPU validation ("fp8" or "fp32").
         tokenizer: HuggingFace tokenizer for the model.
+        is_multimodal: Whether the model is multimodal (requires embedding inputs).
 
     Returns:
         ValidationInfo: ValidationInfo object containing CPU reference outputs
@@ -947,6 +950,11 @@ def generate_cpu_validation(
         sample_key=sample_key,
     )
     if cpu_validation_info is None:
+        # Set up multimodal hook if needed
+        prepare_model_inputs_hook = None
+        if is_multimodal and hasattr(validation_model, "prepare_inputs_for_generation"):
+            prepare_model_inputs_hook = validation_model.prepare_inputs_for_generation
+
         cpu_validation_info = extract_validation_information(
             model=validation_model,
             input_ids=input_ids,
@@ -954,6 +962,7 @@ def generate_cpu_validation(
             post_iteration_hook=LogitsExtractorHook(),
             attn_algorithm="math",
             pad_token_id=tokenizer.pad_token_id if hasattr(tokenizer, 'pad_token_id') else None,
+            prepare_model_inputs_hook=prepare_model_inputs_hook,
             **extra_kwargs,
         )
         if save_validation_info_outputs:
@@ -984,6 +993,7 @@ def generate_aiu_validation(
     cpu_validation_info: Optional[ValidationInfo],
     extra_kwargs: Dict[str, Any],
     pad_token_id: Optional[int] = None,
+    is_multimodal: bool = False,
 ) -> ValidationInfo:
     """Generates AIU validation information by running inference on the compiled model.
 
@@ -1001,6 +1011,7 @@ def generate_aiu_validation(
         cpu_validation_info: Optional CPU validation data for golden token injection.
         extra_kwargs: Dictionary with attention mask and other model inputs.
         pad_token_id: Optional padding token ID for the tokenizer.
+        is_multimodal: Whether the model is multimodal (requires embedding inputs).
 
     Returns:
         ValidationInfo: ValidationInfo object containing AIU outputs (tokens, logits,
@@ -1009,6 +1020,11 @@ def generate_aiu_validation(
     golden_hook = None
     if test_type == "metrics" and cpu_validation_info:
         golden_hook = GoldenTokenHook(cpu_validation_info.get_info("tokens"))
+
+    # Set up multimodal hook if needed
+    prepare_model_inputs_hook = None
+    if is_multimodal and hasattr(model, "prepare_inputs_for_generation"):
+        prepare_model_inputs_hook = model.prepare_inputs_for_generation
 
     aiu_validation_info = extract_validation_information(
         model=model,
@@ -1019,6 +1035,7 @@ def generate_aiu_validation(
         timing=timing,
         prefill_chunk_size=prefill_chunk_size,
         pad_token_id=pad_token_id,
+        prepare_model_inputs_hook=prepare_model_inputs_hook,
         **extra_kwargs,
     )
 
@@ -1259,6 +1276,7 @@ def generate_validation_info_and_test(
     timing: str,
     prefill_chunk_size: int,
     model_variant: str,
+    is_multimodal: bool = False,
 ) -> list[Any]:
     """Generates tokens using AIU and CPU models and validates the results.
 
@@ -1294,6 +1312,7 @@ def generate_validation_info_and_test(
                 attn_name=env_config.attn_name,
                 cpu_dtype=env_config.cpu_dtype,
                 tokenizer=tokenizer,
+                is_multimodal=is_multimodal,
             )
 
             aiu_validation_info = generate_aiu_validation(
@@ -1306,6 +1325,7 @@ def generate_validation_info_and_test(
                 cpu_validation_info=cpu_validation_info,
                 extra_kwargs=valid_prompt.extra_kwargs,
                 pad_token_id=tokenizer.pad_token_id if hasattr(tokenizer, 'pad_token_id') else None,
+                is_multimodal=is_multimodal,
             )
 
             if test_type == "metrics":
@@ -1344,6 +1364,7 @@ def generate_validation_info_and_test(
                 cpu_validation_info=None,
                 extra_kwargs=valid_prompt.extra_kwargs,
                 pad_token_id=tokenizer.pad_token_id if hasattr(tokenizer, 'pad_token_id') else None,
+                is_multimodal=is_multimodal,
             )
 
             if local_rank == 0:
@@ -1395,7 +1416,27 @@ def main() -> None:
         program_criteria_json_path=args.program_criteria_json_path,
         attention_type=args.attention_type,
     )
-    tokenizer = AutoTokenizer.from_pretrained(args.model_variant)
+    # Load tokenizer with Mistral-3 fallback support
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(args.model_variant)
+    except KeyError as err:
+        transformers_config = AutoConfig.from_pretrained(args.model_variant)
+        if transformers_config.model_type == "mistral3":
+            # NOTE: mistral-small-3.2 doesn't come with its own tokenizer
+            # so here we rely on 3.1's tokenizer
+            # NOTE: the reason we are not using mistral tokenizer from mistral_common is to:
+            # 1. Rest of the script assumes tokenizer to be HF and have properties like `bos_token`
+            # 2. Avoid bunch of extra dependencies
+            warnings.warn("""
+                Unable to fetch mistral model, using Mistral-Small-3.1 manually. If different one required,
+                please configure it manually via args.tokenizer
+            """)
+            tokenizer = AutoTokenizer.from_pretrained(
+                "mistralai/Mistral-Small-3.1-24B-Instruct-2503"
+            )
+        else:
+            raise err
+
     sampler, allow_truncation, custom_shape = get_sampler(
         dataset_type=args.dataset_type,
         dataset_path=args.dataset_path,
@@ -1504,6 +1545,7 @@ def main() -> None:
         timing=args.timing,
         prefill_chunk_size=args.prefill_chunk_size,
         model_variant=args.model_variant,
+        is_multimodal=is_multimodal,
     )
 
     if not args.skip_validation and local_rank == 0:
