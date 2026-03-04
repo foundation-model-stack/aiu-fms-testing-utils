@@ -455,15 +455,18 @@ def generate(
                         print(f"[CHUNK DEBUG] position_ids range: min={position_ids_seq_chunk.min()}, max={position_ids_seq_chunk.max()}")
                         print(f"[CHUNK DEBUG] position_ids first 10: {position_ids_seq_chunk[:10]}")
                         print(f"[CHUNK DEBUG] slot_mapping first 10: {slot_mapping_seq_chunk[:10]}")
-                        print(f"[CHUNK DEBUG] Number of padding tokens (position_id==0): {(position_ids_seq_chunk == 0).sum()}")
 
                         # Calculate left_padded_prompt_mask AFTER adding padding
                         # Count the number of position_ids that are 0 (padding positions)
-                        left_padded_prompt_mask_seq_chunk = (
-                            (position_ids_seq_chunk == 0).sum() - 1
-                        ).unsqueeze(0)
+                        num_padding_tokens = (position_ids_seq_chunk == 0).sum()
+                        print(f"[CHUNK DEBUG] Number of padding tokens (position_id==0): {num_padding_tokens}")
 
-                        print(f"[DEBUG] Chunk {chunk_j}: left_padded_prompt_mask_seq_chunk: {left_padded_prompt_mask_seq_chunk}")
+                        # If there are padding tokens, the mask is (count - 1) to get the index of the last padding token
+                        # If there are no padding tokens, the mask is 0 (no left padding)
+                        if num_padding_tokens > 0:
+                            left_padded_prompt_mask_seq_chunk = (num_padding_tokens - 1).unsqueeze(0)
+                        else:
+                            left_padded_prompt_mask_seq_chunk = torch.tensor([0], dtype=torch.int64)
 
                         # Call prepare_model_inputs_hook AFTER padding for chunked prefill
                         # This is needed for multimodal models to convert padded token IDs to embeddings
@@ -476,12 +479,6 @@ def generate(
                             input_ids_seq_chunk, chunk_kwargs = prepare_model_inputs_hook(
                                 i, input_ids_seq_chunk, chunk_kwargs
                             )
-
-                            if prepare_model_inputs_hook is not None:
-                                print(f"[DEBUG] Chunk {chunk_j}: After hook, input_ids_seq_chunk shape: {input_ids_seq_chunk.shape}")
-                                print(f"[DEBUG] Chunk {chunk_j}: After hook, input_ids_seq_chunk dtype: {input_ids_seq_chunk.dtype}")
-                                if input_ids_seq_chunk.ndim == 3:
-                                    print(f"[DEBUG] Chunk {chunk_j}: Embeddings shape (should be [1, 64, emb_dim]): {input_ids_seq_chunk.shape}")
                             # Update position_ids and slot_mapping from the hook if modified
                             position_ids_seq_chunk = chunk_kwargs.get("position_ids", position_ids_seq_chunk)
                             slot_mapping_seq_chunk = chunk_kwargs.get("slot_mapping", slot_mapping_seq_chunk)
@@ -515,8 +512,11 @@ def generate(
                             f"Chunk size mismatch for position_ids. Expected {chunk_size}, got {position_ids_seq_chunk.size(1)}"
                         )
 
+                        # current_tkv_mask should be the number of tokens in THIS chunk, not cumulative
+                        # The cumulative information is encoded in block_table and slot_mapping
+                        chunk_size = chunk_end - chunk_start
                         current_tkv_mask_seq_chunk = torch.tensor(
-                            chunk_end, dtype=torch.int64
+                            chunk_size, dtype=torch.int64
                         ).unsqueeze(0)
 
                         # Calculate block_table for this chunk
