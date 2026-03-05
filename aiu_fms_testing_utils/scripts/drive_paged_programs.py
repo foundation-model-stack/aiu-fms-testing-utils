@@ -278,6 +278,11 @@ def parse_cli_args() -> argparse.Namespace:
         action="store_true",
         help="set to true ensure that all prompts hit the same prompt program for a given test",
     )
+    parser.add_argument(
+        "--report_resource_utilization",
+        action="store_true",
+        help="set to true to report CPU/memory utilization during compilation and inference stages"
+    )
 
     return parser.parse_args()
 
@@ -1253,6 +1258,7 @@ def generate_validation_info_and_test(
     timing: str,
     prefill_chunk_size: int,
     model_variant: str,
+    print_utilization: bool = False,
     profile: Optional[Any] = None
 ) -> list[Any]:
     """Generates tokens using AIU and CPU models and validates the results.
@@ -1278,7 +1284,7 @@ def generate_validation_info_and_test(
         if not skip_validation:
 
             # Generate or load CPU validation info
-            cpu_metric_start = print_step(profile, "started", "CPU Inference")
+            cpu_metric_start = print_step(profile, print_utilization, "started", "CPU Inference")
             cpu_validation_info = generate_cpu_validation(
                 model_variant=model_variant,
                 max_new_tokens=max_new_tokens,
@@ -1293,10 +1299,10 @@ def generate_validation_info_and_test(
                 cpu_dtype=env_config.cpu_dtype,
                 tokenizer=tokenizer,
             )
-            print_step(profile, "completed", "CPU Inference", cpu_metric_start)
+            print_step(profile, print_utilization, "completed", "CPU Inference", cpu_metric_start)
 
             # Generate AIU validation info
-            aiu_metric_start = print_step(profile, "started", "AIU Inference")
+            aiu_metric_start = print_step(profile, print_utilization, "started", "AIU Inference")
             aiu_validation_info = generate_aiu_validation(
                 test_type=test_type,
                 max_new_tokens=max_new_tokens,
@@ -1307,7 +1313,7 @@ def generate_validation_info_and_test(
                 cpu_validation_info=cpu_validation_info,
                 extra_kwargs=valid_prompt.extra_kwargs,
             )
-            print_step(profile, "completed", "AIU Inference", aiu_metric_start)
+            print_step(profile, print_utilization, "completed", "AIU Inference", aiu_metric_start)
 
             if test_type == "metrics":
                 failure_rate = evaluate_cross_entropy_metrics(
@@ -1337,7 +1343,7 @@ def generate_validation_info_and_test(
         else:
 
             # Generate AIU validation info
-            aiu_metric_start = print_step(profile, "started", "AIU Inference")
+            aiu_metric_start = print_step(profile, print_utilization, "started", "AIU Inference")
             aiu_validation_info = generate_aiu_validation(
                 test_type=test_type,
                 max_new_tokens=max_new_tokens,
@@ -1348,7 +1354,7 @@ def generate_validation_info_and_test(
                 cpu_validation_info=None,
                 extra_kwargs=valid_prompt.extra_kwargs,
             )
-            print_step(profile, "completed", "AIU Inference", aiu_metric_start)
+            print_step(profile, print_utilization, "completed", "AIU Inference", aiu_metric_start)
 
             if local_rank == 0:
                 for sentence_idx, test_sentence in enumerate(
@@ -1407,7 +1413,7 @@ def main() -> None:
     )
 
     # Instantiate the Prometheus client for resource metric collection
-    p = instantiate_prometheus()
+    p = instantiate_prometheus(args.report_resource_utilization)
 
     # Model Loading
     model_kwargs: Dict[str, Any] = _get_model_kwargs(model_variant=args.model_variant)
@@ -1465,6 +1471,7 @@ def main() -> None:
         compile_dynamic_sendnn=True,
         stagger_update_lazyhandle=args.stagger_update_lazyhandle,
         prefill_chunk_size=args.prefill_chunk_size,
+        print_utilization=args.report_resource_utilization,
         profile=p,
         **extra_kwargs,
     )
@@ -1508,6 +1515,7 @@ def main() -> None:
         timing=args.timing,
         prefill_chunk_size=args.prefill_chunk_size,
         model_variant=args.model_variant,
+        print_utilization=args.report_resource_utilization,
         profile=p
     )
 

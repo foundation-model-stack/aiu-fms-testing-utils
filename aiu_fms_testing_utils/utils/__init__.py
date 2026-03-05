@@ -55,6 +55,7 @@ def warmup_model(
     use_cache: bool = True,
     stagger_update_lazyhandle: int = 0,
     prefill_chunk_size: int = 0,
+    print_utilization: bool = False,
     profile: Optional[Any] = None,
     **extra_kwargs,
 ):
@@ -78,7 +79,7 @@ def warmup_model(
     pt_compile_model_time = time.time()
 
     ## Report on initial resource usage
-    metric_start = print_step(profile, "started", "Compilation")
+    metric_start = print_step(profile, print_utilization, "started", "Compilation")
 
     # adjust inputs depending on attn_type and dynamic shapes
     _warmup_input_ids = input_ids
@@ -110,7 +111,7 @@ def warmup_model(
     pt_compile_model_time = time.time() - pt_compile_model_time
 
     # Get completed metric read
-    print_step(profile, "completed", "Compilation", metric_start)
+    print_step(profile, print_utilization, "completed", "Compilation", metric_start)
     dprint(f"PT compile complete, took {pt_compile_model_time:.3f}s")
 
 

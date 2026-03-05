@@ -1,15 +1,27 @@
 # Imports
 import os
 from datetime import datetime, timezone
+import subprocess
 
 from aiu_fms_testing_utils.utils.aiu_setup import dprint
-try:
-    from prometheus_api_client import PrometheusConnect
-except Exception:
-    print("WARNING: Cannot import `prometheus_api_client`. Make sure the package is installed if you are trying to report resource utilization.")
 
 
-def instantiate_prometheus():
+def install_prometheus():
+    """
+    Top-level method that will install Prometheus if needed
+    """
+
+    # See if it is installed
+    run = subprocess.run(["pip", "show", "prometheus_api_client"],
+                         check=False)
+
+    # Install if needed
+    if run.returncode != 0:
+        print("prometheus_api_client not found, installing...")
+        subprocess.run(["pip", "install", "prometheus_api_client"], check=True)
+
+
+def instantiate_prometheus(report_utilization):
     """
     Top-level method that will instantiate the Prometheus Client to collect
     resource usage metrics.
@@ -19,18 +31,24 @@ def instantiate_prometheus():
     """
 
     client = None
-    try:
-        # Get required env variables
-        connection_url = os.environ["PROMETHEUS_URL"]
-        api_token = os.environ.get("PROMETHEUS_API_KEY")
+    if report_utilization:
 
-        # Define necessary headers
-        request_headers = {"Authorization": f"Bearer {api_token}"} if api_token else None
+        # Install and import Prometheus if needed
+        install_prometheus()
+        from prometheus_api_client import PrometheusConnect
 
-        client = PrometheusConnect(url=connection_url, headers=request_headers, disable_ssl=True)
+        try:
+            # Get required env variables
+            connection_url = os.environ["PROMETHEUS_URL"]
+            api_token = os.environ.get("PROMETHEUS_API_KEY")
 
-    except Exception as e:
-        print(f"WARNING: Cannot instantiate Prometheus. Make sure PROMETHEUS_URL and PROMETHEUS_API_KEY are set in your environment if you are trying to collect resource metrics. Error: {e}")
+            # Define necessary headers
+            request_headers = {"Authorization": f"Bearer {api_token}"} if api_token else None
+
+            client = PrometheusConnect(url=connection_url, headers=request_headers, disable_ssl=True)
+
+        except Exception as e:
+            print(f"WARNING: Cannot instantiate Prometheus. Make sure PROMETHEUS_URL and PROMETHEUS_API_KEY are set in your environment if you are trying to collect resource metrics. Error: {e}")
 
     return client
 
@@ -155,7 +173,7 @@ def timestamp_print(given_string):
     print(f"[{timestamp}] {given_string}")
 
 
-def print_comp_resource_metrics(cpu_val, mem_val, stage, step):
+def print_comp_resource_metrics(cpu_val, mem_val, stage, step, print_utilization):
     """
     Helper method that will do a timestamp print for a specific step to report resource
     usage.
@@ -165,25 +183,27 @@ def print_comp_resource_metrics(cpu_val, mem_val, stage, step):
     - mem_val: the value for memory usage in gigabytes we want to print.
     - stage: The stage of the step we are in, either "peak" or "started".
     - step: The step that we performing in the script, either "compilation" or "inference".
+    - print_utilization: a boolean denoting if we want to print resource utilization metrics.
     """
 
     if stage != "peak":
-        if cpu_val is None or mem_val is None:
+        if not print_utilization and (cpu_val is None or mem_val is None):
             timestamp_print(f"{step} {stage}")
         else:
             timestamp_print(f"{step} {stage} - CPU: {cpu_val:.2f}%, Memory: {mem_val:.2f} GB")
 
-    elif cpu_val is not None and mem_val is not None:
+    elif not print_utilization and (cpu_val is not None and mem_val is not None):
         dprint(f"Peak Resource Utilization - CPU: {cpu_val:.2f}%, Memory: {mem_val:.2f} GB")
 
 
-def print_step(p, step, stage, start_time=None):
+def print_step(p, report_utilization, step, stage, start_time=None):
     """
     Print function to print out when a specific stage starts and ends,
     as well as reporting resource usage if enabled.
 
     Args:
     - p: the Prometheus profile client to resource utilization collection.
+    - report_utilization: a boolean denoting if we want to print resource utilization metrics.
     - step: string denoting what step we are at ("inference" or "compilation").
     - stage: string denoting what stage of the step we are at ("started" or "completed").
     - start_time: datetime object that denotes when the step started (optional).
@@ -196,11 +216,11 @@ def print_step(p, step, stage, start_time=None):
     ## Get metric read
     recorded_time = datetime.now(timezone.utc)
     cpu_usage, mem_usage = get_static_read(p, recorded_time)
-    print_comp_resource_metrics(cpu_usage, mem_usage, step, stage)
+    print_comp_resource_metrics(cpu_usage, mem_usage, step, stage, report_utilization)
 
     ## Get and print the peak usage
     if start_time is not None:
         peak_cpu_inference_cpu, peak_mem_inference_cpu = get_peak_read(p, start_time, recorded_time)
-        print_comp_resource_metrics(peak_cpu_inference_cpu, peak_mem_inference_cpu, "peak", stage)
+        print_comp_resource_metrics(peak_cpu_inference_cpu, peak_mem_inference_cpu, "peak", stage, report_utilization)
 
     return recorded_time
