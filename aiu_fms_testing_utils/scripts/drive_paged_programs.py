@@ -46,8 +46,8 @@ def parse_cli_args() -> argparse.Namespace:
     parser.add_argument(
         "--timing",
         type=str,
-        choices=["e2e", "per-token"],
-        default="",
+        choices=["none", "e2e", "per-token"],
+        default="none",
         help="if set, how to time the generation of tokens, e2e or per-token",
     )
     parser.add_argument(
