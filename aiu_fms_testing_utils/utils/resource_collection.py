@@ -192,7 +192,7 @@ def print_comp_resource_metrics(cpu_val, mem_val, stage, step, print_utilization
         else:
             timestamp_print(f"{step} {stage} - CPU: {cpu_val:.2f}%, Memory: {mem_val:.2f} GB")
 
-    elif not print_utilization and (cpu_val is not None and mem_val is not None):
+    elif print_utilization and (cpu_val is not None and mem_val is not None):
         dprint(f"Peak Resource Utilization - CPU: {cpu_val:.2f}%, Memory: {mem_val:.2f} GB")
 
 
