@@ -13,6 +13,7 @@ def install_prometheus():
 
     # See if it is installed
     run = subprocess.run(["pip", "show", "prometheus_api_client"],
+                         capture_output=True,
                          check=False)
 
     # Install if needed
