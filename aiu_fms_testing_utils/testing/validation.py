@@ -305,29 +305,31 @@ def extract_validation_information(
         **attention_specific_kwargs,
     )
 
+    # Split result into model output and timings (empty list if none)
+    model_output, timings = result
     if timing != Timing.NONE:
         dprint(
             "=== This timing information might be inaccurate due to extra work being done in generate() for validation"
         )
-        result, timings = result
         if timing == Timing.E2E:
             dprint(f"E2E timing information: {timings[0]:.3f}s")
         elif timing == Timing.PER_TOKEN:
             timings = [f"{t * 1000:.3f}" for t in timings]
             dprint(f"Per-token timing information: {', '.join(timings)} ms")
 
-    if len(result.shape) == 1:
-        result = result.unsqueeze(0)
+    if len(model_output.shape) == 1:
+        model_output = model_output.unsqueeze(0)
 
     if hasattr(post_iteration_hook, "extracted_logits"):
         validation_info = [
             {"tokens": t.to("cpu"), "logits": logits.to("cpu")}
             for t, logits in zip(
-                torch.unbind(result), torch.unbind(post_iteration_hook.extracted_logits)
+                torch.unbind(model_output),
+                torch.unbind(post_iteration_hook.extracted_logits),
             )
         ]
     else:
-        validation_info = [{"tokens": t.to("cpu")} for t in torch.unbind(result)]
+        validation_info = [{"tokens": t.to("cpu")} for t in torch.unbind(model_output)]
     return ValidationInfo(validation_info)
 
 
