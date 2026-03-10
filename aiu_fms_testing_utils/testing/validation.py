@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import List, Tuple, Callable, MutableMapping, Any, Optional
 
 import torch
-from aiu_fms_testing_utils.utils.aiu_setup import dprint
+from aiu_fms_testing_utils.utils.aiu_setup import dprint, r0dprint
 import os
 from aiu_fms_testing_utils.testing.utils import format_kwargs_to_string
 from aiu_fms_testing_utils.utils.model_setup import Timing
@@ -292,6 +292,8 @@ def extract_validation_information(
     if attn_algorithm is not None:
         extra_generation_kwargs["attn_algorithm"] = attn_algorithm.value
 
+    r0dprint(f"Calling generate with timing: {timing}")
+    r0dprint(f"Calling generate with kwargs: {extra_generation_kwargs}")
     result = generate(
         model,
         input_ids,
@@ -304,6 +306,8 @@ def extract_validation_information(
         extra_kwargs=extra_generation_kwargs,
         **attention_specific_kwargs,
     )
+
+    r0dprint(f"Model generate result ({type(result)}): {result}")
 
     # Split result into model output and timings (empty list if none)
     model_output, timings = result
