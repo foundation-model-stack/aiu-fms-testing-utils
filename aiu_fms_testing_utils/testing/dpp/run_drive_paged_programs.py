@@ -234,7 +234,7 @@ def run_dpp(
     else:
         r0dprint("Running DPP in single-process mode")
 
-    dataset_path = resolve_dataset_path(dataset_path)
+    dataset_path = resolve_dataset_path(dataset_type, dataset_path)
 
     is_fp8 = attention_type == AttnType.PAGED_FP8
     if not run_cpu_validation and test_type == TestType.METRICS:
