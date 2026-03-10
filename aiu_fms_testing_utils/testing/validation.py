@@ -310,7 +310,11 @@ def extract_validation_information(
     r0dprint(f"Model generate result ({type(result)}): {result}")
 
     # Split result into model output and timings (empty list if none)
-    model_output, timings = result
+    if isinstance(result, tuple):
+        model_output, timings = result
+    else:
+        model_output, timings = result, []  # If the result is just a tensor
+
     if timing != Timing.NONE:
         dprint(
             "=== This timing information might be inaccurate due to extra work being done in generate() for validation"
