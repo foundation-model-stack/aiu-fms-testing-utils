@@ -433,7 +433,7 @@ def resolve_dataset_path(
         if dataset_type == DatasetType.SHAREGPT:
             r0dprint("Using ShareGPT dataset from HuggingFace")
             # Fetch from HuggingFace or use cached download
-            local_dataset_path = hf_hub_download(
+            hf_dataset_path = hf_hub_download(
                 repo_id=SHARE_GPT_DATASET[0],
                 filename=SHARE_GPT_DATASET[1],
                 repo_type="dataset",
@@ -441,13 +441,13 @@ def resolve_dataset_path(
         elif dataset_type == DatasetType.RAG_FACTOID:
             r0dprint("Using RAG Factoid dataset from HuggingFace")
             # Fetch from HuggingFace or use cached download
-            local_dataset_path = hf_hub_download(
+            hf_dataset_path = hf_hub_download(
                 repo_id=RAG_FACTOID_DATASET[0],
                 filename=RAG_FACTOID_DATASET[1],
                 repo_type="dataset",
             )
 
-        return local_dataset_path
+        return hf_dataset_path
 
     # Initially download only for rank 0 to avoid redundant downloads in distributed settings
     if local_rank == 0:
