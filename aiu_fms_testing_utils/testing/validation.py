@@ -311,19 +311,19 @@ def extract_validation_information(
 
     # Split result into model output and timings (empty list if none)
     if isinstance(result, tuple):
-        model_output, timings = result
+        model_output, timing_results = result
     else:
-        model_output, timings = result, []  # If the result is just a tensor
+        model_output, timing_results = result, []  # If the result is just a tensor
 
-    if timing != Timing.NONE:
+    if timing != Timing.NONE and timing_results:
         dprint(
             "=== This timing information might be inaccurate due to extra work being done in generate() for validation"
         )
         if timing == Timing.E2E:
-            dprint(f"E2E timing information: {timings[0]:.3f}s")
+            dprint(f"E2E timing information: {timing_results[0]:.3f}s")
         elif timing == Timing.PER_TOKEN:
-            timings = [f"{t * 1000:.3f}" for t in timings]
-            dprint(f"Per-token timing information: {', '.join(timings)} ms")
+            timing_results = [f"{t * 1000:.3f}" for t in timing_results]
+            dprint(f"Per-token timing information: {', '.join(timing_results)} ms")
 
     if len(model_output.shape) == 1:
         model_output = model_output.unsqueeze(0)
