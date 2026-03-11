@@ -51,14 +51,26 @@ class DPPRunnerConfig:
                 context=context,
             )
 
-            # these values are to be consistent with vllm for granite 3.3 8b instruct
-            blocks_override = 8192 if prefill_chunk_size > 0 else 2080
-
-            self.num_blocks = self._get_int_env(
-                key="AFTU_PAGED_KVCACHE_NUM_BLOCKS_HINT",
-                default=blocks_override,
+        elif use_distributed and world_size == 1:
+            ##Only set defaults for TP=1
+            context = (
+                "Model granite-3.3-8b (or compatible) "
+                "with tensor parallel size 1 detected"
+            )
+            self.tkv_limit = self._get_int_env(
+                key="VLLM_DT_MAX_BATCH_TKV_LIMIT",
+                default=131072,
                 context=context,
             )
+
+        # these values are to be consistent with vllm for granite 3.3 8b instruct
+        blocks_override = 8192 if prefill_chunk_size > 0 else 2080
+
+        self.num_blocks = self._get_int_env(
+            key="AFTU_PAGED_KVCACHE_NUM_BLOCKS_HINT",
+            default=blocks_override,
+            context=context,
+        )
 
     def setup_config(
         self, model_variant: str, use_distributed: bool, prefill_chunk_size: int

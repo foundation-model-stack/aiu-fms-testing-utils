@@ -7,7 +7,7 @@ from aiu_fms_testing_utils.testing.dpp.program_models import (
     DatasetType,
 )
 from aiu_fms_testing_utils.testing.dpp.run_drive_paged_programs import run_dpp
-from aiu_fms_testing_utils.utils.aiu_setup import r0dprint
+from aiu_fms_testing_utils.utils.aiu_setup import r0dprint, world_size
 
 
 @pytest.fixture(scope="module")
@@ -19,17 +19,36 @@ def dpp_criterion_json_path():
 def setup_environment():
     """Sets up the testing environment for driving paged programs."""
 
-    r0dprint("Setting up environment for driving paged programs...")
-    os.environ["VLLM_DT_MAX_BATCH_TKV_LIMIT"] = os.environ.get(
-        "VLLM_DT_MAX_BATCH_TKV_LIMIT", "131072"
+    r0dprint(
+        f"Setting up environment for driving paged programs for world size {world_size}..."
     )
-    os.environ["VLLM_DT_MAX_BATCH_SIZE"] = os.environ.get(
-        "VLLM_DT_MAX_BATCH_SIZE", "32"
-    )
-    os.environ["VLLM_DT_MAX_CONTEXT_LEN"] = os.environ.get(
-        "VLLM_DT_MAX_CONTEXT_LEN", "32768"
-    )
-    os.environ["VLLM_DT_CHUNK_LEN"] = os.environ.get("VLLM_DT_CHUNK_LEN", "1024")
+
+    if world_size == 4:
+        os.environ["VLLM_DT_MAX_BATCH_TKV_LIMIT"] = os.environ.get(
+            "VLLM_DT_MAX_BATCH_TKV_LIMIT", "131072"
+        )
+        os.environ["VLLM_DT_MAX_BATCH_SIZE"] = os.environ.get(
+            "VLLM_DT_MAX_BATCH_SIZE", "32"
+        )
+        os.environ["VLLM_DT_MAX_CONTEXT_LEN"] = os.environ.get(
+            "VLLM_DT_MAX_CONTEXT_LEN", "32768"
+        )
+        os.environ["VLLM_DT_CHUNK_LEN"] = os.environ.get("VLLM_DT_CHUNK_LEN", "1024")
+    elif world_size == 1:
+        os.environ["VLLM_DT_MAX_BATCH_TKV_LIMIT"] = os.environ.get(
+            "VLLM_DT_MAX_BATCH_TKV_LIMIT", "131072"
+        )
+        os.environ["VLLM_DT_MAX_BATCH_SIZE"] = os.environ.get(
+            "VLLM_DT_MAX_BATCH_SIZE", "16"
+        )
+        os.environ["VLLM_DT_MAX_CONTEXT_LEN"] = os.environ.get(
+            "VLLM_DT_MAX_CONTEXT_LEN", "3072"
+        )
+        os.environ["VLLM_DT_CHUNK_LEN"] = os.environ.get("VLLM_DT_CHUNK_LEN", "1024")
+    else:
+        r0dprint(
+            f"Non-default world size {world_size} detected. Unable to assume default environment setup"
+        )
 
     r0dprint("Batch TKV Limit:", os.environ["VLLM_DT_MAX_BATCH_TKV_LIMIT"])
     r0dprint("Max Batch Size:", os.environ["VLLM_DT_MAX_BATCH_SIZE"])
