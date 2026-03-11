@@ -2,10 +2,12 @@ from pathlib import Path
 from typing import List, Tuple, Callable, MutableMapping, Any, Optional
 
 import torch
-from aiu_fms_testing_utils.utils.aiu_setup import dprint
-from aiu_fms_testing_utils._version import version_tuple
+from aiu_fms_testing_utils.utils.aiu_setup import dprint, r0dprint
 import os
 from aiu_fms_testing_utils.testing.utils import format_kwargs_to_string
+from aiu_fms_testing_utils.utils.model_setup import Timing
+from aiu_fms_testing_utils.testing.dpp.program_models import DeviceType, AttnType
+from aiu_fms_testing_utils._version import version_tuple
 
 import hashlib
 
@@ -42,10 +44,14 @@ class StaticTokenInjectorHook(
         Tuple[torch.Tensor, MutableMapping[str, Any]],
     ]
 ):
-    def __init__(self, static_tokens: List[torch.Tensor], device_type: str = "cpu"):
+    def __init__(
+        self,
+        static_tokens: List[torch.Tensor],
+        device_type: DeviceType = DeviceType.CPU,
+    ):
         super().__init__()
         self.static_tokens = torch.tensor(
-            static_tokens, device=device_type
+            static_tokens, device=device_type.value
         ).t()  # transposing so batch tokens per token_position
 
     def __call__(
@@ -61,7 +67,7 @@ class GoldenTokenHook(
         Tuple[torch.Tensor, MutableMapping[str, Any]],
     ]
 ):
-    def __init__(self, static_tokens: torch.Tensor, device_type: str = "cpu"):
+    def __init__(self, static_tokens: torch.Tensor, device_type: str = DeviceType.CPU):
         super().__init__()
         self.logits_extractor = LogitsExtractorHook()
         self.extracted_logits = None
@@ -260,10 +266,10 @@ def extract_validation_information(
     input_ids,
     max_new_tokens,
     post_iteration_hook,
-    attn_algorithm=None,
+    attn_algorithm: Optional[AttnType] = None,
     eos_token_id=None,
     last_n_tokens=0,
-    timing="",
+    timing=Timing.NONE,
     prefill_chunk_size=0,
     **extra_kwargs,
 ):
@@ -284,8 +290,10 @@ def extract_validation_information(
     if last_n_tokens != 0:
         extra_generation_kwargs["last_n_tokens"] = last_n_tokens
     if attn_algorithm is not None:
-        extra_generation_kwargs["attn_algorithm"] = attn_algorithm
+        extra_generation_kwargs["attn_algorithm"] = attn_algorithm.value
 
+    r0dprint(f"Calling generate with timing: {timing}")
+    r0dprint(f"Calling generate with kwargs: {extra_generation_kwargs}")
     result = generate(
         model,
         input_ids,
@@ -294,34 +302,42 @@ def extract_validation_information(
         do_sample=False,
         post_iteration_hook=post_iteration_hook,
         eos_token_id=eos_token_id,
-        timing=timing,
+        timing=timing.value if timing != Timing.NONE else "",
         extra_kwargs=extra_generation_kwargs,
         **attention_specific_kwargs,
     )
 
-    if timing != "":
+    r0dprint(f"Model generate result ({type(result)}): {result}")
+
+    # Split result into model output and timings (empty list if none)
+    if isinstance(result, tuple):
+        model_output, timing_results = result
+    else:
+        model_output, timing_results = result, []  # If the result is just a tensor
+
+    if timing != Timing.NONE and timing_results:
         dprint(
             "=== This timing information might be inaccurate due to extra work being done in generate() for validation"
         )
-        result, timings = result
-        if timing == "e2e":
-            dprint(f"E2E timing information: {timings[0]:.3f}s")
-        elif timing == "per-token":
-            timings = [f"{t * 1000:.3f}" for t in timings]
-            dprint(f"Per-token timing information: {', '.join(timings)} ms")
+        if timing == Timing.E2E:
+            dprint(f"E2E timing information: {timing_results[0]:.3f}s")
+        elif timing == Timing.PER_TOKEN:
+            timing_results = [f"{t * 1000:.3f}" for t in timing_results]
+            dprint(f"Per-token timing information: {', '.join(timing_results)} ms")
 
-    if len(result.shape) == 1:
-        result = result.unsqueeze(0)
+    if len(model_output.shape) == 1:
+        model_output = model_output.unsqueeze(0)
 
     if hasattr(post_iteration_hook, "extracted_logits"):
         validation_info = [
             {"tokens": t.to("cpu"), "logits": logits.to("cpu")}
             for t, logits in zip(
-                torch.unbind(result), torch.unbind(post_iteration_hook.extracted_logits)
+                torch.unbind(model_output),
+                torch.unbind(post_iteration_hook.extracted_logits),
             )
         ]
     else:
-        validation_info = [{"tokens": t.to("cpu")} for t in torch.unbind(result)]
+        validation_info = [{"tokens": t.to("cpu")} for t in torch.unbind(model_output)]
     return ValidationInfo(validation_info)
 
 
@@ -409,7 +425,7 @@ def print_failed_cases(failed_cases, aiu_tokens, validation_tokens, tokenizer):
 
         aiu_str = tokenizer.decode(aiu_token)
         validation_str = tokenizer.decode(validation_token)
-        print(
+        dprint(
             f"In sentence {sentence_index + 1}/{len(aiu_tokens)}, token {token_index}, AIU outputs {aiu_token} instead of {validation_token} -- AIU val={aiu_str} -- CPU val={validation_str}"
         )
 
@@ -421,9 +437,9 @@ def get_validation_info_path(
     seq_length: int,
     max_new_tokens: int,
     seed: int,
-    attn_type: str,
+    attn_type: AttnType,
     aftu_version: Optional[Tuple[int, int, int]] = None,
-    device_type: str = "cpu",
+    device_type: DeviceType = DeviceType.CPU,
     dtype: str = "fp16",
     **kwargs,
 ):
@@ -432,7 +448,27 @@ def get_validation_info_path(
 
     sample_key = kwargs.get("sample_key", None)
 
-    validation_file_name = f"{get_default_validation_prefix(aftu_version='.'.join([str(_) for _ in aftu_version[:3]]), model_id=model_variant, max_new_tokens=max_new_tokens, batch_size=batch_size, seq_length=seq_length, dtype=dtype, attn_type=attn_type, sample_key=sample_key)}.{device_type}_validation_info.{seed}.out"
+    attn_type_map = {
+        AttnType.SDPA: "sdpa",
+        AttnType.PAGED: "paged",
+        AttnType.MATH: "math",
+        AttnType.MATH_FP8: "math-fp8",
+        AttnType.PAGED_FP8: "paged-fp8",
+    }
+
+    val_prefix = get_default_validation_prefix(
+        aftu_version=".".join([str(_) for _ in aftu_version[:3]]),
+        model_id=model_variant,
+        max_new_tokens=max_new_tokens,
+        batch_size=batch_size,
+        seq_length=seq_length,
+        dtype=dtype,
+        attn_type=attn_type_map[attn_type],
+        sample_key=sample_key,
+    )
+    validation_file_name = (
+        f"{val_prefix}.{device_type.value}_validation_info.{seed}.out"
+    )
     full_path = os.path.join(validation_info_dir, validation_file_name)
     return full_path
 
@@ -459,10 +495,10 @@ def find_validation_info_path(
     seq_length: int,
     max_new_tokens: int,
     seed: int,
-    attn_type: str,
+    attn_type: AttnType,
     aftu_version: Optional[Tuple[int, int, int]] = None,
     version_allow_decrement: bool = False,
-    device_type: str = "cpu",
+    device_type: DeviceType = DeviceType.CPU,
     dtype: str = "fp16",
     **kwargs,
 ):

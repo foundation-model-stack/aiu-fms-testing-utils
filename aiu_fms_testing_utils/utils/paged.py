@@ -6,6 +6,7 @@ from typing import Any, Callable, List, MutableMapping, Optional, Tuple, Union
 import torch
 import fms.utils.spyre.paged  # noqa
 from aiu_fms_testing_utils.utils import get_pad_size
+from aiu_fms_testing_utils.utils.model_setup import Timing
 
 
 def adjust_inputs_to_batch(input_ids: torch.Tensor, **extra_kwargs):
@@ -39,7 +40,7 @@ def generate(
     use_cache: bool = False,
     prefill_chunk_size: int = 0,
     eos_token_id: Optional[int] = None,
-    timing: str = "",
+    timing: Timing = Timing.NONE,
     post_iteration_hook: Optional[
         Callable[
             [int, torch.Tensor, torch.Tensor, MutableMapping[str, Any]],
@@ -47,7 +48,7 @@ def generate(
         ]
     ] = None,
     extra_kwargs: Optional[MutableMapping[str, Any]] = None,
-):
+) -> Union[torch.Tensor, Tuple[torch.Tensor, List[float]]]:
     """
     A trivial generate function that can be used for validation/testing in
     cases where HF is not available.
@@ -80,7 +81,10 @@ def generate(
         extra_kwargs: an optional mapping of additional kwargs to pass to the model.
             For example: if extra_kwargs contains position_ids and mask keys, these
             model parameters will be updated as-appropriate for each token generated.
-    """
+    Returns:
+        A tensor of shape (batch x seq + max_new_tokens) with the generated tokens.
+        If timing is not Timing.NONE, also returns an array of timing measurements as described above."""
+
     random.seed(0)
     if num_beams != 1:
         raise NotImplementedError("generate() does yet not support beam search")
@@ -259,7 +263,7 @@ def generate(
 
     prompt_length = input_ids.shape[1]
 
-    if timing != "":
+    if timing != Timing.NONE:
         times: List[float] = []
         start_time = time.time()
 
@@ -613,14 +617,14 @@ def generate(
         else:
             next_input = result
 
-        if timing == "per-token":
+        if timing == Timing.PER_TOKEN:
             if input_ids.device.type == "cuda":
                 torch.cuda.synchronize()
             current_token_time = time.time() - start_time
             times.append(current_token_time)
             start_time = time.time()
 
-    if timing == "e2e":
+    if timing == Timing.E2E:
         if input_ids.device.type == "cuda":
             torch.cuda.synchronize()
         e2e_time = time.time() - start_time
@@ -629,8 +633,9 @@ def generate(
     if not is_batch:
         result = result[0]
 
-    if timing != "":
+    if timing != Timing.NONE:
         return result, times
+
     return result
 
 
@@ -660,6 +665,9 @@ class ProgramCriteria:
 
     def __str__(self):
         return f"ProgramCriteria(program_id={self.program_id})"
+
+    def __repr__(self):
+        return f"ProgramCriteria(program_id={self.program_id}, max_batch={self.max_batch}, max_tkv={self.max_tkv}, batch_granularity={self.batch_granularity}, tkv_granularity={self.tkv_granularity})"
 
     def __eq__(self, other):
         if not isinstance(other, ProgramCriteria):

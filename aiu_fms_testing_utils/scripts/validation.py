@@ -14,6 +14,7 @@ from fms.models.llama import LLaMAConfig, _llama_factory_factory
 from fms.utils import generation
 from fms.utils.generation import pad_input_ids
 from torch import distributed as dist
+from aiu_fms_testing_utils.testing.dpp.program_models import AttnType
 from aiu_fms_testing_utils.utils import warmup_model
 from aiu_fms_testing_utils.testing.validation import (
     LogitsExtractorHook,
@@ -690,7 +691,7 @@ else:
         ids.to(validation_device),
         args.max_new_tokens,
         LogitsExtractorHook(),
-        attn_algorithm="math",
+        attn_algorithm=AttnType.MATH,
         **padding_kwargs,
     )
 

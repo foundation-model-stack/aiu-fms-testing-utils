@@ -2,6 +2,7 @@ import os
 from dataclasses import dataclass
 
 from aiu_fms_testing_utils.utils.aiu_setup import dprint
+from torch import distributed as dist
 
 
 @dataclass
@@ -50,17 +51,29 @@ class DPPRunnerConfig:
                 context=context,
             )
 
-            # these values are to be consistent with vllm for granite 3.3 8b instruct
-            blocks_override = 8192 if prefill_chunk_size > 0 else 2080
-
-            self.num_blocks = self._get_int_env(
-                key="AFTU_PAGED_KVCACHE_NUM_BLOCKS_HINT",
-                default=blocks_override,
+        elif use_distributed and world_size == 1:
+            ##Only set defaults for TP=1
+            context = (
+                "Model granite-3.3-8b (or compatible) "
+                "with tensor parallel size 1 detected"
+            )
+            self.tkv_limit = self._get_int_env(
+                key="VLLM_DT_MAX_BATCH_TKV_LIMIT",
+                default=131072,
                 context=context,
             )
 
+        # these values are to be consistent with vllm for granite 3.3 8b instruct
+        blocks_override = 8192 if prefill_chunk_size > 0 else 2080
+
+        self.num_blocks = self._get_int_env(
+            key="AFTU_PAGED_KVCACHE_NUM_BLOCKS_HINT",
+            default=blocks_override,
+            context=context,
+        )
+
     def setup_config(
-        self, model_variant, use_distributed, world_size, prefill_chunk_size
+        self, model_variant: str, use_distributed: bool, prefill_chunk_size: int
     ):
         """Set up environment variables and default values if not specified"""
 
@@ -69,27 +82,32 @@ class DPPRunnerConfig:
             "granite-3.3-8b-instruct" in model_variant
             or "granite-4.0-8b" in model_variant
         ):
+            world_size = (
+                dist.get_world_size()
+                if use_distributed and dist.is_initialized()
+                else 1
+            )
             self._configure_granite_3_8b(
                 use_distributed, world_size, prefill_chunk_size
             )
 
-        ## global defaults (fallback)
-        ## TODO: IN future we may remove defaults for unknown configurations \
-        ## and require users to set the environment variables
-        ## num_blocks is set in generate if not set here
         if self.tkv_limit is None:
-            self.tkv_limit = self._get_int_env(
-                key="VLLM_DT_MAX_BATCH_TKV_LIMIT",
-                default=524288,
-                context="Unknown model configuration",
+            raise RuntimeError(
+                f"Could not determine tkv_limit for model variant '{model_variant}'. "
+                "Please set the environment variable VLLM_DT_MAX_BATCH_TKV_LIMIT or "
+                "run this program in distributed mode."
             )
 
     def env_updates(self) -> dict[str, str]:
         """Returns a key/value of environment variables needed for model compile"""
         if self.tkv_limit is None:
             raise RuntimeError(
-                "ModelConfig.env_updates() called before setup_config(). "
-                "Call setup_config(...) first."
+                "ModelConfig.env_updates() called before setup_config(). Call setup_config(...) first."
             )
 
         return {"VLLM_DT_MAX_BATCH_TKV_LIMIT": str(self.tkv_limit)}
+
+    def __str__(self) -> str:
+        return (
+            f"DPPRunnerConfig(num_blocks={self.num_blocks}, tkv_limit={self.tkv_limit})"
+        )

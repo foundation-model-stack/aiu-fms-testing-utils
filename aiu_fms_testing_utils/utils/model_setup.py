@@ -13,6 +13,21 @@ from torch import nn, distributed
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, rank, local_rank, world_size
 from aiu_fms_testing_utils.utils import aiu_setup
 
+from enum import Enum
+
+
+class Timing(Enum):
+    """Enum for timing options in generation function."""
+
+    NONE = "none"
+    """No timing measurements will be taken."""
+
+    E2E = "e2e"
+    """Measures end-to-end generation time for the entire generation loop."""
+
+    PER_TOKEN = "per-token"
+    """Measures time taken for each token generation step."""
+
 
 def get_default_dtype(args: argparse.Namespace) -> torch.dtype | None:
     """Return default_dtype for non-quantized models, otherwise None.

@@ -19,6 +19,7 @@ from aiu_fms_testing_utils.utils import sample_sharegpt_requests
 from fms.models import get_model
 from fms.utils.generation import pad_input_ids
 from transformers import AutoTokenizer
+from aiu_fms_testing_utils.testing.dpp.program_models import AttnType
 
 parser = argparse.ArgumentParser(
     description="Script to determine a reasonable logits loss threshold when testing with aiu"
@@ -244,7 +245,7 @@ if not args.skip_computation:
         ids,
         args.max_new_tokens,
         LogitsExtractorHook(),
-        attn_algorithm="math",
+        attn_algorithm=AttnType.MATH,
         **padding_kwargs,
     )
     cpu_static_tokens = cpu_validation_info.get_info("tokens")
@@ -324,7 +325,7 @@ for i in range(num_test_tokens_per_sequence // args.max_new_tokens):
                 ids,
                 args.max_new_tokens,
                 LogitsExtractorHook(),
-                attn_algorithm="math",
+                attn_algorithm=AttnType.MATH,
                 **padding_kwargs,
             )
 
