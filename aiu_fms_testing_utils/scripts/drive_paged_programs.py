@@ -1397,8 +1397,10 @@ def main() -> None:
     distributed_kwargs: Dict[str, Any] = _get_distributed_kwargs(
         is_distributed=args.distributed, dist_timeout=args.dist_timeout
     )
+    # Only rank0 does the "save" ==> Set bool=1. All other ranks get bool=0.
+    # In case of single AIU ==> Only rank0 exists ==> Set bool=1 for rank0.
     args.save_validation_info_outputs = args.save_validation_info_outputs and (
-        dist.get_rank() == 0
+        dist.get_rank() == 0 if dist.is_initialized() else 1
     )
     model_config: DPPRunnerConfig = DPPRunnerConfig()
     world_size = (
