@@ -12,9 +12,9 @@ def install_prometheus():
     """
 
     # See if it is installed
-    run = subprocess.run(["pip", "show", "prometheus_api_client"],
-                         capture_output=True,
-                         check=False)
+    run = subprocess.run(
+        ["pip", "show", "prometheus_api_client"], capture_output=True, check=False
+    )
 
     # Install if needed
     if run.returncode != 0:
@@ -33,7 +33,6 @@ def instantiate_prometheus(report_utilization):
 
     client = None
     if report_utilization:
-
         # Install and import Prometheus if needed
         install_prometheus()
         from prometheus_api_client import PrometheusConnect
@@ -44,12 +43,18 @@ def instantiate_prometheus(report_utilization):
             api_token = os.environ.get("PROMETHEUS_API_KEY")
 
             # Define necessary headers
-            request_headers = {"Authorization": f"Bearer {api_token}"} if api_token else None
+            request_headers = (
+                {"Authorization": f"Bearer {api_token}"} if api_token else None
+            )
 
-            client = PrometheusConnect(url=connection_url, headers=request_headers, disable_ssl=True)
+            client = PrometheusConnect(
+                url=connection_url, headers=request_headers, disable_ssl=True
+            )
 
         except Exception as e:
-            print(f"WARNING: Cannot instantiate Prometheus. Make sure PROMETHEUS_URL and PROMETHEUS_API_KEY are set in your environment if you are trying to collect resource metrics. Error: {e}")
+            print(
+                f"WARNING: Cannot instantiate Prometheus. Make sure PROMETHEUS_URL and PROMETHEUS_API_KEY are set in your environment if you are trying to collect resource metrics. Error: {e}"
+            )
 
     return client
 
@@ -77,7 +82,7 @@ def get_value(given_res, query_type="static"):
             except Exception:
                 pass
         value = values[0] if values else None
-    
+
     else:  ## For peak reads
         for series in given_res or []:
             for timestamp, val in series.get("values", []):
@@ -97,7 +102,7 @@ def get_static_read(client, recorded_time):
 
     Args:
     - client: the Prometheus client to use to get our metrics.
-    - recorded_time: the time that we want to get the metric read at. 
+    - recorded_time: the time that we want to get the metric read at.
 
     Returns:
     - cpu_value: this is the reported value for percentage of CPU usage at the given
@@ -110,19 +115,24 @@ def get_static_read(client, recorded_time):
     mem_value = None
     if client is not None:
         try:
-
             # Make the request for CPU and Mem
             cpu_query = '100 * (1 - avg(rate(node_cpu_seconds_total{mode="idle"}[2m])))'
-            mem_query = '(node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / 1024 / 1024 / 1024'
-            cpu_response = client.custom_query(query=cpu_query, params={"time": recorded_time.timestamp()})
-            mem_response = client.custom_query(query=mem_query, params={"time": recorded_time.timestamp()})
+            mem_query = "(node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / 1024 / 1024 / 1024"
+            cpu_response = client.custom_query(
+                query=cpu_query, params={"time": recorded_time.timestamp()}
+            )
+            mem_response = client.custom_query(
+                query=mem_query, params={"time": recorded_time.timestamp()}
+            )
 
             ## Get the CPU & Mem metrics out of the response
             cpu_value = get_value(cpu_response)
             mem_value = get_value(mem_response)
-        
+
         except Exception as e:
-            print(f"WARNING: Failed to retrieve utilization values. Ensure PROMETHEUS_API_KEY is set. Error: {e}")
+            print(
+                f"WARNING: Failed to retrieve utilization values. Ensure PROMETHEUS_API_KEY is set. Error: {e}"
+            )
 
     return cpu_value, mem_value
 
@@ -148,10 +158,9 @@ def get_peak_read(client, start, end):
     peak_mem_value = None
     if client is not None:
         try:
-
             # Make the request for CPU and Mem
             cpu_query = '100 * (1 - avg(rate(node_cpu_seconds_total{mode="idle"}[2m])))'
-            mem_query = '(node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / 1024 / 1024 / 1024'
+            mem_query = "(node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / 1024 / 1024 / 1024"
             cpu_response = client.custom_query_range(
                 query=cpu_query, start_time=start, end_time=end, step="3s"
             )
@@ -162,9 +171,11 @@ def get_peak_read(client, start, end):
             ## Get the CPU & Mem metrics out of the response
             peak_cpu_value = get_value(cpu_response, "range")
             peak_mem_value = get_value(mem_response, "range")
-        
+
         except Exception as e:
-            print(f"WARNING: Failed to retrieve utilization values. Ensure PROMETHEUS_API_KEY is set. Error: {e}")
+            print(
+                f"WARNING: Failed to retrieve utilization values. Ensure PROMETHEUS_API_KEY is set. Error: {e}"
+            )
 
     return peak_cpu_value, peak_mem_value
 
@@ -199,10 +210,14 @@ def print_comp_resource_metrics(cpu_val, mem_val, stage, step, print_utilization
         if not print_utilization or (cpu_val is None or mem_val is None):
             timestamp_print(f"{step} {stage}")
         else:
-            timestamp_print(f"{step} {stage} - CPU: {cpu_val:.2f}%, Memory: {mem_val:.2f} GB")
+            timestamp_print(
+                f"{step} {stage} - CPU: {cpu_val:.2f}%, Memory: {mem_val:.2f} GB"
+            )
 
     elif print_utilization and (cpu_val is not None and mem_val is not None):
-        dprint(f"Peak Resource Utilization - CPU: {cpu_val:.2f}%, Memory: {mem_val:.2f} GB")
+        dprint(
+            f"Peak Resource Utilization - CPU: {cpu_val:.2f}%, Memory: {mem_val:.2f} GB"
+        )
 
 
 def print_step(p, report_utilization, step, stage, start_time=None):
@@ -229,9 +244,15 @@ def print_step(p, report_utilization, step, stage, start_time=None):
 
     ## Get and print the peak usage
     if start_time is not None:
-        peak_cpu_inference_cpu, peak_mem_inference_cpu = get_peak_read(p, start_time, recorded_time)
+        peak_cpu_inference_cpu, peak_mem_inference_cpu = get_peak_read(
+            p, start_time, recorded_time
+        )
         print_comp_resource_metrics(
-            peak_cpu_inference_cpu, peak_mem_inference_cpu, "peak", stage, report_utilization
+            peak_cpu_inference_cpu,
+            peak_mem_inference_cpu,
+            "peak",
+            stage,
+            report_utilization,
         )
 
     return recorded_time
