@@ -139,31 +139,6 @@ export TORCH_SENDNN_LOG=CRITICAL
 export DT_DEEPRT_VERBOSE=-1
 ```
 
-### Setup the environment for reporting resource usage
-
-When running `drive_paged_programs.py` you may want to see how much CPU and memory usage is
-happening. This is done using Prometheus, thus if you are running in a container, you want to set up a simple Prometheus server to start collecting these metrics. To do this, do the following:
-
-1. Run `podman network create promnet`
-2. Run `podman run -d --name node-exporter --network promnet quay.io/prometheus/node-exporter:latest`
-3. Create a file called `prometheus.yml` that has the following contents:
-
-```yaml
-global:
-  scrape_interval: 5s
-
-scrape_configs:
-  - job_name: "node"
-    static_configs:
-      - targets: ["node-exporter:9100"]
-```
-
-4. Run `podman run -d --name prometheus --network promnet -p 9091:9090   -v "$PWD/prometheus.yml:/etc/prometheus/prometheus.yml:Z"   quay.io/prometheus/prometheus:latest   --config.file=/etc/prometheus/prometheus.yml`
-5. Check the status of the server by running `curl -s "http://localhost:9091/api/v1/targets" | python3 -m json.tool | grep health` and ensuring that "health" says "up".
-6. When you are about to run DPP, run `export PROMETHEUS_URL="http://localhost:9091"`
-
-If you are running in OpenShift, you are going to want to set `PROMETHEUS_URL` to an OpenShift route that has Prometheus set up. Additionally, you are going to want to set `PROMETHEUS_API_KEY` to your OpenShift OAuth token if the Prometheus instance on the cluster is protected. You can get this token by running `oc whoami -t`.
-
 ## How to use Foundation Model Stack (FMS) on AIU hardware
 The [scripts](https://github.com/foundation-model-stack/aiu-fms-testing-utils/tree/main/scripts) directory provides various scripts to use FMS on AIU hardware for many use cases. These scripts provide robust support for passing desired command line options for running encoder and decoder models along with other use cases. Refer to the documentation on [using different scripts](https://github.com/foundation-model-stack/aiu-fms-testing-utils/blob/main/scripts/README.md) for more details.
 

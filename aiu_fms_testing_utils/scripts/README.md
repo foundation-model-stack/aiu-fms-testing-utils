@@ -75,3 +75,36 @@ python3 scripts/validation.py --architecture=hf_configured --model_path=/home/de
 ```
 
 To run a logits-based validation, pass `--validation_level=1` to the validation script. This will check for the logits output to match at every step of the model through cross-entropy loss. You can control the acceptable threshold with `--logits_loss_threshold`.
+
+## Setup the environment for reporting resource usage
+
+When running `drive_paged_programs.py` you may want to see how much CPU and memory usage is
+happening. This is done using Prometheus, thus if you are running in a container environment (non-OpenShift), you want to set up a simple Prometheus server to start collecting these metrics. To do this, do the following:
+
+1. Run `podman network create promnet`
+2. Run `podman run -d --name node-exporter --network promnet quay.io/prometheus/node-exporter:latest`
+3. Create a file called `prometheus.yml` that has the following contents:
+
+```yaml
+global:
+  scrape_interval: 5s
+
+scrape_configs:
+  - job_name: "node"
+    static_configs:
+      - targets: ["node-exporter:9100"]
+```
+
+4. Run `podman run -d --name prometheus --network promnet -p 9091:9090   -v "$PWD/prometheus.yml:/etc/prometheus/prometheus.yml:Z"   quay.io/prometheus/prometheus:latest   --config.file=/etc/prometheus/prometheus.yml`
+5. Check the status of the server by running `curl -s "http://localhost:9091/api/v1/targets" | python3 -m json.tool | grep health` and ensuring that "health" says "up".
+6. When you are about to run DPP, run `export PROMETHEUS_URL="http://localhost:9091"`
+
+If you are running in OpenShift, the aformentioned instructions are not neccessary and instead, you are going to want to set `PROMETHEUS_URL` to an OpenShift route that already has Prometheus set up. Additionally, you are going to want to set `PROMETHEUS_API_KEY` to your OpenShift OAuth token if the Prometheus instance on the cluster is protected. You can get this token by running `oc whoami -t`.
+
+When actually running a DPP test, you are going to want to set the `--report_resource_utilization` flag to see outputs. Regardless if you have this flag set or if you do not have Prometheus installed or any of the environment variables set, DPP should always run. These instructions are simply just to see resource utilization outputs.
+
+Sample test to run with resource utilization outputs:
+
+```bash
+torchrun --nproc-per-node=4 aiu-fms-testing-utils/scripts/drive_paged_programs.py --model_variant=/ibm-granite/granite-3.3-8b-instruct --program_criteria_json_path=path/to/program_criterion.json --dataset_type=sharegpt --skip_validation --programs "*:0,<8192" --prioritize_large_batch_sizes --enforce_homogeneous_prompt_programs --prefill_chunk_size=1024 --dataset_path=ShareGPT_V3_unfiltered_cleaned_split.json --report_resource_utilization
+```
