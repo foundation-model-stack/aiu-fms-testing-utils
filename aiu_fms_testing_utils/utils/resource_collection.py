@@ -109,16 +109,20 @@ def get_static_read(client, recorded_time):
     cpu_value = None
     mem_value = None
     if client is not None:
+        try:
 
-        # Make the request for CPU and Mem
-        cpu_query = '100 * (1 - avg(rate(node_cpu_seconds_total{mode="idle"}[2m])))'
-        mem_query = '(node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / 1024 / 1024 / 1024'
-        cpu_response = client.custom_query(query=cpu_query, params={"time": recorded_time.timestamp()})
-        mem_response = client.custom_query(query=mem_query, params={"time": recorded_time.timestamp()})
+            # Make the request for CPU and Mem
+            cpu_query = '100 * (1 - avg(rate(node_cpu_seconds_total{mode="idle"}[2m])))'
+            mem_query = '(node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / 1024 / 1024 / 1024'
+            cpu_response = client.custom_query(query=cpu_query, params={"time": recorded_time.timestamp()})
+            mem_response = client.custom_query(query=mem_query, params={"time": recorded_time.timestamp()})
 
-        ## Get the CPU & Mem metrics out of the response
-        cpu_value = get_value(cpu_response)
-        mem_value = get_value(mem_response)
+            ## Get the CPU & Mem metrics out of the response
+            cpu_value = get_value(cpu_response)
+            mem_value = get_value(mem_response)
+        
+        except Exception as e:
+            print(f"WARNING: Failed to retrieve utilization values. Ensure PROMETHEUS_API_KEY is set. Error: {e}")
 
     return cpu_value, mem_value
 
@@ -143,20 +147,24 @@ def get_peak_read(client, start, end):
     peak_cpu_value = None
     peak_mem_value = None
     if client is not None:
+        try:
 
-        # Make the request for CPU and Mem
-        cpu_query = '100 * (1 - avg(rate(node_cpu_seconds_total{mode="idle"}[2m])))'
-        mem_query = '(node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / 1024 / 1024 / 1024'
-        cpu_response = client.custom_query_range(
-            query=cpu_query, start_time=start, end_time=end, step="3s"
-        )
-        mem_response = client.custom_query_range(
-            query=mem_query, start_time=start, end_time=end, step="3s"
-        )
+            # Make the request for CPU and Mem
+            cpu_query = '100 * (1 - avg(rate(node_cpu_seconds_total{mode="idle"}[2m])))'
+            mem_query = '(node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / 1024 / 1024 / 1024'
+            cpu_response = client.custom_query_range(
+                query=cpu_query, start_time=start, end_time=end, step="3s"
+            )
+            mem_response = client.custom_query_range(
+                query=mem_query, start_time=start, end_time=end, step="3s"
+            )
 
-        ## Get the CPU & Mem metrics out of the response
-        peak_cpu_value = get_value(cpu_response, "range")
-        peak_mem_value = get_value(mem_response, "range")
+            ## Get the CPU & Mem metrics out of the response
+            peak_cpu_value = get_value(cpu_response, "range")
+            peak_mem_value = get_value(mem_response, "range")
+        
+        except Exception as e:
+            print(f"WARNING: Failed to retrieve utilization values. Ensure PROMETHEUS_API_KEY is set. Error: {e}")
 
     return peak_cpu_value, peak_mem_value
 
@@ -188,7 +196,7 @@ def print_comp_resource_metrics(cpu_val, mem_val, stage, step, print_utilization
     """
 
     if stage != "peak":
-        if not print_utilization and (cpu_val is None or mem_val is None):
+        if not print_utilization or (cpu_val is None or mem_val is None):
             timestamp_print(f"{step} {stage}")
         else:
             timestamp_print(f"{step} {stage} - CPU: {cpu_val:.2f}%, Memory: {mem_val:.2f} GB")
@@ -222,6 +230,8 @@ def print_step(p, report_utilization, step, stage, start_time=None):
     ## Get and print the peak usage
     if start_time is not None:
         peak_cpu_inference_cpu, peak_mem_inference_cpu = get_peak_read(p, start_time, recorded_time)
-        print_comp_resource_metrics(peak_cpu_inference_cpu, peak_mem_inference_cpu, "peak", stage, report_utilization)
+        print_comp_resource_metrics(
+            peak_cpu_inference_cpu, peak_mem_inference_cpu, "peak", stage, report_utilization
+        )
 
     return recorded_time
