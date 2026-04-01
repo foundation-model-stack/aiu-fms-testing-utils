@@ -1,5 +1,5 @@
 # Standard
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Any
 import json
 import os
 import random
@@ -12,7 +12,7 @@ import bisect
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, rank, world_size
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 from aiu_fms_testing_utils.testing.utils import format_kwargs_to_string
-
+from aiu_fms_testing_utils.utils.resource_collection import print_step
 from fms.utils.generation import pad_input_ids
 import torch
 import torch.nn as nn
@@ -55,6 +55,8 @@ def warmup_model(
     use_cache: bool = True,
     stagger_update_lazyhandle: int = 0,
     prefill_chunk_size: int = 0,
+    print_utilization: bool = False,
+    profile: Optional[Any] = None,
     **extra_kwargs,
 ):
     import torch_sendnn
@@ -72,8 +74,12 @@ def warmup_model(
         attention_specific_kwargs["contiguous_cache"] = True
         attention_specific_kwargs["max_seq_len"] = input_ids.shape[1] + max_new_tokens
 
+    # Start the warmup
     dprint("AIU warmup")
     pt_compile_model_time = time.time()
+
+    ## Report on initial resource usage
+    metric_start = print_step(profile, print_utilization, "started", "Compilation")
 
     # adjust inputs depending on attn_type and dynamic shapes
     _warmup_input_ids = input_ids
@@ -103,6 +109,9 @@ def warmup_model(
                 **attention_specific_kwargs,
             )
     pt_compile_model_time = time.time() - pt_compile_model_time
+
+    # Get completed metric read
+    print_step(profile, print_utilization, "completed", "Compilation", metric_start)
     dprint(f"PT compile complete, took {pt_compile_model_time:.3f}s")
 
 
