@@ -37,7 +37,7 @@ parser = argparse.ArgumentParser(
 parser.add_argument(
     "--device_type",
     type=str,
-    choices=["cuda", "cpu", "aiu", "aiu-senulator"],
+    choices=["cuda", "cpu", "aiu", "aiu-senulator", "spyre"],
     default="cuda",
     help="The device to run the model on",
 )
@@ -273,6 +273,8 @@ attention_map = {
 }
 
 attn_name = attention_map[args.attention_type]
+
+torch._dynamo.config.recompile_limit = 1000
 
 if "paged" in attn_name:
     from aiu_fms_testing_utils.utils.paged import generate
