@@ -1,6 +1,6 @@
 import argparse
 from dataclasses import dataclass
-from datetime import datetime
+import datetime
 import itertools
 import json
 import os
