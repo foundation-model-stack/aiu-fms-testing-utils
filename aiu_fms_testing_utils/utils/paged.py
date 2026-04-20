@@ -134,6 +134,16 @@ def generate(
     if NUM_BLOCKS is None:
         NUM_BLOCKS = (_MAX_BATCH * _MAX_CONTEXT_LENGTH) // BLOCK_SIZE
 
+    # TODO: Implement a more hollistic vision handling
+    text_nlayers = None
+
+    if hasattr(model.config, "text_config"):
+        nheads = model.config.text_config.nheads
+        text_nlayers = model.config.text_config.nlayers
+    else:
+        nheads = model.config.nheads
+        text_nlayers = model.config.nlayers
+
     if hasattr(model, "head"):
         model_dtype = model.head.weight.dtype
     elif hasattr(model, "shared"):
@@ -142,7 +152,6 @@ def generate(
     else:
         model_dtype = torch.float32
 
-    nheads = model.config.nheads
     if hasattr(model.config, "kvheads"):
         kvheads = model.config.kvheads
     elif hasattr(model.config, "multiquery_attn"):
@@ -160,9 +169,18 @@ def generate(
         raise ValueError("model must have a distributed_strategy")
 
     kvheads = kvheads // tensor_parallel_size if kvheads > 1 else kvheads
-    head_size = getattr(
-        model.config, "head_dim", model.config.emb_dim // model.config.nheads
-    )
+
+    if hasattr(model.config, "text_config"):
+        head_size = getattr(
+            model.config.text_config,
+            "head_dim",
+            model.config.text_config.emb_dim // model.config.text_config.nheads,
+        )
+    else:
+        head_size = getattr(
+            model.config, "head_dim", model.config.emb_dim // model.config.nheads
+        )
+
     if "fp8" in kwargs["attn_name"]:
         from fms_mo.aiu_addons.fp8.fp8_utils import ScaledTensor
 
@@ -193,7 +211,7 @@ def generate(
                     already_scaled,
                 ),
             )
-            for _ in range(model.config.nlayers)
+            for _ in range(text_nlayers)
         ]
     else:
         kwargs["past_key_value_states"] = [
@@ -205,7 +223,7 @@ def generate(
                     NUM_BLOCKS, BLOCK_SIZE, kvheads, head_size, dtype=model_dtype
                 ),
             )
-            for _ in range(model.config.nlayers)
+            for _ in range(text_nlayers)
         ]
     kwargs["block_table"] = None
     block_numbers = [i for i in range(NUM_BLOCKS)]
