@@ -4,6 +4,7 @@ import random
 import time
 from typing import Any, Callable, List, MutableMapping, Optional, Tuple, Union
 import torch
+import torch.nn.functional as F
 import fms.utils.spyre.paged  # noqa
 from aiu_fms_testing_utils.utils import get_pad_size
 
