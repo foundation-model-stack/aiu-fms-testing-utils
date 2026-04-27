@@ -176,6 +176,12 @@ def parse_cli_args() -> argparse.Namespace:
         help="The model id or path to use for this test. Note: must be a huggingface format",
     )
     parser.add_argument(
+        "--tokenizer",
+        type=str,
+        default=None,
+        help="The tokenizer id or path to use. If not specified, will use the model_variant. Useful for models without their own tokenizer (e.g., Mistral-3)",
+    )
+    parser.add_argument(
         "--timing",
         type=str,
         choices=["e2e", "per-token"],
@@ -1416,26 +1422,15 @@ def main() -> None:
         program_criteria_json_path=args.program_criteria_json_path,
         attention_type=args.attention_type,
     )
-    # Load tokenizer with Mistral-3 fallback support
-    try:
-        tokenizer = AutoTokenizer.from_pretrained(args.model_variant)
-    except KeyError as err:
-        transformers_config = AutoConfig.from_pretrained(args.model_variant)
-        if transformers_config.model_type == "mistral3":
-            # NOTE: mistral-small-3.2 doesn't come with its own tokenizer
-            # so here we rely on 3.1's tokenizer
-            # NOTE: the reason we are not using mistral tokenizer from mistral_common is to:
-            # 1. Rest of the script assumes tokenizer to be HF and have properties like `bos_token`
-            # 2. Avoid bunch of extra dependencies
-            warnings.warn("""
-                Unable to fetch mistral model, using Mistral-Small-3.1 manually. If different one required,
-                please configure it manually via args.tokenizer
-            """)
-            tokenizer = AutoTokenizer.from_pretrained(
-                "mistralai/Mistral-Small-3.1-24B-Instruct-2503"
-            )
-        else:
-            raise err
+    # Load tokenizer - use args.tokenizer if provided, otherwise use model_variant
+    tokenizer_path = args.tokenizer if args.tokenizer is not None else args.model_variant
+    
+    # Auto-detect Mistral tokenizers and apply regex fix
+    tokenizer_kwargs = {}
+    if "mistral" in tokenizer_path.lower():
+        tokenizer_kwargs["fix_mistral_regex"] = True
+    
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, **tokenizer_kwargs)
 
     sampler, allow_truncation, custom_shape = get_sampler(
         dataset_type=args.dataset_type,
