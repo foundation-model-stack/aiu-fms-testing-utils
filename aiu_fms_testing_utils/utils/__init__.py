@@ -21,6 +21,12 @@ import contextlib
 import warnings
 
 
+def get_tokenizer_pad_token_id(tokenizer) -> int:
+    pad_token_id = getattr(tokenizer, "pad_token_id", None)
+    if pad_token_id is not None:
+        return pad_token_id
+    return 0
+
 @contextlib.contextmanager
 def stagger_region(limit: int):
     """
