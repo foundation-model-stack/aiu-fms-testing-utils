@@ -10,6 +10,7 @@ from aiu_fms_testing_utils.utils import get_pad_size
 
 logger = logging.getLogger(__name__)
 
+
 def adjust_inputs_to_batch(input_ids: torch.Tensor, **extra_kwargs):
     """
     Adjusts the inputs to a batch. Batch size 1 cannot be handled since we want a symbolic shape for the batch
@@ -27,6 +28,7 @@ def adjust_inputs_to_batch(input_ids: torch.Tensor, **extra_kwargs):
     if position_ids is not None:
         kwargs["position_ids"] = position_ids[0].repeat(2, 1)
     return input_ids, kwargs
+
 
 def _get_text_config(model_config):
     """Extract the text config from the model; if it's multimodal, all settings
@@ -59,6 +61,7 @@ def _infer_model_dtype(model):
         model_dtype = torch.float32
     return model_dtype
 
+
 def _infer_kv_heads(text_config):
     """Given the model config, or text config (in multimodal case), determine the number
     of attention heads."""
@@ -69,6 +72,7 @@ def _infer_kv_heads(text_config):
         return 1 if text_config.multiquery_attn else text_config.nheads
     # kv heads is just the number of attn heads
     return nheads
+
 
 # FIXME: We should use default generate, but that will require a larger re-work of generate
 def generate(
@@ -158,7 +162,7 @@ def generate(
     eos_found = torch.zeros(
         input_ids.shape[0], dtype=torch.bool, device=input_ids.device
     )
-    
+
     ### Multimodal related
     # is_multimodal = requires_embedding_inputs(model.config)
     text_config = _get_text_config(model.config)
@@ -390,7 +394,9 @@ def generate(
                                 (
                                     torch.full(
                                         (required_extra_pads,),
-                                        fill_value=pad_token_id if pad_token_id is not None else 0,
+                                        fill_value=pad_token_id
+                                        if pad_token_id is not None
+                                        else 0,
                                         dtype=torch.int64,
                                         device=input_ids_seq_chunk.device,
                                     ),

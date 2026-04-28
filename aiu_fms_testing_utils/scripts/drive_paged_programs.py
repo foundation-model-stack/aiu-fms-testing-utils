@@ -367,9 +367,7 @@ def _prepare_inputs(
         prompt_list = [prompt_list[0]] * (batch_size - len(prompt_list)) + prompt_list
 
     input_ids, extra_kwargs = pad_input_ids(
-        prompt_list,             
-        min_pad_length=seq_length, 
-        pad_token_id=pad_token_id
+        prompt_list, min_pad_length=seq_length, pad_token_id=pad_token_id
     )
     extra_kwargs["mask"] = extra_kwargs["mask"].to(torch.float16)
 
@@ -1458,13 +1456,15 @@ def main() -> None:
         attention_type=args.attention_type,
     )
     # Load tokenizer - use args.tokenizer if provided, otherwise use model_variant
-    tokenizer_path = args.tokenizer if args.tokenizer is not None else args.model_variant
-    
+    tokenizer_path = (
+        args.tokenizer if args.tokenizer is not None else args.model_variant
+    )
+
     # Auto-detect Mistral tokenizers and apply regex fix
     tokenizer_kwargs = {}
     if "mistral" in tokenizer_path.lower():
         tokenizer_kwargs["fix_mistral_regex"] = True
-    
+
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, **tokenizer_kwargs)
     pad_token_id = get_tokenizer_pad_token_id(tokenizer)
 
@@ -1522,7 +1522,9 @@ def main() -> None:
     # matching vllm warmup to pad to 2 on fp8, and no pad for fp16
     if is_fp8:
         prompt_list = prompt_list * 2
-    input_ids, extra_kwargs = pad_input_ids(prompt_list, min_pad_length=64, pad_token_id=pad_token_id)
+    input_ids, extra_kwargs = pad_input_ids(
+        prompt_list, min_pad_length=64, pad_token_id=pad_token_id
+    )
     extra_kwargs["mask"] = extra_kwargs["mask"].to(torch.float16)
     extra_kwargs["attn_name"] = env_config.attn_name
     extra_kwargs["_kvcache_num_blocks_hint"] = model_config.num_blocks
