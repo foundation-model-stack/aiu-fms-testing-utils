@@ -22,6 +22,7 @@ import warnings
 
 
 def get_tokenizer_pad_token_id(tokenizer) -> int:
+    """Return tokenizer pad token id, falling back to 0."""
     pad_token_id = getattr(tokenizer, "pad_token_id", None)
     if pad_token_id is not None:
         return pad_token_id
