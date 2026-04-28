@@ -72,7 +72,7 @@ class DPPRunnerConfig:
             )
             self.tkv_limit = self._get_int_env(
                 key="VLLM_DT_MAX_BATCH_TKV_LIMIT",
-                default=524288,
+                default=131072,
                 context=context,
             )
 

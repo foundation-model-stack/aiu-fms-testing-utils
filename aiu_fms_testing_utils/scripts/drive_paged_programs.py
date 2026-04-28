@@ -777,6 +777,7 @@ def get_valid_prompts(
     allow_truncation: bool,
     custom_shape: Optional[Tuple[int, int]],
     pad_multiple: int,
+    pad_token_id: Optional[int] = None,
 ):
     """Generator that yields valid prompts matching program criteria and constraints.
 
@@ -818,6 +819,7 @@ def get_valid_prompts(
                         dataset_path=dataset_path,
                         allow_truncation=allow_truncation,
                         enforce_sizes=enforce_sizes,
+                        pad_token_id=pad_token_id,
                     )
                     prompt_found = 1
                     yield ValidPrompt(
@@ -892,6 +894,7 @@ def get_valid_prompts(
                                 dataset_path=dataset_path,
                                 allow_truncation=allow_truncation,
                                 enforce_sizes=enforce_sizes,
+                                pad_token_id=pad_token_id,
                             )
                             used_keys.add(program_seq_key[0])
                             yield ValidPrompt(
@@ -1211,6 +1214,7 @@ def prepare_test_prompts(
     allow_truncation: bool,
     custom_shape: Optional[Tuple[int, int]],
     dataset_path: str,
+    pad_token_id: Optional[int] = None,
 ):
     """Parses program criteria and generates the sequence of valid test prompts.
 
@@ -1259,6 +1263,7 @@ def prepare_test_prompts(
         allow_truncation=allow_truncation,
         custom_shape=custom_shape,
         pad_multiple=PAD_MULTIPLE,
+        pad_token_id=pad_token_id,
     )
 
 
@@ -1553,6 +1558,7 @@ def main() -> None:
         allow_truncation=allow_truncation,
         custom_shape=custom_shape,
         dataset_path=args.dataset_path,
+        pad_token_id=pad_token_id,
     )
 
     # Validation and Testing
