@@ -57,6 +57,7 @@ def warmup_model(
     prefill_chunk_size: int = 0,
     print_utilization: bool = False,
     profile: Optional[Any] = None,
+    pad_token_id: Optional[int] = None,
     **extra_kwargs,
 ):
     import torch_sendnn
@@ -105,6 +106,7 @@ def warmup_model(
                 max_new_tokens=_max_new_tokens,
                 do_sample=False,
                 use_cache=use_cache,
+                pad_token_id=pad_token_id,
                 extra_kwargs=extra_kwargs,
                 **attention_specific_kwargs,
             )

@@ -178,6 +178,12 @@ def parse_cli_args() -> argparse.Namespace:
         help="The model id or path to use for this test. Note: must be a huggingface format",
     )
     parser.add_argument(
+        "--tokenizer",
+        type=str,
+        default=None,
+        help="The tokenizer id or path to use. If not specified, will use the model_variant. Useful for models without their own tokenizer (e.g., Mistral-3)",
+    )
+    parser.add_argument(
         "--timing",
         type=str,
         choices=["e2e", "per-token"],
@@ -357,7 +363,11 @@ def _prepare_inputs(
         )
         prompt_list = [prompt_list[0]] * (batch_size - len(prompt_list)) + prompt_list
 
-    input_ids, extra_kwargs = pad_input_ids(prompt_list, min_pad_length=seq_length)
+    input_ids, extra_kwargs = pad_input_ids(
+        prompt_list,             
+        min_pad_length=seq_length, 
+        pad_token_id=tokenizer.pad_token_id if hasattr(tokenizer, 'pad_token_id') else 0
+    )
     extra_kwargs["mask"] = extra_kwargs["mask"].to(torch.float16)
 
     return PreparedInputs(
@@ -958,6 +968,7 @@ def generate_cpu_validation(
             max_new_tokens=max_new_tokens,
             post_iteration_hook=LogitsExtractorHook(),
             attn_algorithm="math",
+            pad_token_id=tokenizer.pad_token_id if hasattr(tokenizer, 'pad_token_id') else None,
             **extra_kwargs,
         )
         if save_validation_info_outputs:
@@ -987,6 +998,7 @@ def generate_aiu_validation(
     input_ids: torch.Tensor,
     cpu_validation_info: Optional[ValidationInfo],
     extra_kwargs: Dict[str, Any],
+    pad_token_id: Optional[int] = None,
 ) -> ValidationInfo:
     """Generates AIU validation information by running inference on the compiled model.
 
@@ -1003,6 +1015,7 @@ def generate_aiu_validation(
         input_ids: Tokenized input tensor.
         cpu_validation_info: Optional CPU validation data for golden token injection.
         extra_kwargs: Dictionary with attention mask and other model inputs.
+        pad_token_id: Optional padding token ID for the tokenizer.
 
     Returns:
         ValidationInfo: ValidationInfo object containing AIU outputs (tokens, logits,
@@ -1020,6 +1033,7 @@ def generate_aiu_validation(
         last_n_tokens=64,
         timing=timing,
         prefill_chunk_size=prefill_chunk_size,
+        pad_token_id=pad_token_id,
         **extra_kwargs,
     )
 
@@ -1323,6 +1337,7 @@ def generate_validation_info_and_test(
                 input_ids=valid_prompt.input_ids,
                 cpu_validation_info=cpu_validation_info,
                 extra_kwargs=valid_prompt.extra_kwargs,
+                pad_token_id=tokenizer.pad_token_id if hasattr(tokenizer, 'pad_token_id') else None,
             )
             print_step(
                 profile,
@@ -1371,6 +1386,7 @@ def generate_validation_info_and_test(
                 input_ids=valid_prompt.input_ids,
                 cpu_validation_info=None,
                 extra_kwargs=valid_prompt.extra_kwargs,
+                pad_token_id=tokenizer.pad_token_id if hasattr(tokenizer, 'pad_token_id') else None,
             )
             print_step(
                 profile,
@@ -1429,7 +1445,16 @@ def main() -> None:
         program_criteria_json_path=args.program_criteria_json_path,
         attention_type=args.attention_type,
     )
-    tokenizer = AutoTokenizer.from_pretrained(args.model_variant)
+    # Load tokenizer - use args.tokenizer if provided, otherwise use model_variant
+    tokenizer_path = args.tokenizer if args.tokenizer is not None else args.model_variant
+    
+    # Auto-detect Mistral tokenizers and apply regex fix
+    tokenizer_kwargs = {}
+    if "mistral" in tokenizer_path.lower():
+        tokenizer_kwargs["fix_mistral_regex"] = True
+    
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, **tokenizer_kwargs)
+
     sampler, allow_truncation, custom_shape = get_sampler(
         dataset_type=args.dataset_type,
         dataset_path=args.dataset_path,
@@ -1484,7 +1509,7 @@ def main() -> None:
     # matching vllm warmup to pad to 2 on fp8, and no pad for fp16
     if is_fp8:
         prompt_list = prompt_list * 2
-    input_ids, extra_kwargs = pad_input_ids(prompt_list, min_pad_length=64)
+    input_ids, extra_kwargs = pad_input_ids(prompt_list, min_pad_length=64, pad_token_id=tokenizer.pad_token_id if hasattr(tokenizer, 'pad_token_id') else 0)
     extra_kwargs["mask"] = extra_kwargs["mask"].to(torch.float16)
     extra_kwargs["attn_name"] = env_config.attn_name
     extra_kwargs["_kvcache_num_blocks_hint"] = model_config.num_blocks
@@ -1497,6 +1522,7 @@ def main() -> None:
         prefill_chunk_size=args.prefill_chunk_size,
         print_utilization=args.report_resource_utilization,
         profile=p,
+        pad_token_id=tokenizer.pad_token_id if hasattr(tokenizer, 'pad_token_id') else None,
         **extra_kwargs,
     )
     if args.distributed:
