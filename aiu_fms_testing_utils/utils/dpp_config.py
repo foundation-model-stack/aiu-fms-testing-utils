@@ -94,6 +94,7 @@ class DPPRunnerConfig:
         if (
             "granite-3.3-8b-instruct" in model_variant
             or "granite-4.0-8b" in model_variant
+            or "granite-4.1-8b" in model_variant
         ):
             self._configure_granite_3_8b(
                 use_distributed, world_size, prefill_chunk_size
