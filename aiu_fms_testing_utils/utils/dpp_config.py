@@ -98,7 +98,7 @@ class DPPRunnerConfig:
             self._configure_granite_3_8b(
                 use_distributed, world_size, prefill_chunk_size
             )
-        elif "Mistral-Small-3" in model_variant:
+        elif "Mistral-Small-3" in model_variant or "Ministral-3" in model_variant:
             self._configure_mistral_3(use_distributed, world_size, prefill_chunk_size)
 
         ## global defaults (fallback)
