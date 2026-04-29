@@ -48,6 +48,7 @@ from aiu_fms_testing_utils.utils.resource_collection import (
     instantiate_prometheus,
     print_step,
 )
+from aiu_fms_testing_utils.utils import get_tokenizer_pad_token_id
 
 # Constants
 PAD_MULTIPLE = 64
@@ -178,6 +179,12 @@ def parse_cli_args() -> argparse.Namespace:
         help="The model id or path to use for this test. Note: must be a huggingface format",
     )
     parser.add_argument(
+        "--tokenizer",
+        type=str,
+        default=None,
+        help="The tokenizer id or path to use. If not specified, will use the model_variant. Useful for models without their own tokenizer (e.g., Mistral-3)",
+    )
+    parser.add_argument(
         "--timing",
         type=str,
         choices=["e2e", "per-token"],
@@ -298,6 +305,7 @@ def _prepare_inputs(
     allow_truncation: bool,
     enforce_sizes: List[int] = [],
     seed: int = 0,
+    pad_token_id: Optional[int] = None,
 ) -> PreparedInputs:
     """Prepares and tokenizes input prompts for model inference.
 
@@ -314,6 +322,7 @@ def _prepare_inputs(
         allow_truncation: If True, allows truncating prompts longer than seq_length.
         enforce_sizes: List of specific sequence lengths to enforce for sampling.
         seed: Random seed for reproducible sampling.
+        pad_token_id: Optional padding token ID for the tokenizer
 
     Returns:
         Tuple containing:
@@ -357,7 +366,9 @@ def _prepare_inputs(
         )
         prompt_list = [prompt_list[0]] * (batch_size - len(prompt_list)) + prompt_list
 
-    input_ids, extra_kwargs = pad_input_ids(prompt_list, min_pad_length=seq_length)
+    input_ids, extra_kwargs = pad_input_ids(
+        prompt_list, min_pad_length=seq_length, pad_token_id=pad_token_id
+    )
     extra_kwargs["mask"] = extra_kwargs["mask"].to(torch.float16)
 
     return PreparedInputs(
@@ -764,6 +775,7 @@ def get_valid_prompts(
     allow_truncation: bool,
     custom_shape: Optional[Tuple[int, int]],
     pad_multiple: int,
+    pad_token_id: Optional[int] = None,
 ):
     """Generator that yields valid prompts matching program criteria and constraints.
 
@@ -805,6 +817,7 @@ def get_valid_prompts(
                         dataset_path=dataset_path,
                         allow_truncation=allow_truncation,
                         enforce_sizes=enforce_sizes,
+                        pad_token_id=pad_token_id,
                     )
                     prompt_found = 1
                     yield ValidPrompt(
@@ -879,6 +892,7 @@ def get_valid_prompts(
                                 dataset_path=dataset_path,
                                 allow_truncation=allow_truncation,
                                 enforce_sizes=enforce_sizes,
+                                pad_token_id=pad_token_id,
                             )
                             used_keys.add(program_seq_key[0])
                             yield ValidPrompt(
@@ -913,6 +927,7 @@ def generate_cpu_validation(
     attn_name: str,
     cpu_dtype: str,
     tokenizer: AutoTokenizer,
+    pad_token_id: Optional[int] = None,
 ) -> ValidationInfo:
     """Generates or loads CPU validation information for reference comparison.
 
@@ -933,6 +948,7 @@ def generate_cpu_validation(
         attn_name: Name of the attention algorithm used.
         cpu_dtype: Data type string for CPU validation ("fp8" or "fp32").
         tokenizer: HuggingFace tokenizer for the model.
+        pad_token_id: Optional padding token ID for the tokenizer.
 
     Returns:
         ValidationInfo: ValidationInfo object containing CPU reference outputs
@@ -958,6 +974,7 @@ def generate_cpu_validation(
             max_new_tokens=max_new_tokens,
             post_iteration_hook=LogitsExtractorHook(),
             attn_algorithm="math",
+            pad_token_id=pad_token_id,
             **extra_kwargs,
         )
         if save_validation_info_outputs:
@@ -987,6 +1004,7 @@ def generate_aiu_validation(
     input_ids: torch.Tensor,
     cpu_validation_info: Optional[ValidationInfo],
     extra_kwargs: Dict[str, Any],
+    pad_token_id: Optional[int] = None,
 ) -> ValidationInfo:
     """Generates AIU validation information by running inference on the compiled model.
 
@@ -1003,6 +1021,7 @@ def generate_aiu_validation(
         input_ids: Tokenized input tensor.
         cpu_validation_info: Optional CPU validation data for golden token injection.
         extra_kwargs: Dictionary with attention mask and other model inputs.
+        pad_token_id: Optional padding token ID for the tokenizer.
 
     Returns:
         ValidationInfo: ValidationInfo object containing AIU outputs (tokens, logits,
@@ -1020,6 +1039,7 @@ def generate_aiu_validation(
         last_n_tokens=64,
         timing=timing,
         prefill_chunk_size=prefill_chunk_size,
+        pad_token_id=pad_token_id,
         **extra_kwargs,
     )
 
@@ -1192,6 +1212,7 @@ def prepare_test_prompts(
     allow_truncation: bool,
     custom_shape: Optional[Tuple[int, int]],
     dataset_path: str,
+    pad_token_id: Optional[int] = None,
 ):
     """Parses program criteria and generates the sequence of valid test prompts.
 
@@ -1240,6 +1261,7 @@ def prepare_test_prompts(
         allow_truncation=allow_truncation,
         custom_shape=custom_shape,
         pad_multiple=PAD_MULTIPLE,
+        pad_token_id=pad_token_id,
     )
 
 
@@ -1262,6 +1284,7 @@ def generate_validation_info_and_test(
     model_variant: str,
     print_utilization: bool = False,
     profile: Optional[Any] = None,
+    pad_token_id: Optional[int] = None,
 ) -> list[Any]:
     """Generates tokens using AIU and CPU models and validates the results.
 
@@ -1301,6 +1324,7 @@ def generate_validation_info_and_test(
                 attn_name=env_config.attn_name,
                 cpu_dtype=env_config.cpu_dtype,
                 tokenizer=tokenizer,
+                pad_token_id=pad_token_id,
             )
             print_step(
                 profile,
@@ -1323,6 +1347,7 @@ def generate_validation_info_and_test(
                 input_ids=valid_prompt.input_ids,
                 cpu_validation_info=cpu_validation_info,
                 extra_kwargs=valid_prompt.extra_kwargs,
+                pad_token_id=pad_token_id,
             )
             print_step(
                 profile,
@@ -1371,6 +1396,7 @@ def generate_validation_info_and_test(
                 input_ids=valid_prompt.input_ids,
                 cpu_validation_info=None,
                 extra_kwargs=valid_prompt.extra_kwargs,
+                pad_token_id=pad_token_id,
             )
             print_step(
                 profile,
@@ -1429,7 +1455,19 @@ def main() -> None:
         program_criteria_json_path=args.program_criteria_json_path,
         attention_type=args.attention_type,
     )
-    tokenizer = AutoTokenizer.from_pretrained(args.model_variant)
+    # Load tokenizer - use args.tokenizer if provided, otherwise use model_variant
+    tokenizer_path = (
+        args.tokenizer if args.tokenizer is not None else args.model_variant
+    )
+
+    # Auto-detect Mistral tokenizers and apply regex fix
+    tokenizer_kwargs = {}
+    if "mistral" in tokenizer_path.lower():
+        tokenizer_kwargs["fix_mistral_regex"] = True
+
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, **tokenizer_kwargs)
+    pad_token_id = get_tokenizer_pad_token_id(tokenizer)
+
     sampler, allow_truncation, custom_shape = get_sampler(
         dataset_type=args.dataset_type,
         dataset_path=args.dataset_path,
@@ -1484,7 +1522,9 @@ def main() -> None:
     # matching vllm warmup to pad to 2 on fp8, and no pad for fp16
     if is_fp8:
         prompt_list = prompt_list * 2
-    input_ids, extra_kwargs = pad_input_ids(prompt_list, min_pad_length=64)
+    input_ids, extra_kwargs = pad_input_ids(
+        prompt_list, min_pad_length=64, pad_token_id=pad_token_id
+    )
     extra_kwargs["mask"] = extra_kwargs["mask"].to(torch.float16)
     extra_kwargs["attn_name"] = env_config.attn_name
     extra_kwargs["_kvcache_num_blocks_hint"] = model_config.num_blocks
@@ -1497,6 +1537,7 @@ def main() -> None:
         prefill_chunk_size=args.prefill_chunk_size,
         print_utilization=args.report_resource_utilization,
         profile=p,
+        pad_token_id=pad_token_id,
         **extra_kwargs,
     )
     if args.distributed:
@@ -1519,6 +1560,7 @@ def main() -> None:
         allow_truncation=allow_truncation,
         custom_shape=custom_shape,
         dataset_path=args.dataset_path,
+        pad_token_id=pad_token_id,
     )
 
     # Validation and Testing
@@ -1541,6 +1583,7 @@ def main() -> None:
         model_variant=args.model_variant,
         print_utilization=args.report_resource_utilization,
         profile=p,
+        pad_token_id=pad_token_id,
     )
 
     if not args.skip_validation and local_rank == 0:

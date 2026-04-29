@@ -21,6 +21,14 @@ import contextlib
 import warnings
 
 
+def get_tokenizer_pad_token_id(tokenizer) -> int:
+    """Return tokenizer pad token id, falling back to 0."""
+    pad_token_id = getattr(tokenizer, "pad_token_id", None)
+    if pad_token_id is not None:
+        return pad_token_id
+    return 0
+
+
 @contextlib.contextmanager
 def stagger_region(limit: int):
     """
@@ -57,6 +65,7 @@ def warmup_model(
     prefill_chunk_size: int = 0,
     print_utilization: bool = False,
     profile: Optional[Any] = None,
+    pad_token_id: Optional[int] = None,
     **extra_kwargs,
 ):
     import torch_sendnn
@@ -105,6 +114,7 @@ def warmup_model(
                 max_new_tokens=_max_new_tokens,
                 do_sample=False,
                 use_cache=use_cache,
+                pad_token_id=pad_token_id,
                 extra_kwargs=extra_kwargs,
                 **attention_specific_kwargs,
             )

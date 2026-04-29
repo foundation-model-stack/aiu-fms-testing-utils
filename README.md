@@ -195,6 +195,33 @@ Root Cause (first observed failure):
 ============================================================
 ```
 
+### Mistral-Small-3.2 tokenizer error
+
+When running DPP tests with model Mistral-Small-3.2, you might see Runtime errors like `RuntimeError: Internal: could not parse ModelProto from mistralai/Mistral-Small-3.2-24B-Instruct-2506/tekken.json` 
+This is became the format of the tokenizer is different and our scripts cannot read from it. We can use the `tokenizer` arg and pass tokenizer from Mistral 3.1 as a workaround for text data. 
+
+Example usage:
+```
+export MODEL_NAME=/models/mistralai/Mistral-Small-3.2-24B-Instruct-2506/
+
+torchrun --nproc-per-node=4 /home/senuser/aiu-fms-testing-utils/scripts/drive_paged_programs.py \
+--tokenizer=mistralai/Mistral-Small-3.1-24B-Instruct-2503 \
+--programs=\*:0\,\>=8192 \
+--max_new_tokens=32 \
+--prefill_chunk_size=1024 \
+--model_variant=$MODEL_NAME \
+--program_criteria_json_path=/home/senuser/aiu-tests/scripts/program_criteria_new.json \
+--dataset_path=/models/long_context_factoid_post_process.jsonl \
+--dataset_type=rag_factoid \
+--test_type=tokens \
+--attention_type=paged \
+--distributed \
+--prioritize_large_batch_sizes \
+--enforce_homogeneous_prompt_programs \
+ > mistral_3.2_tokens_updated_PR.txt 2>&1 &
+```
+NOTE: DPP does not support vision datasets.
+
 ### Additional warnings
 
 You may see the following additional warnings/notices printed to the console. They are normal and expected at this point in time. The team will work on cleaning these up.

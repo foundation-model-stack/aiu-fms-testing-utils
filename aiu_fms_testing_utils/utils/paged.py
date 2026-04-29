@@ -1,4 +1,5 @@
 import math
+import logging
 import os
 import random
 import time
@@ -6,6 +7,8 @@ from typing import Any, Callable, List, MutableMapping, Optional, Tuple, Union
 import torch
 import fms.utils.spyre.paged  # noqa
 from aiu_fms_testing_utils.utils import get_pad_size
+
+logger = logging.getLogger(__name__)
 
 
 def adjust_inputs_to_batch(input_ids: torch.Tensor, **extra_kwargs):
@@ -27,6 +30,50 @@ def adjust_inputs_to_batch(input_ids: torch.Tensor, **extra_kwargs):
     return input_ids, kwargs
 
 
+def _get_text_config(model_config):
+    """Extract the text config from the model; if it's multimodal, all settings
+    are based on its .text_config, otherwise use it as is."""
+    if text_config := getattr(model_config, "text_config", None):
+        logger.info("This model is multimodal - using the text subconfig!")
+        return text_config
+    return model_config
+
+
+def _infer_model_dtype(model):
+    """Try to infer the dtype from the model."""
+
+    # If all named params in the model have the same dtype, use that as the dtype
+    types_set = set([param.dtype for _, param in model.named_parameters()])
+    if len(types_set) == 1:
+        model_dtype = types_set.pop()
+        return model_dtype
+
+    # FIXME - this is super hacky, but leaving it to
+    # match existing behavior to avoid changing it in
+    # multimodal support PR.
+    if hasattr(model, "head"):
+        model_dtype = model.head.weight.dtype
+    elif hasattr(model, "shared"):
+        # TODO: Rework the llama model (should be able to use head instead of shared)
+        model_dtype = model.shared.head.weight.dtype
+    else:
+        logger.warning("Unable to infer model weight type")
+        model_dtype = torch.float32
+    return model_dtype
+
+
+def _infer_kv_heads(text_config):
+    """Given the model config, or text config (in multimodal case), determine the number
+    of attention heads."""
+    nheads = text_config.nheads
+    if hasattr(text_config, "kvheads"):
+        return text_config.kvheads
+    elif hasattr(text_config, "multiquery_attn"):
+        return 1 if text_config.multiquery_attn else text_config.nheads
+    # kv heads is just the number of attn heads
+    return nheads
+
+
 # FIXME: We should use default generate, but that will require a larger re-work of generate
 def generate(
     model: Union[Callable, torch.nn.Module],
@@ -39,6 +86,7 @@ def generate(
     use_cache: bool = False,
     prefill_chunk_size: int = 0,
     eos_token_id: Optional[int] = None,
+    pad_token_id: Optional[int] = None,
     timing: str = "",
     post_iteration_hook: Optional[
         Callable[
@@ -68,6 +116,7 @@ def generate(
             past_key_value_states args in forward method.
         contiguous_cache: ensures the cache is contiguous in device memory
         eos_token_id: the optional token id representing the end of sequence
+        pad_token_id: Optional padding token ID for the tokenizer
         timing: whether to measure timings: "per-token" for each token generation time,
             "e2e" for full generation loop. Both options make `generate` return a tuple
             with the following information:
@@ -114,6 +163,10 @@ def generate(
         input_ids.shape[0], dtype=torch.bool, device=input_ids.device
     )
 
+    ### Multimodal related
+    # is_multimodal = requires_embedding_inputs(model.config)
+    text_config = _get_text_config(model.config)
+
     result = input_ids
     next_input = input_ids
     # this includes empty pages and max_new_tokens
@@ -134,21 +187,11 @@ def generate(
     if NUM_BLOCKS is None:
         NUM_BLOCKS = (_MAX_BATCH * _MAX_CONTEXT_LENGTH) // BLOCK_SIZE
 
-    if hasattr(model, "head"):
-        model_dtype = model.head.weight.dtype
-    elif hasattr(model, "shared"):
-        # TODO: Rework the llama model (should be able to use head instead of shared)
-        model_dtype = model.shared.head.weight.dtype
-    else:
-        model_dtype = torch.float32
+    model_dtype = _infer_model_dtype(model)
+    logger.debug("Inferred model weight dtype %s", model_dtype)
 
-    nheads = model.config.nheads
-    if hasattr(model.config, "kvheads"):
-        kvheads = model.config.kvheads
-    elif hasattr(model.config, "multiquery_attn"):
-        kvheads = 1 if model.config.multiquery_attn else model.config.nheads
-    else:
-        kvheads = nheads
+    kvheads = _infer_kv_heads(text_config)
+    logger.debug("Inferred kvheads %s", kvheads)
 
     if hasattr(model, "distributed_strategy"):
         tensor_parallel_size = (
@@ -161,7 +204,7 @@ def generate(
 
     kvheads = kvheads // tensor_parallel_size if kvheads > 1 else kvheads
     head_size = getattr(
-        model.config, "head_dim", model.config.emb_dim // model.config.nheads
+        text_config, "head_dim", text_config.emb_dim // text_config.nheads
     )
     if "fp8" in kwargs["attn_name"]:
         from fms_mo.aiu_addons.fp8.fp8_utils import ScaledTensor
@@ -193,7 +236,7 @@ def generate(
                     already_scaled,
                 ),
             )
-            for _ in range(model.config.nlayers)
+            for _ in range(text_config.nlayers)
         ]
     else:
         kwargs["past_key_value_states"] = [
@@ -205,7 +248,7 @@ def generate(
                     NUM_BLOCKS, BLOCK_SIZE, kvheads, head_size, dtype=model_dtype
                 ),
             )
-            for _ in range(model.config.nlayers)
+            for _ in range(text_config.nlayers)
         ]
     kwargs["block_table"] = None
     block_numbers = [i for i in range(NUM_BLOCKS)]
@@ -349,8 +392,11 @@ def generate(
                         if required_extra_pads > 0:
                             input_ids_seq_chunk = torch.cat(
                                 (
-                                    torch.zeros(
-                                        required_extra_pads,
+                                    torch.full(
+                                        (required_extra_pads,),
+                                        fill_value=pad_token_id
+                                        if pad_token_id is not None
+                                        else 0,
                                         dtype=torch.int64,
                                         device=input_ids_seq_chunk.device,
                                     ),
