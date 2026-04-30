@@ -10,7 +10,7 @@ import random
 import time
 
 # Third Party
-from aiu_fms_testing_utils.utils import aiu_setup, warmup_model, stagger_region
+from aiu_fms_testing_utils.utils import aiu_setup, warmup_model, stagger_region, get_tokenizer_pad_token_id
 from aiu_fms_testing_utils.utils.aiu_setup import dprint, rank, local_rank, world_size
 import numpy as np
 import torch
@@ -587,6 +587,7 @@ if args.quantization in ["gptq", "int8"]:
     dprint("=" * 60 + "\n")
 
 tokenizer = AutoTokenizer.from_pretrained(args.tokenizer)
+pad_token_id = get_tokenizer_pad_token_id(tokenizer)
 model.eval()
 torch.set_grad_enabled(False)
 loading_model_time = time.time() - loading_model_time
@@ -712,7 +713,7 @@ if args.fixed_prompt_length != 0 and args.fixed_prompt_length < max_len:
     exit(1)
 prompts = truncate_prompts_to_max_length(prompts, max_len, max_allowed_length)
 if has_padding:
-    ids, extra_generation_kwargs = pad_input_ids(prompts, min_pad_length=padding_length)
+    ids, extra_generation_kwargs = pad_input_ids(prompts, min_pad_length=padding_length, pad_token_id=pad_token_id)
 else:
     ids = prompts
     if isinstance(ids, list) and len(ids) == 1:
@@ -799,6 +800,7 @@ def infer(use_cache, do_sample, warmup):
         do_sample=do_sample,
         timing=args.timing,
         eos_token_id=eos_token_id,
+        pad_token_id=pad_token_id,
         extra_kwargs=extra_generation_kwargs,
         **attention_specific_kwargs,
     )
@@ -853,6 +855,7 @@ if args.compile:
                 use_cache=cache,
                 stagger_update_lazyhandle=args.stagger_update_lazyhandle,
                 prefill_chunk_size=args.prefill_chunk_size,
+                pad_token_id=pad_token_id,
                 **extra_generation_kwargs,
             )
         if (
