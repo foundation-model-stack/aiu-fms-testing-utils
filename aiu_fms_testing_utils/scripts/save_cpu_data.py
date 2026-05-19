@@ -83,7 +83,7 @@ attn_name = attention_map[args.attention_type]
 is_fp8 = "fp8" in attn_name
 
 ## Random defaults
-os.environ.setdefault("VLLM_DT_MAX_BATCH_SIZE", "1")
+os.environ.setdefault("VLLM_DT_MAX_BATCH_SIZE", "2")
 
 
 model_variant = args.model_variant
