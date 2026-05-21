@@ -24,6 +24,7 @@ from fms.utils.generation import pad_input_ids
 from transformers import AutoTokenizer
 
 
+
 # This example script validates the LLaMA implementation by running inference on a couple of prompts.
 #
 # Example usage with single-GPU 7B model on slurm, with torch.compile and determinstic behavior:
@@ -275,6 +276,7 @@ attention_map = {
 attn_name = attention_map[args.attention_type]
 
 torch._dynamo.config.recompile_limit = 1000
+torch._inductor.config.fx_graph_cache = False
 
 if "paged" in attn_name:
     from aiu_fms_testing_utils.utils.paged import generate
@@ -513,6 +515,8 @@ dprint(f"data_type={default_dtype}")
 dprint("=" * 60 + "\n")
 
 with stagger_region(args.stagger_load):
+    if args.device_type == "spyre":
+        _ = torch.empty(64, dtype=torch.float16, device="spyre")
     model = get_model(
         args.architecture,
         args.variant,
@@ -875,6 +879,14 @@ if args.compile:
 
 dprint("generating output")
 
+
+# from torch.profiler import profile, ProfilerActivity
 for sample, cache in itertools.product(do_sample, use_cache):
+    # infer(cache, sample, False)
+    # with profile(
+    #     activities=[ProfilerActivity.CPU, ProfilerActivity.PrivateUse1],
+    #     with_stack=True,
+    #     on_trace_ready=torch.profiler.tensorboard_trace_handler('./logs/compile')) as prof:
     for _ in range(args.iters):
         infer(cache, sample, False)
+# print("Export completed!")
