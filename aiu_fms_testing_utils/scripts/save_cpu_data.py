@@ -82,7 +82,7 @@ max_new_tokens = args.max_new_tokens
 attn_name = attention_map[args.attention_type]
 is_fp8 = "fp8" in attn_name
 
-## Random defaults
+## Setting batch size to 2 to avoid CI timeouts on larger batches
 os.environ.setdefault("VLLM_DT_MAX_BATCH_SIZE", "2")
 
 
