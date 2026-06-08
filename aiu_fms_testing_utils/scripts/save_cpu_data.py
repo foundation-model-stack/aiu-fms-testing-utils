@@ -129,6 +129,10 @@ def process_row(row):
         16384,
         32768,
     ]
+    assert largest_context <= supported_context_lengths[-1], (
+        f"Required context length {largest_context} exceeds maximum supported "
+        f"context length ({supported_context_lengths[-1]})"
+    )
     idx = bisect.bisect_left(supported_context_lengths, largest_context)
     os.environ["VLLM_DT_MAX_CONTEXT_LEN"] = str(supported_context_lengths[idx])
 
