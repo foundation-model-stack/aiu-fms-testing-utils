@@ -1,9 +1,11 @@
 import json
+import os
 from aiu_fms_testing_utils.testing.validation import (
     LogitsExtractorHook,
     extract_validation_information,
 )
 from fms.models import get_model
+from fms.utils.generation import pad_input_ids
 from transformers import AutoTokenizer
 # from concurrent.futures import ThreadPoolExecutor
 # Ideally we want this script to fetch data in parallel
@@ -67,9 +69,23 @@ parser.add_argument(
     type=str,
     help="path to dataset",
 )
+
+attention_map = {
+    "sdpa": "sdpa_causal",
+    "paged": "spyre_paged_attn",
+    "math_fp8": "math_fp8",
+    "paged_fp8": "spyre_paged_attn_fp8",
+}
+
 args = parser.parse_args()
 max_new_tokens = args.max_new_tokens
-is_fp8 = "fp8" in args.attention_type
+attn_name = attention_map[args.attention_type]
+is_fp8 = "fp8" in attn_name
+
+## Setting batch size to 2 to avoid CI timeouts on larger batches
+os.environ.setdefault("VLLM_DT_MAX_BATCH_SIZE", "2")
+
+
 model_variant = args.model_variant
 tokenizer = AutoTokenizer.from_pretrained(model_variant)
 model_path_kwargs = {"variant": model_variant}
@@ -86,17 +102,48 @@ dataset = load_jsonl(args.dataset_path)
 
 
 def process_row(row):
+    import bisect
+
     id = row["id"]
     prompt_text = row["prompt"]
     input_ids = tokenizer.encode(prompt_text)
     print("fetching cpu validation info for id: ", id)
+    BLOCK_SIZE = 64
+    prompt_len = len(input_ids)
+    padded_len = BLOCK_SIZE * ((prompt_len + BLOCK_SIZE - 1) // BLOCK_SIZE)
+    ids, extra_kwargs = pad_input_ids(
+        [torch.tensor(input_ids)], min_pad_length=padded_len
+    )
+    extra_kwargs["attn_name"] = attn_name
+
+    largest_context = ids.shape[1] + max_new_tokens
+    supported_context_lengths = [
+        64,
+        128,
+        256,
+        512,
+        1024,
+        2048,
+        4096,
+        8192,
+        16384,
+        32768,
+    ]
+    assert largest_context <= supported_context_lengths[-1], (
+        f"Required context length {largest_context} exceeds maximum supported "
+        f"context length ({supported_context_lengths[-1]})"
+    )
+    idx = bisect.bisect_left(supported_context_lengths, largest_context)
+    os.environ["VLLM_DT_MAX_CONTEXT_LEN"] = str(supported_context_lengths[idx])
+
     with torch.no_grad():
         cpu_validation_info = extract_validation_information(
             validation_model,
-            torch.tensor(input_ids).unsqueeze(0),
+            ids,
             max_new_tokens,
             LogitsExtractorHook(),
             attn_algorithm="math",
+            **extra_kwargs,
         )
     return {"id": id, "input_ids": input_ids, "validation": cpu_validation_info}
 
