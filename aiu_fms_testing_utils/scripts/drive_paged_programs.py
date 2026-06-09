@@ -234,7 +234,7 @@ def parse_cli_args() -> argparse.Namespace:
         "--attention_type",
         type=str,
         default="paged",
-        choices=["paged", "paged_fp8"],
+        choices=["paged", "paged_fp8", "paged_with_sinks"],
         help="The attention type to use",
     )
     parser.add_argument(
@@ -1188,6 +1188,7 @@ def setup_environment(
         "paged": "spyre_paged_attn",
         "math_fp8": "math_fp8",
         "paged_fp8": "spyre_paged_attn_fp8",
+        "paged_with_sinks": "spyre_paged_attn_with_sinks",
     }
 
     return EnvConfig(
