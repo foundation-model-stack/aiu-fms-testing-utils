@@ -123,7 +123,7 @@ class DPPRunnerConfig:
             self._configure_granite_3_8b(
                 use_distributed, world_size, prefill_chunk_size
             )
-        elif "granite-4.5" in model_variant:
+        elif "granite-4.5" in model_variant or "granite-swa" in model_variant:
             self._configure_granite_4_5(use_distributed, world_size, prefill_chunk_size)
 
         elif "Mistral-Small-3" in model_variant or "Ministral-3" in model_variant:

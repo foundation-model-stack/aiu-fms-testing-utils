@@ -1155,7 +1155,7 @@ def setup_environment(
 
     Args:
         program_criteria_json_path: Path to the JSON file containing program criteria definitions.
-        attention_type: Type of attention mechanism to use. Must be one of sdpa, paged, math_fp8, paged_fp8.
+        attention_type: Type of attention mechanism to use. Must be one of sdpa, paged, math_fp8, paged_fp8, paged_with_sinks.
 
     Returns:
         EnvConfig: Immutable configuration containing:
