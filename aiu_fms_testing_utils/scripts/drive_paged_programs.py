@@ -954,6 +954,8 @@ def generate_cpu_validation(
         ValidationInfo: ValidationInfo object containing CPU reference outputs
         (tokens and logits).
     """
+    if "with_sinks" in attn_name:
+        attn_name = "sdpa_with_sinks"
     # attempt to load the cpu validation info if it is already computed
     cpu_validation_info = _load_validation_info(
         model_variant=model_variant,
@@ -973,7 +975,7 @@ def generate_cpu_validation(
             input_ids=input_ids,
             max_new_tokens=max_new_tokens,
             post_iteration_hook=LogitsExtractorHook(),
-            attn_algorithm="math",
+            attn_algorithm=attn_name,
             pad_token_id=pad_token_id,
             **extra_kwargs,
         )
