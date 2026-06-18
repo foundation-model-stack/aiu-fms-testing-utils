@@ -954,11 +954,8 @@ def generate_cpu_validation(
         ValidationInfo: ValidationInfo object containing CPU reference outputs
         (tokens and logits).
     """
-    if "with_sinks" in attn_name:
-        attn_name = "sdpa_with_sinks"
 
     cpu_extra_kwargs = extra_kwargs.copy()
-    cpu_extra_kwargs["attn_name"] = attn_name
 
     # attempt to load the cpu validation info if it is already computed
     cpu_validation_info = _load_validation_info(
