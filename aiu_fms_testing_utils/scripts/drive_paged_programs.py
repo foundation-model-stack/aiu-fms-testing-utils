@@ -185,6 +185,25 @@ def parse_cli_args() -> argparse.Namespace:
         help="The tokenizer id or path to use. If not specified, will use the model_variant. Useful for models without their own tokenizer (e.g., Mistral-3)",
     )
     parser.add_argument(
+        "--load_format",
+        type=str,
+        choices=["auto", "dummy"],
+        default="auto",
+        help="Weight load format. 'dummy' random-inits the model (no checkpoint download/load), routing through FMS reset_parameters().",
+    )
+    parser.add_argument(
+        "--fms_architecture",
+        type=str,
+        default=None,
+        help="FMS architecture to pass to get_model (e.g. 'granite_swa'). If unset, defaults to 'hf_pretrained' (or 'hf_configured' for --load_format dummy). Use for architectures FMS does not auto-detect.",
+    )
+    parser.add_argument(
+        "--fms_variant",
+        type=str,
+        default=None,
+        help="FMS registered variant to pass to get_model (e.g. '20b'). Only used when --fms_architecture is set.",
+    )
+    parser.add_argument(
         "--timing",
         type=str,
         choices=["e2e", "per-token"],
@@ -507,20 +526,54 @@ def _metric_calculator(r: torch.Tensor, t: torch.Tensor):
     )
 
 
-def _get_model_kwargs(model_variant: str) -> Dict[str, Any]:
-    """Constructs model loading kwargs based on whether variant is a path or ID.
+def _get_model_kwargs(
+    model_variant: str,
+    load_format: str = "auto",
+    fms_architecture: Optional[str] = None,
+    fms_variant: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Resolves the FMS get_model load knobs (architecture/variant/model_path/source).
 
-    Determines if the model_variant is a local filesystem path or a HuggingFace
-    model identifier, and returns the appropriate keyword arguments for model loading.
+    Routing:
+        - load_format == "dummy": no checkpoint is loaded. FMS random-inits via
+          reset_parameters() (model_path=None, source=None). architecture defaults
+          to "hf_configured" (config-only inference) unless --fms_architecture is
+          given (e.g. granite_swa, which FMS cannot auto-detect).
+        - real weights with --fms_architecture set: load from the explicitly
+          registered architecture/variant, converting an HF checkpoint at
+          model_variant (treated as a local path) via source="hf".
+        - real weights, no --fms_architecture: existing behavior -- "hf_pretrained"
+          with either model_path (local) or variant (HF id).
 
     Args:
         model_variant: Either a local path to model files or a HuggingFace model ID.
+        load_format: "auto" (load weights) or "dummy" (random init).
+        fms_architecture: Explicit FMS architecture for get_model, or None.
+        fms_variant: Explicit FMS registered variant for get_model, or None.
 
     Returns:
-        Dictionary with either "model_path" (for local paths) or "variant"
-        (for HuggingFace IDs) as the key.
+        Dictionary with "architecture" and any of "variant"/"model_path"/"source"
+        to be forwarded to FMS get_model.
     """
-    model_kwargs = {}
+    if load_format == "dummy":
+        return {
+            "architecture": fms_architecture or "hf_configured",
+            "variant": fms_variant if fms_architecture else model_variant,
+            "model_path": None,
+            "source": None,
+        }
+
+    if fms_architecture is not None:
+        # Explicitly-registered architecture (e.g. granite_swa): convert the HF
+        # checkpoint at model_variant (local path on the pod) via the hf adapter.
+        return {
+            "architecture": fms_architecture,
+            "variant": fms_variant,
+            "model_path": model_variant,
+            "source": "hf",
+        }
+
+    model_kwargs: Dict[str, Any] = {"architecture": "hf_pretrained"}
     if os.path.exists(model_variant):
         model_kwargs["model_path"] = model_variant
     else:
@@ -688,7 +741,6 @@ def load_model(
 
     with stagger_region(stagger_load):
         model = get_model(
-            architecture="hf_pretrained",
             device_type="cpu",
             data_type=dtype,
             fused_weights=False,
@@ -1482,7 +1534,12 @@ def main() -> None:
     p = instantiate_prometheus(args.report_resource_utilization)
 
     # Model Loading
-    model_kwargs: Dict[str, Any] = _get_model_kwargs(model_variant=args.model_variant)
+    model_kwargs: Dict[str, Any] = _get_model_kwargs(
+        model_variant=args.model_variant,
+        load_format=args.load_format,
+        fms_architecture=args.fms_architecture,
+        fms_variant=args.fms_variant,
+    )
     distributed_kwargs: Dict[str, Any] = _get_distributed_kwargs(
         is_distributed=args.distributed, dist_timeout=args.dist_timeout
     )
@@ -1516,6 +1573,17 @@ def main() -> None:
             distributed_kwargs=distributed_kwargs,
             stagger_load=args.stagger_load,
             model_config=model_config,
+        )
+
+    # With --load_format dummy, the AIU and CPU models are random-initialized by
+    # independent get_model() calls and therefore have different weights, making
+    # metric comparison meaningless. Copy the CPU (fp32) reference weights into the
+    # AIU (fp16) model so they match (modulo the fp16 cast), isolating AIU numeric
+    # divergence as the only difference. Done before warmup; .compile() only wraps
+    # forward, so load_state_dict on the same params is safe.
+    if args.load_format == "dummy" and validation_model is not None:
+        model.load_state_dict(
+            {k: v.to(torch.float16) for k, v in validation_model.state_dict().items()}
         )
 
     # Model Warmup
