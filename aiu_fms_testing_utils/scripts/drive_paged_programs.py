@@ -292,6 +292,13 @@ def parse_cli_args() -> argparse.Namespace:
         action="store_true",
         help="set to true to report CPU/memory utilization during compilation and inference stages",
     )
+    parser.add_argument(
+        "--no_warmup_run",
+        action="store_false",
+        dest="warmup_run",
+        help="skip the untimed warmup pass (compile/deploy time will appear in reported timing!)",
+    )
+    parser.set_defaults(warmup_run=True)
 
     return parser.parse_args()
 
@@ -1285,6 +1292,7 @@ def generate_validation_info_and_test(
     print_utilization: bool = False,
     profile: Optional[Any] = None,
     pad_token_id: Optional[int] = None,
+    warmup_run: bool = False,
 ) -> list[Any]:
     """Generates tokens using AIU and CPU models and validates the results.
 
@@ -1294,6 +1302,23 @@ def generate_validation_info_and_test(
     """
 
     failed_cases = []
+    valid_prompts = list(valid_prompts)
+    if warmup_run and valid_prompts:
+        first = valid_prompts[0]
+        first.extra_kwargs["attn_name"] = env_config.attn_name
+        first.extra_kwargs["_kvcache_num_blocks_hint"] = model_config.num_blocks
+        dprint("  warmup run (untimed)")
+        generate_aiu_validation(
+            test_type=test_type,
+            max_new_tokens=max_new_tokens,
+            timing="",
+            prefill_chunk_size=prefill_chunk_size,
+            model=model,
+            input_ids=first.input_ids,
+            cpu_validation_info=None,
+            extra_kwargs=first.extra_kwargs,
+            pad_token_id=pad_token_id,
+        )
     # for each program and valid prompt (batch size, sequence length)
     for valid_prompt in valid_prompts:
         valid_prompt.extra_kwargs["attn_name"] = env_config.attn_name
@@ -1584,6 +1609,7 @@ def main() -> None:
         print_utilization=args.report_resource_utilization,
         profile=p,
         pad_token_id=pad_token_id,
+        warmup_run=args.warmup_run,
     )
 
     if not args.skip_validation and local_rank == 0:
