@@ -296,6 +296,19 @@ def parse_cli_args() -> argparse.Namespace:
         help="Run golden-only generation on GPU instead of CPU. Does not require Spyre SW stack",
     )
     parser.add_argument(
+        "--gpu_validation_dtype",
+        type=str,
+        choices=["fp16", "fp32"],
+        default="fp16",
+        help=(
+            "Data type for the --gpu_validation golden. 'fp16' (default) halves GPU "
+            "memory so large models (e.g. 20b) fit on fewer/smaller GPUs and matches the "
+            "AIU/Spyre fp16 compute; 'fp32' gives a higher-precision reference at ~2x the "
+            "memory. Ignored unless --gpu_validation is set. The on-disk golden key is "
+            "unchanged (still 'fp32') either way, so a later Spyre run reloads it regardless."
+        ),
+    )
+    parser.add_argument(
         "--validation_info_outputs_dir",
         type=str,
         default="/home/senuser/models/validation_info",
@@ -758,6 +771,7 @@ def load_model(
     distributed_kwargs: Dict[str, Any],
     stagger_load: int,
     model_config: DPPRunnerConfig,
+    cuda_dtype: torch.dtype = torch.float16,
 ):
     """Loads and optionally compiles a model for inference or validation.
 
@@ -771,9 +785,13 @@ def load_model(
         device_type: Target device for model execution. Options:
             - "cpu": Load on CPU for validation (fp32, no compilation)
             - "spyre": Load on CPU, compile for Spyre/AIU execution (fp16, with sendnn compilation)
-            - "cuda": Load on GPU for validation (fp32, no compilation). Used to compute the
-              golden reference on a GPU instead of CPU (see --gpu_validation).
+            - "cuda": Load on GPU for validation (dtype = cuda_dtype, no compilation). Used to
+              compute the golden reference on a GPU instead of CPU (see --gpu_validation).
         is_fp8: If True, uses FP8 quantization (dtype=None for auto-detection).
+        cuda_dtype: Compute dtype for the cuda golden. Defaults to torch.float16 (fits large
+            models in GPU memory and matches the AIU fp16 compute); pass torch.float32 for a
+            higher-precision reference. Ignored for cpu/spyre. Does not affect the on-disk
+            golden key, which is always keyed by cpu_dtype ('fp32' for non-fp8).
         model_kwargs: Dictionary with model loading parameters (variant or path).
         distributed_kwargs: Dictionary with distributed training configuration.
         stagger_load: Number of concurrent processes allowed during loading (0=unlimited).
@@ -795,8 +813,16 @@ def load_model(
             "for fp8 attention types."
         )
 
-    # fp8 -> None (auto), spyre -> fp16 (device under test), cpu/cuda validation -> fp32.
-    dtype = None if is_fp8 else (torch.float16 if device_type == "spyre" else torch.float32)
+    # fp8 -> None (auto); spyre -> fp16 (device under test); cpu validation -> fp32;
+    # cuda golden -> cuda_dtype (fp16 default, fp32 optional via --gpu_validation_dtype).
+    if is_fp8:
+        dtype = None
+    elif device_type == "spyre":
+        dtype = torch.float16
+    elif device_type == "cuda":
+        dtype = cuda_dtype
+    else:
+        dtype = torch.float32
 
     with stagger_region(stagger_load):
         model = get_model(
@@ -1631,16 +1657,27 @@ def _run_cuda_golden(
 ) -> None:
     """Golden-only execution path for ``--gpu_validation``.
 
-    Loads only the validation model on GPU (fp32, unpaged SDPA -- FMS has no GPU paged
-    kernel), generates the golden reference (tokens + logits) for each selected prompt, and
-    optionally saves it. No AIU/Spyre model is loaded, there is no warmup, and no comparison
-    is performed; a later Spyre run reloads the saved golden via matching save keys. The
-    paged->SDPA attention mapping and the mismatch warning live in setup_environment /
-    generate_cpu_validation.
+    Loads only the validation model on GPU (dtype from --gpu_validation_dtype, fp16 by
+    default; unpaged SDPA -- FMS has no GPU paged kernel), generates the golden reference
+    (tokens + logits) for each selected prompt, and optionally saves it. No AIU/Spyre model
+    is loaded, there is no warmup, and no comparison is performed; a later Spyre run reloads
+    the saved golden via matching save keys. The paged->SDPA attention mapping and the
+    mismatch warning live in setup_environment / generate_cpu_validation.
+
+    The golden is always saved/keyed under cpu_dtype ('fp32' for non-fp8) regardless of the
+    actual compute dtype, so an fp16 golden is still found by a Spyre run (which looks up
+    'fp32'). fp16 halves GPU memory and matches the AIU fp16 compute; fp32 is a
+    higher-precision reference.
 
     With distributed_kwargs (distributed_strategy="tp"), the model is sharded tensor-parallel
     across the GPUs; all ranks run the forward, and only rank 0 saves/prints.
     """
+    cuda_dtype = {"fp16": torch.float16, "fp32": torch.float32}[args.gpu_validation_dtype]
+    if local_rank == 0:
+        dprint(
+            f"*** --gpu_validation golden computed in {args.gpu_validation_dtype}, "
+            f"saved/keyed under '{env_config.cpu_dtype}' ***"
+        )
     validation_model = load_model(
         device_type="cuda",
         is_fp8=False,
@@ -1648,6 +1685,7 @@ def _run_cuda_golden(
         distributed_kwargs=distributed_kwargs or {},
         stagger_load=args.stagger_load,
         model_config=model_config,
+        cuda_dtype=cuda_dtype,
     )
 
     valid_prompts = prepare_test_prompts(
