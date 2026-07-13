@@ -1007,7 +1007,6 @@ def generate_cpu_validation(
         (tokens and logits).
     """
 
-    cpu_extra_kwargs = extra_kwargs.copy()
 
     # attempt to load the cpu validation info if it is already computed
     cpu_validation_info = _load_validation_info(
@@ -1030,7 +1029,7 @@ def generate_cpu_validation(
             post_iteration_hook=LogitsExtractorHook(),
             attn_algorithm="math",
             pad_token_id=pad_token_id,
-            **cpu_extra_kwargs,
+            **extra_kwargs,
         )
         if save_validation_info_outputs:
             cpu_validation_info.save(
