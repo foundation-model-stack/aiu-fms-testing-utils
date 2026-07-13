@@ -59,6 +59,30 @@ class DPPRunnerConfig:
                 context=context,
             )
 
+    def _configure_granite_4_5(self, use_distributed, world_size, prefill_chunk_size):
+        """Configure environment for Granite 4.5 (SWA) architecture \
+        We are setting defaults for env variables not provided. \
+        Config class is set in wrapper setup_config function."""
+
+        if use_distributed and world_size == 4:
+            ##Only set defaults for TP=4
+            context = (
+                "Model granite 4.5 (or compatible) with tensor parallel size 4 detected"
+            )
+            self.tkv_limit = self._get_int_env(
+                key="VLLM_DT_MAX_BATCH_TKV_LIMIT",
+                default=131072,
+                context=context,
+            )
+
+            blocks_override = 8192 if prefill_chunk_size > 0 else 2080
+
+            self.num_blocks = self._get_int_env(
+                key="AFTU_PAGED_KVCACHE_NUM_BLOCKS_HINT",
+                default=blocks_override,
+                context=context,
+            )
+
     def _configure_mistral_3(self, use_distributed, world_size, prefill_chunk_size):
         """Configure environment for Mistral 3 architecture \
         We are setting defaults for env variables not provided. \
@@ -99,6 +123,9 @@ class DPPRunnerConfig:
             self._configure_granite_3_8b(
                 use_distributed, world_size, prefill_chunk_size
             )
+        elif "granite-4" in model_variant or "granite-swa" in model_variant:
+            self._configure_granite_4_5(use_distributed, world_size, prefill_chunk_size)
+
         elif "Mistral-Small-3" in model_variant or "Ministral-3" in model_variant:
             self._configure_mistral_3(use_distributed, world_size, prefill_chunk_size)
 
