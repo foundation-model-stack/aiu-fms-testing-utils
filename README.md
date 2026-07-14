@@ -144,6 +144,91 @@ The [scripts](https://github.com/foundation-model-stack/aiu-fms-testing-utils/tr
 
 The [examples](https://github.com/foundation-model-stack/aiu-fms-testing-utils/tree/main/examples) directory provides small examples aimed at helping understand the general workflow of running a model using FMS on AIU hardware.
 
+## Running DPP on GPU
+
+For bigger models there might be a need to generate the reference tokens on GPU instead of CPU. This can be done in a 3 step process: generate list of programs (AIU pod), generate GPU output for these programs (GPU pod), generate AIU outputs and compare against imported GPU outputs (AIU pod).
+
+Find some example commands here:
+
+Step 1 on AIU node:
+
+```shell
+TORCH_SENDNN_CACHE_ENABLE=0 \
+VLLM_DT_MAX_BATCH_TKV_LIMIT=131072 \
+VLLM_DT_MAX_CONTEXT_LEN=32768 \
+VLLM_DT_MAX_BATCH_SIZE=32 \
+VLLM_DT_CHUNK_LEN=512 \
+torchrun --nproc-per-node 4 \
+  aiu-fms-testing-utils/scripts/drive_paged_programs.py \
+  --distributed \
+  --model_variant <model_path> \
+  --program_criteria_json_path criteria_bs32_32k.json \
+  --attention_type paged_with_sinks \
+  --dataset_type sharegpt \
+  --dataset_path ShareGPT_V3_unfiltered_cleaned_split.json \
+  --test_type metrics \
+  --max_new_tokens=128 \
+  --dist_timeout 120 \
+  --prioritize_large_batch_sizes \
+  --enforce_homogeneous_prompt_programs \
+  --prefill_chunk_size=512 \
+  --skip_validation
+```
+
+**-> transfer criteria_bs32_32k.json from AIU to GPU node**
+
+Step 2 on GPU node:
+
+```shell
+VLLM_DT_MAX_BATCH_TKV_LIMIT=131072 \
+VLLM_DT_MAX_CONTEXT_LEN=32768 \
+VLLM_DT_MAX_BATCH_SIZE=32 \
+VLLM_DT_CHUNK_LEN=512 \
+torchrun --standalone --nproc_per_node=4 \
+  aiu-fms-testing-utils/scripts/drive_paged_programs.py \
+  --gpu_validation \
+  --distributed \
+  --dist_timeout 120 \
+  --model_variant <model_path> \
+  --program_criteria_json_path criteria_bs32_32k.json \
+  --attention_type paged_with_sinks \
+  --dataset_type sharegpt \
+  --dataset_path ShareGPT_V3_unfiltered_cleaned_split.json \
+  --max_new_tokens=128 \
+  --prefill_chunk_size=512 \
+  --prioritize_large_batch_sizes \
+  --enforce_homogeneous_prompt_programs \
+  --save_validation_info_outputs \
+  --validation_info_outputs_dir validation_info_bs32_32k
+```
+
+**-> transfer validation_info_bs32_32k from GPU to AIU node**
+
+Step 3 on AIU node:
+
+```shell
+TORCH_SENDNN_CACHE_ENABLE=0 \
+VLLM_DT_MAX_BATCH_TKV_LIMIT=131072 \
+VLLM_DT_MAX_CONTEXT_LEN=32768 \
+VLLM_DT_MAX_BATCH_SIZE=32 \
+VLLM_DT_CHUNK_LEN=512 \
+torchrun --nproc-per-node 4 \
+  aiu-fms-testing-utils/scripts/drive_paged_programs.py \
+  --distributed \
+  --model_variant <model_path> \
+  --program_criteria_json_path criteria_bs32_32k.json \
+  --attention_type paged_with_sinks \
+  --dataset_type sharegpt \
+  --dataset_path ShareGPT_V3_unfiltered_cleaned_split.json \
+  --test_type metrics \
+  --max_new_tokens=128 \
+  --dist_timeout 120 \
+  --prioritize_large_batch_sizes \
+  --enforce_homogeneous_prompt_programs \
+  --prefill_chunk_size=512 \
+  --validation_info_outputs_dir validation_info_bs32_32k
+```
+
 ## Common Errors
 
 ### Pod connection error
