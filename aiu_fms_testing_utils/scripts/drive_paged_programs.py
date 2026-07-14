@@ -13,6 +13,8 @@ from typing import Any, Dict, Iterable, List, Literal, NamedTuple, Optional, Tup
 
 import torch
 from fms.models import get_model
+# registers granite_swa (+ other) model_types with transformers AutoConfig before AutoTokenizer/config parsing
+import fms.models.hf  # noqa: F401  
 from fms.utils.generation import pad_input_ids
 from torch import distributed as dist
 from torch.fx.experimental import _config as fx_config
