@@ -1106,6 +1106,8 @@ def generate_cpu_validation(
         (tokens and logits), always materialized on cpu.
     """
 
+    cpu_extra_kwargs = extra_kwargs.copy()
+
     # attempt to load the validation info if it is already computed. The key is the Spyre
     # paged attn_name + cpu_dtype for both cpu and cuda, so either device's golden is found.
     cpu_validation_info = _load_validation_info(
@@ -1152,7 +1154,7 @@ def generate_cpu_validation(
             post_iteration_hook=LogitsExtractorHook(),
             attn_algorithm="math",
             pad_token_id=pad_token_id,
-            **extra_kwargs,
+            **cpu_extra_kwargs,
         )
         if save_validation_info_outputs:
             cpu_validation_info.save(
