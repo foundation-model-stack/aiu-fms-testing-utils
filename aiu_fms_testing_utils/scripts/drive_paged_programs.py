@@ -14,7 +14,7 @@ from typing import Any, Dict, Iterable, List, Literal, NamedTuple, Optional, Tup
 import torch
 from fms.models import get_model
 # registers granite_swa (+ other) model_types with transformers AutoConfig before AutoTokenizer/config parsing
-import fms.models.hf  # noqa: F401  
+import fms.models.hf  # noqa: F401
 from fms.utils.generation import pad_input_ids
 from torch import distributed as dist
 from torch.fx.experimental import _config as fx_config
@@ -807,12 +807,6 @@ def load_model(
     if device_type not in ["cpu", "spyre", "cuda"]:
         raise ValueError(
             f"device_type must be 'cpu', 'spyre', or 'cuda' for DPP, got '{device_type}'"
-        )
-
-    if device_type == "cuda" and is_fp8:
-        raise NotImplementedError(
-            "fp8 golden generation on cuda is not implemented; drop --gpu_validation "
-            "for fp8 attention types."
         )
 
     # fp8 -> None (auto); spyre -> fp16 (device under test); cpu validation -> fp32;
