@@ -13,6 +13,9 @@ from typing import Any, Dict, Iterable, List, Literal, NamedTuple, Optional, Tup
 
 import torch
 from fms.models import get_model
+
+# register granite_swa with transformers AutoConfig (before tokenizer load)
+import fms.models.hf  # noqa: F401
 from fms.utils.generation import pad_input_ids
 from torch import distributed as dist
 from torch.fx.experimental import _config as fx_config
@@ -77,14 +80,17 @@ class EnvConfig(NamedTuple):
     """Represents global configuration derived from environment and CLI.
 
     Attributes:
-        attn_name: The internal name of the attention algorithm (e.g., 'spyre_paged_attn').
-        cpu_dtype: Data type for CPU validation ('fp8' or 'fp32').
+        attn_name: Attention algorithm name (e.g. 'spyre_paged_attn'); also the golden save/load key.
+        runtime_attn_name: Attention op used to compute the golden. Equals attn_name on
+            cpu/spyre; on cuda it's the unpaged SDPA equivalent.
+        dtype_key: Data type string ('fp8' or 'fp32') used as the golden's on-disk save/load key.
         max_batch_size: Maximum batch size.
         max_tkv: Maximum total key-value (context) length.
     """
 
     attn_name: str
-    cpu_dtype: str
+    runtime_attn_name: str
+    dtype_key: str
     max_batch_size: int
     max_tkv: int
 
@@ -286,6 +292,21 @@ def parse_cli_args() -> argparse.Namespace:
         help="set to true to skip cpu validation",
     )
     parser.add_argument(
+        "--gpu_validation",
+        action="store_true",
+        help="Run golden-only generation on GPU instead of CPU. Does not require Spyre SW stack",
+    )
+    parser.add_argument(
+        "--gpu_validation_dtype",
+        type=str,
+        choices=["fp16", "fp32"],
+        default="fp16",
+        help=(
+            "Compute dtype for the --gpu_validation golden. fp16 (default) matches AIU "
+            "precision. On-disk key stays 'fp32' regardless."
+        ),
+    )
+    parser.add_argument(
         "--validation_info_outputs_dir",
         type=str,
         default="/home/senuser/models/validation_info",
@@ -430,7 +451,7 @@ def _load_validation_info(
     max_new_tokens,
     tokenizer,
     seed,
-    cpu_dtype: str,
+    dtype_key: str,
     attn_type: str,
     validation_info_outputs_dir: str,
     sample_key: str | None = None,
@@ -448,7 +469,7 @@ def _load_validation_info(
         max_new_tokens: Number of tokens to generate during validation.
         tokenizer: HuggingFace tokenizer for the model.
         seed: Random seed used for validation.
-        cpu_dtype: Data type string for CPU validation ("fp8" or "fp32").
+        dtype_key: Data type string ("fp8" or "fp32") used as the golden's on-disk save/load key.
         attn_type: Attention algorithm type used.
         validation_info_outputs_dir: Directory containing saved validation outputs.
         sample_key: Optional identifier for the specific prompt sample used.
@@ -465,7 +486,7 @@ def _load_validation_info(
         seed=seed,
         attn_type=attn_type,
         version_allow_decrement=True,
-        dtype=cpu_dtype,
+        dtype=dtype_key,
         sample_key=sample_key,
     )
     if full_path is not None:
@@ -625,6 +646,31 @@ def _get_distributed_kwargs(
     return distributed_kwargs
 
 
+def _get_cuda_distributed_kwargs(
+    is_distributed: bool,
+    dist_timeout: int,
+) -> Dict[str, Any]:
+    """TP distributed setup for the cuda golden (GPU counterpart of _get_distributed_kwargs):
+    nccl process group + torch.cuda.set_device per rank. Use the same world size as the Spyre
+    run so program shapes/save keys match.
+    """
+    distributed_kwargs: Dict[str, Any] = {}
+    if is_distributed:
+        if dist_timeout > 0:
+            dist.init_process_group(
+                backend="nccl", timeout=datetime.timedelta(minutes=dist_timeout)
+            )
+            dprint(f"NOTICE: init_process_group timeout set to {dist_timeout} minutes")
+        else:
+            dist.init_process_group(backend="nccl")
+
+        torch.cuda.set_device(local_rank)
+        distributed_kwargs["distributed_strategy"] = "tp"
+        distributed_kwargs["group"] = dist.group.WORLD
+
+    return distributed_kwargs
+
+
 def get_sampler(dataset_type: str, dataset_path: str, tokenizer: AutoTokenizer):
     """Selects and configures the sampler based on type.
 
@@ -705,12 +751,13 @@ def get_sampler(dataset_type: str, dataset_path: str, tokenizer: AutoTokenizer):
 
 
 def load_model(
-    device_type: Literal["cpu", "spyre"],
+    device_type: Literal["cpu", "spyre", "cuda"],
     is_fp8: bool,
     model_kwargs: Dict[str, Any],
     distributed_kwargs: Dict[str, Any],
     stagger_load: int,
     model_config: DPPRunnerConfig,
+    cuda_dtype: torch.dtype = torch.float16,
 ):
     """Loads and optionally compiles a model for inference or validation.
 
@@ -724,7 +771,9 @@ def load_model(
         device_type: Target device for model execution. Options:
             - "cpu": Load on CPU for validation (fp32, no compilation)
             - "spyre": Load on CPU, compile for Spyre/AIU execution (fp16, with sendnn compilation)
+            - "cuda": Load on GPU for the golden reference (dtype = cuda_dtype, no compilation)
         is_fp8: If True, uses FP8 quantization (dtype=None for auto-detection).
+        cuda_dtype: Compute dtype for the cuda golden (fp16 default). Ignored for cpu/spyre.
         model_kwargs: Dictionary with model loading parameters (variant or path).
         distributed_kwargs: Dictionary with distributed training configuration.
         stagger_load: Number of concurrent processes allowed during loading (0=unlimited).
@@ -735,20 +784,25 @@ def load_model(
         with sendnn backend and may have FP8 weight conversion applied.
     """
 
-    if device_type not in ["cpu", "spyre"]:
+    if device_type not in ["cpu", "spyre", "cuda"]:
         raise ValueError(
-            f"device_type must be 'cpu' or 'spyre' for DPP, got '{device_type}'"
+            f"device_type must be 'cpu', 'spyre', or 'cuda' for DPP, got '{device_type}'"
         )
 
-    dtype = (
-        (torch.float32 if device_type == "cpu" else torch.float16)
-        if not is_fp8
-        else None
-    )
+    # dtype: fp8 -> None (auto), spyre -> fp16, cuda -> cuda_dtype, cpu -> fp32
+    if is_fp8:
+        dtype = None
+    elif device_type == "spyre":
+        dtype = torch.float16
+    elif device_type == "cuda":
+        dtype = cuda_dtype
+    else:
+        dtype = torch.float32
 
     with stagger_region(stagger_load):
         model = get_model(
-            device_type="cpu",
+            # cuda loads on GPU; spyre/cpu load on cpu (spyre compiles later)
+            device_type="cuda" if device_type == "cuda" else "cpu",
             data_type=dtype,
             fused_weights=False,
             **model_kwargs,
@@ -973,7 +1027,7 @@ def get_valid_prompts(
                 )
 
 
-def generate_cpu_validation(
+def generate_validation(
     model_variant: str,
     max_new_tokens: int,
     validation_info_outputs_dir: str,
@@ -984,61 +1038,95 @@ def generate_cpu_validation(
     extra_kwargs: Dict[str, Any],
     sample_key: str,
     attn_name: str,
-    cpu_dtype: str,
+    dtype_key: str,
     tokenizer: AutoTokenizer,
     pad_token_id: Optional[int] = None,
+    validation_device: Literal["cpu", "cuda"] = "cpu",
+    runtime_attn_name: Optional[str] = None,
 ) -> ValidationInfo:
-    """Generates or loads CPU validation information for reference comparison.
+    """Generates or loads the golden validation information for reference comparison.
 
-    Attempts to load pre-computed CPU validation data from disk. If not found,
-    runs CPU inference to generate reference outputs (tokens and logits).
-    Optionally saves the validation info for future use.
+    Attempts to load pre-computed validation data from disk. If not found, runs inference
+    on `validation_model` to generate reference outputs (tokens and logits). Optionally
+    saves the validation info for future use.
+
+    The save/load key uses the paged attn_name + dtype_key regardless of validation_device,
+    so cpu- and cuda-produced goldens are interchangeable. On cuda the golden is computed
+    with the unpaged SDPA runtime_attn_name (FMS has no GPU paged kernel).
 
     Args:
         model_variant: Model identifier or path.
         max_new_tokens: Maximum number of tokens to generate.
         validation_info_outputs_dir: Directory for validation info outputs.
         save_validation_info_outputs: Whether to save validation info to disk.
-        validation_model: CPU model for generating validation data.
+        validation_model: Model for generating validation data (on cpu or cuda).
         valid_prompt: Tuple of (batch_size, seq_length) for the prompt shape.
         input_ids: Tokenized input tensor.
         extra_kwargs: Dictionary with attention mask and other model inputs.
         sample_key: String identifier for the sampled prompts.
-        attn_name: Name of the attention algorithm used.
-        cpu_dtype: Data type string for CPU validation ("fp8" or "fp32").
+        attn_name: Attention algorithm name used as the save/load key (Spyre paged name).
+        dtype_key: Data type string ("fp8" or "fp32") used as the golden's on-disk save/load key.
         tokenizer: HuggingFace tokenizer for the model.
         pad_token_id: Optional padding token ID for the tokenizer.
+        validation_device: "cpu" (paged) or "cuda" (unpaged SDPA on GPU).
+        runtime_attn_name: Attention op used at runtime; unpaged SDPA equivalent on cuda.
 
     Returns:
-        ValidationInfo: ValidationInfo object containing CPU reference outputs
-        (tokens and logits).
+        ValidationInfo: ValidationInfo object containing reference outputs
+        (tokens and logits), always materialized on cpu.
     """
 
-    # attempt to load the cpu validation info if it is already computed
-    cpu_validation_info = _load_validation_info(
+    if validation_device not in ["cpu", "cuda"]:
+        raise ValueError(
+            f"validation_device must be 'cpu' or 'cuda', got '{validation_device}'"
+        )
+
+    gpu_extra_kwargs = extra_kwargs.copy()
+
+    # load cached golden if present (keyed by paged attn_name + dtype_key for cpu and cuda)
+    validation_info = _load_validation_info(
         model_variant=model_variant,
         batch_size=valid_prompt[0],
         seq_length=valid_prompt[1],
         max_new_tokens=max_new_tokens,
         tokenizer=tokenizer,
         seed=0,
-        cpu_dtype=cpu_dtype,
+        dtype_key=dtype_key,
         attn_type=attn_name,
         validation_info_outputs_dir=validation_info_outputs_dir,
         sample_key=sample_key,
     )
-    if cpu_validation_info is None:
-        cpu_validation_info = extract_validation_information(
+    if validation_info is None:
+        gen_input_ids = input_ids
+        if validation_device == "cuda":
+            if runtime_attn_name != attn_name and local_rank == 0:
+                dprint(
+                    f"[WARNING] --gpu_validation computed the golden with unpaged "
+                    f"attention '{runtime_attn_name}', but it is saved/keyed under "
+                    f"'{attn_name}' (paged). These are numerically equivalent (paged compute "
+                    f"== per-sequence SDPA) but not bit-identical."
+                )
+            cuda_device = torch.device("cuda", local_rank)
+            gen_input_ids = input_ids.to(cuda_device)
+            gpu_extra_kwargs = {
+                k: (v.to(cuda_device) if torch.is_tensor(v) else v)
+                for k, v in gpu_extra_kwargs.items()
+            }
+            # use the unpaged SDPA op and drop the paged-only kv-cache hint
+            gpu_extra_kwargs["attn_name"] = runtime_attn_name
+            gpu_extra_kwargs.pop("_kvcache_num_blocks_hint", None)
+
+        validation_info = extract_validation_information(
             model=validation_model,
-            input_ids=input_ids,
+            input_ids=gen_input_ids,
             max_new_tokens=max_new_tokens,
             post_iteration_hook=LogitsExtractorHook(),
             attn_algorithm="math",
             pad_token_id=pad_token_id,
-            **extra_kwargs,
+            **gpu_extra_kwargs,
         )
         if save_validation_info_outputs:
-            cpu_validation_info.save(
+            validation_info.save(
                 get_validation_info_path(
                     validation_info_dir=validation_info_outputs_dir,
                     model_variant=model_variant,
@@ -1047,12 +1135,12 @@ def generate_cpu_validation(
                     max_new_tokens=max_new_tokens,
                     seed=0,
                     attn_type=attn_name,
-                    dtype=cpu_dtype,
+                    dtype=dtype_key,
                     sample_key=sample_key,
                 )
             )
 
-    return cpu_validation_info
+    return validation_info
 
 
 def generate_aiu_validation(
@@ -1062,7 +1150,7 @@ def generate_aiu_validation(
     prefill_chunk_size: int,
     model: torch.nn.Module,
     input_ids: torch.Tensor,
-    cpu_validation_info: Optional[ValidationInfo],
+    validation_info: Optional[ValidationInfo],
     extra_kwargs: Dict[str, Any],
     pad_token_id: Optional[int] = None,
 ) -> ValidationInfo:
@@ -1079,7 +1167,7 @@ def generate_aiu_validation(
         prefill_chunk_size: Chunk size for prefill operations.
         model: Compiled AIU model for inference.
         input_ids: Tokenized input tensor.
-        cpu_validation_info: Optional CPU validation data for golden token injection.
+        validation_info: Optional CPU validation data for golden token injection.
         extra_kwargs: Dictionary with attention mask and other model inputs.
         pad_token_id: Optional padding token ID for the tokenizer.
 
@@ -1088,8 +1176,8 @@ def generate_aiu_validation(
         and optional timing information).
     """
     golden_hook = None
-    if test_type == "metrics" and cpu_validation_info:
-        golden_hook = GoldenTokenHook(cpu_validation_info.get_info("tokens"))
+    if test_type == "metrics" and validation_info:
+        golden_hook = GoldenTokenHook(validation_info.get_info("tokens"))
 
     aiu_validation_info = extract_validation_information(
         model=model,
@@ -1109,7 +1197,7 @@ def generate_aiu_validation(
 def evaluate_cross_entropy_metrics(
     cross_entropy_threshold: float,
     aiu_validation_info: ValidationInfo,
-    cpu_validation_info: ValidationInfo,
+    validation_info: ValidationInfo,
     program_id: str,
     prompt_shape: Tuple[int, int],
     tokenizer: AutoTokenizer,
@@ -1123,7 +1211,7 @@ def evaluate_cross_entropy_metrics(
     Args:
         cross_entropy_threshold: Maximum acceptable cross-entropy for a passing token.
         aiu_validation_info: ValidationInfo from AIU inference.
-        cpu_validation_info: ValidationInfo from CPU reference.
+        validation_info: ValidationInfo from CPU reference.
         program_id: ID of the program being tested.
         prompt_shape: Tuple of (batch_size, seq_length).
         tokenizer: HuggingFace tokenizer for decoding tokens.
@@ -1132,13 +1220,13 @@ def evaluate_cross_entropy_metrics(
         float: Failure rate (number of failed tokens / total tokens).
     """
     level_1_metrics = capture_level_1_metrics(
-        cpu_validation_info.get_info("logits"),
+        validation_info.get_info("logits"),
         aiu_validation_info.get_info("logits"),
         top_k_loss_calculator(20, _metric_calculator),
     )
 
     if local_rank == 0:
-        cpu_tokens = cpu_validation_info.get_info("tokens")
+        cpu_tokens = validation_info.get_info("tokens")
         for sentence_idx, token_idx, metrics_value in level_1_metrics:
             aiu_token = torch.argmax(
                 aiu_validation_info.get_info("logits")[sentence_idx][token_idx], dim=-1
@@ -1165,7 +1253,7 @@ def evaluate_cross_entropy_metrics(
 def report_token_comparison(
     max_new_tokens: int,
     aiu_validation_info: ValidationInfo,
-    cpu_validation_info: ValidationInfo,
+    validation_info: ValidationInfo,
     program_id: str,
     tokenizer: AutoTokenizer,
 ) -> None:
@@ -1179,7 +1267,7 @@ def report_token_comparison(
     Args:
         max_new_tokens: Number of tokens generated after the prompt.
         aiu_validation_info: ValidationInfo from AIU inference.
-        cpu_validation_info: ValidationInfo from CPU reference.
+        validation_info: ValidationInfo from CPU reference.
         program_id: ID of the program being tested.
         tokenizer: HuggingFace tokenizer for decoding tokens.
     """
@@ -1188,7 +1276,7 @@ def report_token_comparison(
 
     for sentence_idx, (reference_sentence, test_sentence) in enumerate(
         zip(
-            cpu_validation_info.get_info("tokens"),
+            validation_info.get_info("tokens"),
             aiu_validation_info.get_info("tokens"),
         )
     ):
@@ -1209,24 +1297,30 @@ def report_token_comparison(
 
 
 def setup_environment(
-    program_criteria_json_path: str, attention_type: str
+    program_criteria_json_path: str, attention_type: str, gpu_validation: bool = False
 ) -> EnvConfig:
     """Set up global process state and environment variables.
 
     Args:
         program_criteria_json_path: Path to the JSON file containing program criteria definitions.
         attention_type: Type of attention mechanism to use. Must be one of sdpa, paged, math_fp8, paged_fp8, paged_with_sinks.
+        gpu_validation: If True, set runtime_attn_name to the unpaged SDPA equivalent
+            (the GPU golden has no paged kernel); otherwise it equals attn_name.
+            Raises NotImplementedError if attention_type has no unpaged GPU equivalent.
 
     Returns:
         EnvConfig: Immutable configuration containing:
-            - attn_name: Mapped attention implementation name
-            - cpu_dtype: Data type for CPU operations ("fp8" or "fp32")
+            - attn_name: Mapped attention implementation name (also the golden save/load key)
+            - runtime_attn_name: Attention op actually used to compute the golden
+            - dtype_key: Data type string ("fp8" or "fp32") used as the golden's on-disk key
             - max_batch_size: Maximum batch size from VLLM_DT_MAX_BATCH_SIZE
             - max_tkv: Maximum token-key-value context length from VLLM_DT_MAX_CONTEXT_LEN
 
     Raises:
         SystemExit: If required environment variables VLLM_DT_MAX_CONTEXT_LEN or
                     VLLM_DT_MAX_BATCH_SIZE are not set.
+        NotImplementedError: If gpu_validation is set for an attention_type that has no
+                    unpaged GPU equivalent (e.g. paged_fp8).
     """
     os.environ["COMPILATION_MODE"] = "offline_decoder"
     os.environ["DT_PROG_CRITERIA_FILEPATH"] = program_criteria_json_path
@@ -1251,9 +1345,30 @@ def setup_environment(
         "paged_with_sinks": "spyre_paged_attn_with_sinks",
     }
 
+    # map paged attn types to their unpaged SDPA equivalents for cuda
+    cuda_attention_map = {
+        "paged": "sdpa_causal",
+        "paged_with_sinks": "sdpa_with_sinks",
+    }
+
+    attn_name = attention_map[attention_type]
+    if gpu_validation:
+        # gpu goldens run unpaged SDPA in fp16/fp32; only attention types with a mapped
+        # unpaged equivalent are supported. paged_fp8 has none (fp8 stays Spyre-only).
+        if attention_type not in cuda_attention_map:
+            raise NotImplementedError(
+                f"--gpu_validation is not supported for attention_type '{attention_type}'. "
+                f"Supported on GPU: {sorted(cuda_attention_map)} (golden computed in "
+                f"fp16/fp32 via unpaged SDPA). Run '{attention_type}' on the AIU/CPU flow."
+            )
+        runtime_attn_name = cuda_attention_map[attention_type]
+    else:
+        runtime_attn_name = attn_name
+
     return EnvConfig(
-        attn_name=attention_map[attention_type],
-        cpu_dtype="fp8" if "fp8" in attention_type else "fp32",
+        attn_name=attn_name,
+        runtime_attn_name=runtime_attn_name,
+        dtype_key="fp8" if "fp8" in attention_type else "fp32",
         max_batch_size=int(os.environ["VLLM_DT_MAX_BATCH_SIZE"]),
         max_tkv=int(os.environ["VLLM_DT_MAX_CONTEXT_LEN"]),
     )
@@ -1369,7 +1484,7 @@ def generate_validation_info_and_test(
             prefill_chunk_size=prefill_chunk_size,
             model=model,
             input_ids=first.input_ids,
-            cpu_validation_info=None,
+            validation_info=None,
             extra_kwargs=first.extra_kwargs,
             pad_token_id=pad_token_id,
         )
@@ -1390,7 +1505,7 @@ def generate_validation_info_and_test(
             cpu_metric_start = print_step(
                 profile, print_utilization, "started", "CPU Inference"
             )
-            cpu_validation_info = generate_cpu_validation(
+            validation_info = generate_validation(
                 model_variant=model_variant,
                 max_new_tokens=max_new_tokens,
                 validation_info_outputs_dir=validation_info_outputs_dir,
@@ -1401,7 +1516,7 @@ def generate_validation_info_and_test(
                 extra_kwargs=valid_prompt.extra_kwargs,
                 sample_key=valid_prompt.sample_key,
                 attn_name=env_config.attn_name,
-                cpu_dtype=env_config.cpu_dtype,
+                dtype_key=env_config.dtype_key,
                 tokenizer=tokenizer,
                 pad_token_id=pad_token_id,
             )
@@ -1424,7 +1539,7 @@ def generate_validation_info_and_test(
                 prefill_chunk_size=prefill_chunk_size,
                 model=model,
                 input_ids=valid_prompt.input_ids,
-                cpu_validation_info=cpu_validation_info,
+                validation_info=validation_info,
                 extra_kwargs=valid_prompt.extra_kwargs,
                 pad_token_id=pad_token_id,
             )
@@ -1440,7 +1555,7 @@ def generate_validation_info_and_test(
                 failure_rate = evaluate_cross_entropy_metrics(
                     cross_entropy_threshold=cross_entropy_threshold,
                     aiu_validation_info=aiu_validation_info,
-                    cpu_validation_info=cpu_validation_info,
+                    validation_info=validation_info,
                     program_id=valid_prompt.program_id,
                     prompt_shape=valid_prompt.shape,
                     tokenizer=tokenizer,
@@ -1454,7 +1569,7 @@ def generate_validation_info_and_test(
                 report_token_comparison(
                     max_new_tokens=max_new_tokens,
                     aiu_validation_info=aiu_validation_info,
-                    cpu_validation_info=cpu_validation_info,
+                    validation_info=validation_info,
                     program_id=valid_prompt.program_id,
                     tokenizer=tokenizer,
                 )
@@ -1473,7 +1588,7 @@ def generate_validation_info_and_test(
                 prefill_chunk_size=prefill_chunk_size,
                 model=model,
                 input_ids=valid_prompt.input_ids,
-                cpu_validation_info=None,
+                validation_info=None,
                 extra_kwargs=valid_prompt.extra_kwargs,
                 pad_token_id=pad_token_id,
             )
@@ -1503,6 +1618,112 @@ def generate_validation_info_and_test(
     return failed_cases
 
 
+def _run_cuda_golden(
+    args: argparse.Namespace,
+    env_config: EnvConfig,
+    tokenizer: AutoTokenizer,
+    sampler: Any,
+    allow_truncation: bool,
+    custom_shape: Optional[Tuple[int, int]],
+    model_kwargs: Dict[str, Any],
+    model_config: DPPRunnerConfig,
+    distributed_kwargs: Optional[Dict[str, Any]] = None,
+    pad_token_id: Optional[int] = None,
+    profile: Optional[Any] = None,
+) -> None:
+    """Golden-only execution path for ``--gpu_validation``.
+
+    Loads the validation model on GPU and generates + optionally saves the golden reference
+    for each prompt. No AIU/Spyre model, warmup, or comparison; a later Spyre run reloads the
+    golden. The golden is keyed under dtype_key ('fp32' for non-fp8) regardless of compute
+    dtype, so a Spyre run finds it. With distributed_kwargs the model is sharded TP across
+    GPUs; only rank 0 saves/prints.
+    """
+    cuda_dtype = {"fp16": torch.float16, "fp32": torch.float32}[
+        args.gpu_validation_dtype
+    ]
+    if local_rank == 0:
+        dprint(
+            f"*** --gpu_validation golden computed in {args.gpu_validation_dtype}, "
+            f"saved/keyed under '{env_config.dtype_key}' ***"
+        )
+    validation_model = load_model(
+        device_type="cuda",
+        is_fp8=False,
+        model_kwargs=model_kwargs,
+        distributed_kwargs=distributed_kwargs or {},
+        stagger_load=args.stagger_load,
+        model_config=model_config,
+        cuda_dtype=cuda_dtype,
+    )
+
+    valid_prompts = prepare_test_prompts(
+        program_criteria_json_path=args.program_criteria_json_path,
+        programs=args.programs,
+        max_new_tokens=args.max_new_tokens,
+        prioritize_large_batch_sizes=args.prioritize_large_batch_sizes,
+        enforce_homogeneous_prompt_programs=args.enforce_homogeneous_prompt_programs,
+        max_batch_size=env_config.max_batch_size,
+        max_tkv=env_config.max_tkv,
+        tkv_limit=model_config.tkv_limit,
+        tokenizer=tokenizer,
+        sampler=sampler,
+        allow_truncation=allow_truncation,
+        custom_shape=custom_shape,
+        dataset_path=args.dataset_path,
+        pad_token_id=pad_token_id,
+    )
+
+    for valid_prompt in valid_prompts:
+        if local_rank == 0:
+            dprint(
+                f"*** generating cuda golden for program {valid_prompt.program_id} ***"
+            )
+            dprint(
+                f"program id: {valid_prompt.program_id}, valid prompt: {valid_prompt.shape}, input shape: {valid_prompt.input_ids.shape}"
+            )
+
+        metric_start = print_step(
+            profile, args.report_resource_utilization, "started", "CUDA Golden"
+        )
+        golden_info = generate_validation(
+            model_variant=args.model_variant,
+            max_new_tokens=args.max_new_tokens,
+            validation_info_outputs_dir=args.validation_info_outputs_dir,
+            save_validation_info_outputs=args.save_validation_info_outputs,
+            validation_model=validation_model,
+            valid_prompt=valid_prompt.shape,
+            input_ids=valid_prompt.input_ids,
+            extra_kwargs=valid_prompt.extra_kwargs,
+            sample_key=valid_prompt.sample_key,
+            attn_name=env_config.attn_name,
+            dtype_key=env_config.dtype_key,
+            tokenizer=tokenizer,
+            pad_token_id=pad_token_id,
+            validation_device="cuda",
+            runtime_attn_name=env_config.runtime_attn_name,
+        )
+        print_step(
+            profile,
+            args.report_resource_utilization,
+            "completed",
+            "CUDA Golden",
+            metric_start,
+        )
+
+        if local_rank == 0:
+            for sentence_idx, sentence in enumerate(golden_info.get_info("tokens")):
+                gen_tokens = [t.item() for t in sentence[-args.max_new_tokens :]]
+                dprint(
+                    f"For Program {valid_prompt.program_id} in sentence {sentence_idx + 1}: golden tokens:\n{gen_tokens}"
+                )
+                dprint(f"golden output:\n{tokenizer.decode(gen_tokens)}")
+
+    # sync TP ranks before exit so rank 0's save completes
+    if dist.is_initialized():
+        dist.barrier()
+
+
 def main() -> None:
     """Main execution function for driving paged program validation tests.
 
@@ -1528,11 +1749,29 @@ def main() -> None:
     # Environment Setup
     args = parse_cli_args()
     is_fp8: bool = "fp8" in args.attention_type
+    if args.gpu_validation and not torch.cuda.is_available():
+        raise RuntimeError(
+            "--gpu_validation requires a CUDA device but torch.cuda.is_available() is False. "
+            "Run golden generation on a GPU node, or drop --gpu_validation to use the CPU flow."
+        )
+    # checked here on the raw flag, before the rank-0 gating below rewrites it
+    if (
+        args.gpu_validation
+        and not args.save_validation_info_outputs
+        and local_rank == 0
+    ):
+        dprint(
+            "[WARNING] --gpu_validation without --save_validation_info_outputs computes and "
+            "prints the golden but does NOT persist it to disk, so the later AIU run cannot "
+            "load it. Add --save_validation_info_outputs (and --validation_info_outputs_dir) "
+            "to save the golden for transfer."
+        )
     if args.skip_validation and args.test_type == "metrics":
         dprint("When skipping validation, only test_type will be ignored")
     env_config: EnvConfig = setup_environment(
         program_criteria_json_path=args.program_criteria_json_path,
         attention_type=args.attention_type,
+        gpu_validation=args.gpu_validation,
     )
     # Load tokenizer - use args.tokenizer if provided, otherwise use model_variant
     tokenizer_path = (
@@ -1563,13 +1802,47 @@ def main() -> None:
         fms_architecture=args.fms_architecture,
         fms_variant=args.fms_variant,
     )
+    model_config: DPPRunnerConfig = DPPRunnerConfig()
+
+    # generate + save the golden on GPU only, then exit. With --distributed,
+    # use the same world size as the Spyre run so program shapes/save keys match.
+    if args.gpu_validation:
+        cuda_distributed_kwargs = _get_cuda_distributed_kwargs(
+            is_distributed=args.distributed, dist_timeout=args.dist_timeout
+        )
+        args.save_validation_info_outputs = args.save_validation_info_outputs and (
+            not dist.is_initialized() or dist.get_rank() == 0
+        )
+        world_size = (
+            dist.get_world_size() if args.distributed and dist.is_initialized() else 1
+        )
+        model_config.setup_config(
+            model_variant=args.model_variant,
+            use_distributed=args.distributed,
+            world_size=world_size,
+            prefill_chunk_size=args.prefill_chunk_size,
+        )
+        _run_cuda_golden(
+            args=args,
+            env_config=env_config,
+            tokenizer=tokenizer,
+            sampler=sampler,
+            allow_truncation=allow_truncation,
+            custom_shape=custom_shape,
+            model_kwargs=model_kwargs,
+            distributed_kwargs=cuda_distributed_kwargs,
+            model_config=model_config,
+            pad_token_id=pad_token_id,
+            profile=p,
+        )
+        return
+
     distributed_kwargs: Dict[str, Any] = _get_distributed_kwargs(
         is_distributed=args.distributed, dist_timeout=args.dist_timeout
     )
     args.save_validation_info_outputs = args.save_validation_info_outputs and (
-        dist.get_rank() == 0
+        not dist.is_initialized() or dist.get_rank() == 0
     )
-    model_config: DPPRunnerConfig = DPPRunnerConfig()
     world_size = (
         dist.get_world_size() if args.distributed and dist.is_initialized() else 1
     )
