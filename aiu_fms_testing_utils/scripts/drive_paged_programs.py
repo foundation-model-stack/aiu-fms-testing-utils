@@ -1743,6 +1743,18 @@ def main() -> None:
             "--gpu_validation requires a CUDA device but torch.cuda.is_available() is False. "
             "Run golden generation on a GPU node, or drop --gpu_validation to use the CPU flow."
         )
+    # checked here on the raw flag, before the rank-0 gating below rewrites it
+    if (
+        args.gpu_validation
+        and not args.save_validation_info_outputs
+        and local_rank == 0
+    ):
+        dprint(
+            "[WARNING] --gpu_validation without --save_validation_info_outputs computes and "
+            "prints the golden but does NOT persist it to disk, so the later AIU run cannot "
+            "load it. Add --save_validation_info_outputs (and --validation_info_outputs_dir) "
+            "to save the golden for transfer."
+        )
     if args.skip_validation and args.test_type == "metrics":
         dprint("When skipping validation, only test_type will be ignored")
     env_config: EnvConfig = setup_environment(
