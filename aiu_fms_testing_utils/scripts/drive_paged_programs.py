@@ -1027,7 +1027,7 @@ def get_valid_prompts(
                 )
 
 
-def generate_cpu_validation(
+def generate_validation(
     model_variant: str,
     max_new_tokens: int,
     validation_info_outputs_dir: str,
@@ -1076,10 +1076,10 @@ def generate_cpu_validation(
         (tokens and logits), always materialized on cpu.
     """
 
-    cpu_extra_kwargs = extra_kwargs.copy()
+    gpu_extra_kwargs = extra_kwargs.copy()
 
     # load cached golden if present (keyed by paged attn_name + cpu_dtype for cpu and cuda)
-    cpu_validation_info = _load_validation_info(
+    validation_info = _load_validation_info(
         model_variant=model_variant,
         batch_size=valid_prompt[0],
         seq_length=valid_prompt[1],
@@ -1091,7 +1091,7 @@ def generate_cpu_validation(
         validation_info_outputs_dir=validation_info_outputs_dir,
         sample_key=sample_key,
     )
-    if cpu_validation_info is None:
+    if validation_info is None:
         gen_input_ids = input_ids
         if validation_device == "cuda":
             if runtime_attn_name != attn_name and local_rank == 0:
@@ -1103,25 +1103,25 @@ def generate_cpu_validation(
                 )
             cuda_device = torch.device("cuda", local_rank)
             gen_input_ids = input_ids.to(cuda_device)
-            cpu_extra_kwargs = {
+            gpu_extra_kwargs = {
                 k: (v.to(cuda_device) if torch.is_tensor(v) else v)
-                for k, v in cpu_extra_kwargs.items()
+                for k, v in gpu_extra_kwargs.items()
             }
             # use the unpaged SDPA op and drop the paged-only kv-cache hint
-            cpu_extra_kwargs["attn_name"] = runtime_attn_name
-            cpu_extra_kwargs.pop("_kvcache_num_blocks_hint", None)
+            gpu_extra_kwargs["attn_name"] = runtime_attn_name
+            gpu_extra_kwargs.pop("_kvcache_num_blocks_hint", None)
 
-        cpu_validation_info = extract_validation_information(
+        validation_info = extract_validation_information(
             model=validation_model,
             input_ids=gen_input_ids,
             max_new_tokens=max_new_tokens,
             post_iteration_hook=LogitsExtractorHook(),
             attn_algorithm="math",
             pad_token_id=pad_token_id,
-            **cpu_extra_kwargs,
+            **gpu_extra_kwargs,
         )
         if save_validation_info_outputs:
-            cpu_validation_info.save(
+            validation_info.save(
                 get_validation_info_path(
                     validation_info_dir=validation_info_outputs_dir,
                     model_variant=model_variant,
@@ -1135,7 +1135,7 @@ def generate_cpu_validation(
                 )
             )
 
-    return cpu_validation_info
+    return validation_info
 
 
 def generate_aiu_validation(
@@ -1145,7 +1145,7 @@ def generate_aiu_validation(
     prefill_chunk_size: int,
     model: torch.nn.Module,
     input_ids: torch.Tensor,
-    cpu_validation_info: Optional[ValidationInfo],
+    validation_info: Optional[ValidationInfo],
     extra_kwargs: Dict[str, Any],
     pad_token_id: Optional[int] = None,
 ) -> ValidationInfo:
@@ -1162,7 +1162,7 @@ def generate_aiu_validation(
         prefill_chunk_size: Chunk size for prefill operations.
         model: Compiled AIU model for inference.
         input_ids: Tokenized input tensor.
-        cpu_validation_info: Optional CPU validation data for golden token injection.
+        validation_info: Optional CPU validation data for golden token injection.
         extra_kwargs: Dictionary with attention mask and other model inputs.
         pad_token_id: Optional padding token ID for the tokenizer.
 
@@ -1171,8 +1171,8 @@ def generate_aiu_validation(
         and optional timing information).
     """
     golden_hook = None
-    if test_type == "metrics" and cpu_validation_info:
-        golden_hook = GoldenTokenHook(cpu_validation_info.get_info("tokens"))
+    if test_type == "metrics" and validation_info:
+        golden_hook = GoldenTokenHook(validation_info.get_info("tokens"))
 
     aiu_validation_info = extract_validation_information(
         model=model,
@@ -1192,7 +1192,7 @@ def generate_aiu_validation(
 def evaluate_cross_entropy_metrics(
     cross_entropy_threshold: float,
     aiu_validation_info: ValidationInfo,
-    cpu_validation_info: ValidationInfo,
+    validation_info: ValidationInfo,
     program_id: str,
     prompt_shape: Tuple[int, int],
     tokenizer: AutoTokenizer,
@@ -1206,7 +1206,7 @@ def evaluate_cross_entropy_metrics(
     Args:
         cross_entropy_threshold: Maximum acceptable cross-entropy for a passing token.
         aiu_validation_info: ValidationInfo from AIU inference.
-        cpu_validation_info: ValidationInfo from CPU reference.
+        validation_info: ValidationInfo from CPU reference.
         program_id: ID of the program being tested.
         prompt_shape: Tuple of (batch_size, seq_length).
         tokenizer: HuggingFace tokenizer for decoding tokens.
@@ -1215,13 +1215,13 @@ def evaluate_cross_entropy_metrics(
         float: Failure rate (number of failed tokens / total tokens).
     """
     level_1_metrics = capture_level_1_metrics(
-        cpu_validation_info.get_info("logits"),
+        validation_info.get_info("logits"),
         aiu_validation_info.get_info("logits"),
         top_k_loss_calculator(20, _metric_calculator),
     )
 
     if local_rank == 0:
-        cpu_tokens = cpu_validation_info.get_info("tokens")
+        cpu_tokens = validation_info.get_info("tokens")
         for sentence_idx, token_idx, metrics_value in level_1_metrics:
             aiu_token = torch.argmax(
                 aiu_validation_info.get_info("logits")[sentence_idx][token_idx], dim=-1
@@ -1248,7 +1248,7 @@ def evaluate_cross_entropy_metrics(
 def report_token_comparison(
     max_new_tokens: int,
     aiu_validation_info: ValidationInfo,
-    cpu_validation_info: ValidationInfo,
+    validation_info: ValidationInfo,
     program_id: str,
     tokenizer: AutoTokenizer,
 ) -> None:
@@ -1262,7 +1262,7 @@ def report_token_comparison(
     Args:
         max_new_tokens: Number of tokens generated after the prompt.
         aiu_validation_info: ValidationInfo from AIU inference.
-        cpu_validation_info: ValidationInfo from CPU reference.
+        validation_info: ValidationInfo from CPU reference.
         program_id: ID of the program being tested.
         tokenizer: HuggingFace tokenizer for decoding tokens.
     """
@@ -1271,7 +1271,7 @@ def report_token_comparison(
 
     for sentence_idx, (reference_sentence, test_sentence) in enumerate(
         zip(
-            cpu_validation_info.get_info("tokens"),
+            validation_info.get_info("tokens"),
             aiu_validation_info.get_info("tokens"),
         )
     ):
@@ -1468,7 +1468,7 @@ def generate_validation_info_and_test(
             prefill_chunk_size=prefill_chunk_size,
             model=model,
             input_ids=first.input_ids,
-            cpu_validation_info=None,
+            validation_info=None,
             extra_kwargs=first.extra_kwargs,
             pad_token_id=pad_token_id,
         )
@@ -1489,7 +1489,7 @@ def generate_validation_info_and_test(
             cpu_metric_start = print_step(
                 profile, print_utilization, "started", "CPU Inference"
             )
-            cpu_validation_info = generate_cpu_validation(
+            validation_info = generate_validation(
                 model_variant=model_variant,
                 max_new_tokens=max_new_tokens,
                 validation_info_outputs_dir=validation_info_outputs_dir,
@@ -1523,7 +1523,7 @@ def generate_validation_info_and_test(
                 prefill_chunk_size=prefill_chunk_size,
                 model=model,
                 input_ids=valid_prompt.input_ids,
-                cpu_validation_info=cpu_validation_info,
+                validation_info=validation_info,
                 extra_kwargs=valid_prompt.extra_kwargs,
                 pad_token_id=pad_token_id,
             )
@@ -1539,7 +1539,7 @@ def generate_validation_info_and_test(
                 failure_rate = evaluate_cross_entropy_metrics(
                     cross_entropy_threshold=cross_entropy_threshold,
                     aiu_validation_info=aiu_validation_info,
-                    cpu_validation_info=cpu_validation_info,
+                    validation_info=validation_info,
                     program_id=valid_prompt.program_id,
                     prompt_shape=valid_prompt.shape,
                     tokenizer=tokenizer,
@@ -1553,7 +1553,7 @@ def generate_validation_info_and_test(
                 report_token_comparison(
                     max_new_tokens=max_new_tokens,
                     aiu_validation_info=aiu_validation_info,
-                    cpu_validation_info=cpu_validation_info,
+                    validation_info=validation_info,
                     program_id=valid_prompt.program_id,
                     tokenizer=tokenizer,
                 )
@@ -1572,7 +1572,7 @@ def generate_validation_info_and_test(
                 prefill_chunk_size=prefill_chunk_size,
                 model=model,
                 input_ids=valid_prompt.input_ids,
-                cpu_validation_info=None,
+                validation_info=None,
                 extra_kwargs=valid_prompt.extra_kwargs,
                 pad_token_id=pad_token_id,
             )
@@ -1670,7 +1670,7 @@ def _run_cuda_golden(
         metric_start = print_step(
             profile, args.report_resource_utilization, "started", "CUDA Golden"
         )
-        golden_info = generate_cpu_validation(
+        golden_info = generate_validation(
             model_variant=args.model_variant,
             max_new_tokens=args.max_new_tokens,
             validation_info_outputs_dir=args.validation_info_outputs_dir,
