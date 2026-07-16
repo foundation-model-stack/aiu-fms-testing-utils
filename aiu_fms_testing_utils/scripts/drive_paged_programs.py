@@ -1738,6 +1738,11 @@ def main() -> None:
             "fp8 golden generation on GPU is not implemented; drop --gpu_validation to run "
             "fp8 attention types (paged_fp8) on the AIU/CPU flow."
         )
+    if args.gpu_validation and not torch.cuda.is_available():
+        raise RuntimeError(
+            "--gpu_validation requires a CUDA device but torch.cuda.is_available() is False. "
+            "Run golden generation on a GPU node, or drop --gpu_validation to use the CPU flow."
+        )
     if args.skip_validation and args.test_type == "metrics":
         dprint("When skipping validation, only test_type will be ignored")
     env_config: EnvConfig = setup_environment(
