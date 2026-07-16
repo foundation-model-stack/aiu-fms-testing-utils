@@ -1041,7 +1041,7 @@ def generate_validation(
     cpu_dtype: str,
     tokenizer: AutoTokenizer,
     pad_token_id: Optional[int] = None,
-    validation_device: str = "cpu",
+    validation_device: Literal["cpu", "cuda"] = "cpu",
     runtime_attn_name: Optional[str] = None,
 ) -> ValidationInfo:
     """Generates or loads the golden validation information for reference comparison.
@@ -1075,6 +1075,11 @@ def generate_validation(
         ValidationInfo: ValidationInfo object containing reference outputs
         (tokens and logits), always materialized on cpu.
     """
+
+    if validation_device not in ["cpu", "cuda"]:
+        raise ValueError(
+            f"validation_device must be 'cpu' or 'cuda', got '{validation_device}'"
+        )
 
     gpu_extra_kwargs = extra_kwargs.copy()
 
