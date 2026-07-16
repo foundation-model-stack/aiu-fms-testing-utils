@@ -1306,6 +1306,7 @@ def setup_environment(
         attention_type: Type of attention mechanism to use. Must be one of sdpa, paged, math_fp8, paged_fp8, paged_with_sinks.
         gpu_validation: If True, set runtime_attn_name to the unpaged SDPA equivalent
             (the GPU golden has no paged kernel); otherwise it equals attn_name.
+            Raises NotImplementedError if attention_type has no unpaged GPU equivalent.
 
     Returns:
         EnvConfig: Immutable configuration containing:
@@ -1318,6 +1319,8 @@ def setup_environment(
     Raises:
         SystemExit: If required environment variables VLLM_DT_MAX_CONTEXT_LEN or
                     VLLM_DT_MAX_BATCH_SIZE are not set.
+        NotImplementedError: If gpu_validation is set for an attention_type that has no
+                    unpaged GPU equivalent (e.g. paged_fp8).
     """
     os.environ["COMPILATION_MODE"] = "offline_decoder"
     os.environ["DT_PROG_CRITERIA_FILEPATH"] = program_criteria_json_path
@@ -1350,7 +1353,15 @@ def setup_environment(
 
     attn_name = attention_map[attention_type]
     if gpu_validation:
-        runtime_attn_name = cuda_attention_map.get(attention_type, attn_name)
+        # gpu goldens run unpaged SDPA in fp16/fp32; only attention types with a mapped
+        # unpaged equivalent are supported. paged_fp8 has none (fp8 stays Spyre-only).
+        if attention_type not in cuda_attention_map:
+            raise NotImplementedError(
+                f"--gpu_validation is not supported for attention_type '{attention_type}'. "
+                f"Supported on GPU: {sorted(cuda_attention_map)} (golden computed in "
+                f"fp16/fp32 via unpaged SDPA). Run '{attention_type}' on the AIU/CPU flow."
+            )
+        runtime_attn_name = cuda_attention_map[attention_type]
     else:
         runtime_attn_name = attn_name
 
@@ -1738,11 +1749,6 @@ def main() -> None:
     # Environment Setup
     args = parse_cli_args()
     is_fp8: bool = "fp8" in args.attention_type
-    if args.gpu_validation and is_fp8:
-        raise NotImplementedError(
-            "fp8 golden generation on GPU is not implemented; drop --gpu_validation to run "
-            "fp8 attention types (paged_fp8) on the AIU/CPU flow."
-        )
     if args.gpu_validation and not torch.cuda.is_available():
         raise RuntimeError(
             "--gpu_validation requires a CUDA device but torch.cuda.is_available() is False. "
