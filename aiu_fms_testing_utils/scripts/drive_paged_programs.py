@@ -83,14 +83,14 @@ class EnvConfig(NamedTuple):
         attn_name: Attention algorithm name (e.g. 'spyre_paged_attn'); also the golden save/load key.
         runtime_attn_name: Attention op used to compute the golden. Equals attn_name on
             cpu/spyre; on cuda it's the unpaged SDPA equivalent.
-        cpu_dtype: Data type for CPU validation ('fp8' or 'fp32').
+        dtype_key: Data type string ('fp8' or 'fp32') used as the golden's on-disk save/load key.
         max_batch_size: Maximum batch size.
         max_tkv: Maximum total key-value (context) length.
     """
 
     attn_name: str
     runtime_attn_name: str
-    cpu_dtype: str
+    dtype_key: str
     max_batch_size: int
     max_tkv: int
 
@@ -451,7 +451,7 @@ def _load_validation_info(
     max_new_tokens,
     tokenizer,
     seed,
-    cpu_dtype: str,
+    dtype_key: str,
     attn_type: str,
     validation_info_outputs_dir: str,
     sample_key: str | None = None,
@@ -469,7 +469,7 @@ def _load_validation_info(
         max_new_tokens: Number of tokens to generate during validation.
         tokenizer: HuggingFace tokenizer for the model.
         seed: Random seed used for validation.
-        cpu_dtype: Data type string for CPU validation ("fp8" or "fp32").
+        dtype_key: Data type string ("fp8" or "fp32") used as the golden's on-disk save/load key.
         attn_type: Attention algorithm type used.
         validation_info_outputs_dir: Directory containing saved validation outputs.
         sample_key: Optional identifier for the specific prompt sample used.
@@ -486,7 +486,7 @@ def _load_validation_info(
         seed=seed,
         attn_type=attn_type,
         version_allow_decrement=True,
-        dtype=cpu_dtype,
+        dtype=dtype_key,
         sample_key=sample_key,
     )
     if full_path is not None:
@@ -1038,7 +1038,7 @@ def generate_validation(
     extra_kwargs: Dict[str, Any],
     sample_key: str,
     attn_name: str,
-    cpu_dtype: str,
+    dtype_key: str,
     tokenizer: AutoTokenizer,
     pad_token_id: Optional[int] = None,
     validation_device: Literal["cpu", "cuda"] = "cpu",
@@ -1050,7 +1050,7 @@ def generate_validation(
     on `validation_model` to generate reference outputs (tokens and logits). Optionally
     saves the validation info for future use.
 
-    The save/load key uses the paged attn_name + cpu_dtype regardless of validation_device,
+    The save/load key uses the paged attn_name + dtype_key regardless of validation_device,
     so cpu- and cuda-produced goldens are interchangeable. On cuda the golden is computed
     with the unpaged SDPA runtime_attn_name (FMS has no GPU paged kernel).
 
@@ -1065,7 +1065,7 @@ def generate_validation(
         extra_kwargs: Dictionary with attention mask and other model inputs.
         sample_key: String identifier for the sampled prompts.
         attn_name: Attention algorithm name used as the save/load key (Spyre paged name).
-        cpu_dtype: Data type string for validation ("fp8" or "fp32").
+        dtype_key: Data type string ("fp8" or "fp32") used as the golden's on-disk save/load key.
         tokenizer: HuggingFace tokenizer for the model.
         pad_token_id: Optional padding token ID for the tokenizer.
         validation_device: "cpu" (paged) or "cuda" (unpaged SDPA on GPU).
@@ -1083,7 +1083,7 @@ def generate_validation(
 
     gpu_extra_kwargs = extra_kwargs.copy()
 
-    # load cached golden if present (keyed by paged attn_name + cpu_dtype for cpu and cuda)
+    # load cached golden if present (keyed by paged attn_name + dtype_key for cpu and cuda)
     validation_info = _load_validation_info(
         model_variant=model_variant,
         batch_size=valid_prompt[0],
@@ -1091,7 +1091,7 @@ def generate_validation(
         max_new_tokens=max_new_tokens,
         tokenizer=tokenizer,
         seed=0,
-        cpu_dtype=cpu_dtype,
+        dtype_key=dtype_key,
         attn_type=attn_name,
         validation_info_outputs_dir=validation_info_outputs_dir,
         sample_key=sample_key,
@@ -1135,7 +1135,7 @@ def generate_validation(
                     max_new_tokens=max_new_tokens,
                     seed=0,
                     attn_type=attn_name,
-                    dtype=cpu_dtype,
+                    dtype=dtype_key,
                     sample_key=sample_key,
                 )
             )
@@ -1312,7 +1312,7 @@ def setup_environment(
         EnvConfig: Immutable configuration containing:
             - attn_name: Mapped attention implementation name (also the golden save/load key)
             - runtime_attn_name: Attention op actually used to compute the golden
-            - cpu_dtype: Data type for CPU operations ("fp8" or "fp32")
+            - dtype_key: Data type string ("fp8" or "fp32") used as the golden's on-disk key
             - max_batch_size: Maximum batch size from VLLM_DT_MAX_BATCH_SIZE
             - max_tkv: Maximum token-key-value context length from VLLM_DT_MAX_CONTEXT_LEN
 
@@ -1368,7 +1368,7 @@ def setup_environment(
     return EnvConfig(
         attn_name=attn_name,
         runtime_attn_name=runtime_attn_name,
-        cpu_dtype="fp8" if "fp8" in attention_type else "fp32",
+        dtype_key="fp8" if "fp8" in attention_type else "fp32",
         max_batch_size=int(os.environ["VLLM_DT_MAX_BATCH_SIZE"]),
         max_tkv=int(os.environ["VLLM_DT_MAX_CONTEXT_LEN"]),
     )
@@ -1516,7 +1516,7 @@ def generate_validation_info_and_test(
                 extra_kwargs=valid_prompt.extra_kwargs,
                 sample_key=valid_prompt.sample_key,
                 attn_name=env_config.attn_name,
-                cpu_dtype=env_config.cpu_dtype,
+                dtype_key=env_config.dtype_key,
                 tokenizer=tokenizer,
                 pad_token_id=pad_token_id,
             )
@@ -1635,7 +1635,7 @@ def _run_cuda_golden(
 
     Loads the validation model on GPU and generates + optionally saves the golden reference
     for each prompt. No AIU/Spyre model, warmup, or comparison; a later Spyre run reloads the
-    golden. The golden is keyed under cpu_dtype ('fp32' for non-fp8) regardless of compute
+    golden. The golden is keyed under dtype_key ('fp32' for non-fp8) regardless of compute
     dtype, so a Spyre run finds it. With distributed_kwargs the model is sharded TP across
     GPUs; only rank 0 saves/prints.
     """
@@ -1645,7 +1645,7 @@ def _run_cuda_golden(
     if local_rank == 0:
         dprint(
             f"*** --gpu_validation golden computed in {args.gpu_validation_dtype}, "
-            f"saved/keyed under '{env_config.cpu_dtype}' ***"
+            f"saved/keyed under '{env_config.dtype_key}' ***"
         )
     validation_model = load_model(
         device_type="cuda",
@@ -1697,7 +1697,7 @@ def _run_cuda_golden(
             extra_kwargs=valid_prompt.extra_kwargs,
             sample_key=valid_prompt.sample_key,
             attn_name=env_config.attn_name,
-            cpu_dtype=env_config.cpu_dtype,
+            dtype_key=env_config.dtype_key,
             tokenizer=tokenizer,
             pad_token_id=pad_token_id,
             validation_device="cuda",
